@@ -80,8 +80,11 @@ void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   assert(TFI->hasFP(MF) && "Stack slot use without fp unimplemented");
   int Offset = MF.getFrameInfo()->getObjectOffset(FrameIndex);
   int SlotSize = Is24Bit ? 3 : 2;
-  Offset += SlotSize;
+  // Skip saved frame pointer if used
   if (TFI->hasFP(MF))
+    Offset += SlotSize;
+  // Skip return address for arguments
+  if (FrameIndex < 0)
     Offset += SlotSize;
   Offset += MI.getOperand(FIOperandNum + 1).getImm();
   MI.getOperand(FIOperandNum).ChangeToRegister(BasePtr, false);
