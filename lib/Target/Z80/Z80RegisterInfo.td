@@ -91,7 +91,6 @@ def  X8 :  Z80RC8<(add O8, IXL, IXH)>;
 def  Y8 :  Z80RC8<(add O8, IYL, IYH)>;
 def  I8 :  Z80RC8<(add IXL, IYL, IXH, IYL)>;
 def  R8 :  Z80RC8<(add G8, I8)>;
-def  A8 :  Z80RC8<(add A)>;
 
 def O16 : Z80RC16<(add DE, BC, SPS)>;
 def G16 : Z80RC16<(add HL, O16)>;

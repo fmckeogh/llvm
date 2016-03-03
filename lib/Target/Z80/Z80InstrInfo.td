@@ -94,8 +94,6 @@ def LD16ri : I<0x01, (outs R16:$dst), (ins i16imm:$src),
 def LD24ri : I<0x01, (outs R24:$dst), (ins i24imm:$src),
                [(set R24:$dst, imm:$src)]>;
 
-def  LD8rim : I<0x3A, (outs  A8:$dst), (ins imem:$src),
-               [(set  A8:$dst, (i8  (load imempat:$src)))]>;
 def LD16rim : I<0x2A, (outs R16:$dst), (ins imem:$src),
                [(set R16:$dst, (i16 (load imempat:$src)))]>;
 def LD24rim : I<0x2A, (outs R24:$dst), (ins imem:$src),
@@ -108,8 +106,6 @@ def LD16rrm : I<0x46, (outs R16:$dst), (ins rmem:$src),
 def LD24rrm : I<0x46, (outs R24:$dst), (ins rmem:$src),
                [(set R24:$dst, (i24 (load rmempat:$src)))]>;
 
-def  LD8imr : I<0x32, (outs), (ins imem:$dst,  A8:$src),
-               [(store  A8:$src, imempat:$dst)]>;
 def LD16imr : I<0x22, (outs), (ins imem:$dst, R16:$src),
                [(store R16:$src, imempat:$dst)]>;
 def LD24imr : I<0x22, (outs), (ins imem:$dst, R24:$src),
@@ -122,6 +118,13 @@ def LD16rmr : I<0x22, (outs), (ins rmem:$dst, R16:$src),
 def LD24rmr : I<0x22, (outs), (ins rmem:$dst, R24:$src),
                [(store R24:$src, rmempat:$dst)]>;
 }
+
+let AsmString = "ld\ta, $src", Defs = [A] in
+def  LD8rim : I<0x3A, (outs), (ins imem:$src),
+               [(set  A, (i8  (load imempat:$src)))]>;
+let AsmString = "ld\t$dst, a", Uses = [A] in
+def  LD8imr : I<0x32, (outs), (ins imem:$dst),
+               [(store  A, imempat:$dst)]>;
 
 let AsmString = "ld\tsp, $reg" in {
 let Defs = [SPS] in
