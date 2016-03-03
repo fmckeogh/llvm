@@ -60,18 +60,36 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
       .addReg(FramePtr).addImm(0);
     BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::ADD24rrx : Z80::ADD16rrx))
       .addReg(StackPtr);
-    if (StackSize)
+  }
+  switch (StackSize) {
+  default:
+    if (hasFP(MF)) {
       BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::LEA24rr : Z80::LEA16rr))
 	.addReg(ScratchReg).addReg(FramePtr).addImm(-StackSize);
-  } else if (StackSize) {
-    BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri))
-      .addReg(ScratchReg).addImm(-StackSize);
-    BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::ADD24rr : Z80::ADD16rr))
-      .addReg(StackPtr);
-  }
-  if (StackSize)
+    } else if (StackSize) {
+      BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri))
+	.addReg(ScratchReg).addImm(-StackSize);
+      BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::ADD24rr : Z80::ADD16rr))
+	.addReg(StackPtr);
+    }
     BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::LD24sp : Z80::LD16sp))
       .addReg(ScratchReg);
+    break;
+  case 3:
+    BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
+      .addReg(ScratchReg);
+    break;
+  case 2:
+    BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::DEC24r : Z80::DEC16r),
+	    StackPtr).addReg(StackPtr);
+    // Fallthrough
+  case 1:
+    BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::DEC24r : Z80::DEC16r),
+	    StackPtr).addReg(StackPtr);
+    break;
+  case 0:
+    break;
+  }
 }
 
 void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
