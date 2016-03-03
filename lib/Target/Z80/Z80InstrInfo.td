@@ -192,3 +192,26 @@ def DEC24r : I<0x0B, (outs R24:$reg), (ins R24:$src),
                [(set R24:$reg, (sub R24:$src, 1))]>;
 }
 }
+
+let Defs = [A], Uses = [A] in {
+let AsmString = "add\ta, $arg" in {
+def ADD8rr : I<0x80, (outs), (ins    R8:$arg), [(set A, (add A,  R8:$arg))]>;
+def ADD8ri : I<0xC6, (outs), (ins i8imm:$arg), [(set A, (add A, imm:$arg))]>;
+}
+let AsmString = "sub\ta, $arg" in {
+def SUB8rr : I<0x90, (outs), (ins    R8:$arg), [(set A, (sub A,  R8:$arg))]>;
+def SUB8ri : I<0xD6, (outs), (ins i8imm:$arg), [(set A, (sub A, imm:$arg))]>;
+}
+let AsmString = "and\ta, $arg" in {
+def AND8rr : I<0x90, (outs), (ins    R8:$arg), [(set A, (and A,  R8:$arg))]>;
+def AND8ri : I<0xE6, (outs), (ins i8imm:$arg), [(set A, (and A, imm:$arg))]>;
+}
+let AsmString = "xor\ta, $arg" in {
+def XOR8rr : I<0x90, (outs), (ins    R8:$arg), [(set A, (xor A,  R8:$arg))]>;
+def XOR8ri : I<0xEE, (outs), (ins i8imm:$arg), [(set A, (xor A, imm:$arg))]>;
+}
+let AsmString =  "or\ta, $arg" in {
+def  OR8rr : I<0x90, (outs), (ins    R8:$arg), [(set A, (or  A,  R8:$arg))]>;
+def  OR8ri : I<0xF6, (outs), (ins i8imm:$arg), [(set A, (or  A, imm:$arg))]>;
+}
+}
