@@ -23,7 +23,7 @@ using namespace llvm;
 #define DEBUG_TYPE "z80-isel"
 
 Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
-				     const Z80Subtarget &STI)
+                                     const Z80Subtarget &STI)
     : TargetLowering(TM), Subtarget(STI) {
   // Set up the register classes.
   addRegisterClass(MVT::i8, &Z80::G8RegClass);
@@ -42,10 +42,10 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
 #include "Z80GenCallingConv.inc"
 
 SDValue Z80TargetLowering::LowerReturn(SDValue Chain,
-				       CallingConv::ID CallConv, bool isVarArg,
-				       const SmallVectorImpl<ISD::OutputArg> &Outs,
-				       const SmallVectorImpl<SDValue> &OutVals,
-				       SDLoc DL, SelectionDAG &DAG) const {
+                                       CallingConv::ID CallConv, bool isVarArg,
+                                       const SmallVectorImpl<ISD::OutputArg> &Outs,
+                                       const SmallVectorImpl<SDValue> &OutVals,
+                                       SDLoc DL, SelectionDAG &DAG) const {
   MachineFunction &MF = DAG.getMachineFunction();
   bool Is24Bit = Subtarget.is24Bit();
 
@@ -76,7 +76,7 @@ SDValue Z80TargetLowering::LowerReturn(SDValue Chain,
 }
 
 EVT Z80TargetLowering::getTypeForExtReturn(LLVMContext &Context, EVT VT,
-					   ISD::NodeType ExtendKind) const {
+                                           ISD::NodeType ExtendKind) const {
   EVT MinVT = getRegisterType(Context, MVT::i8);
   return VT.bitsLT(MinVT) ? MinVT : VT;
 }
@@ -104,12 +104,12 @@ SDValue Z80TargetLowering::LowerFormalArguments(
     CCValAssign &VA = ArgLocs[I];
     assert(VA.isMemLoc() && "Don't support register passed arguments yet");
     int FI = MFI->CreateFixedObject(VA.getValVT().getSizeInBits()/8,
-				    VA.getLocMemOffset(), false);
+                                    VA.getLocMemOffset(), false);
     SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
     SDValue Val = DAG.getLoad(
         VA.getValVT(), DL, Chain, FIN,
-	MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FI), false,
-	false, false, 0);
+        MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FI), false,
+        false, false, 0);
     InVals.push_back(Val);
   }
 

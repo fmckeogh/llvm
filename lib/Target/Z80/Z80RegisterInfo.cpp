@@ -32,7 +32,7 @@ Z80RegisterInfo::Z80RegisterInfo(const Triple &TT)
 
 const TargetRegisterClass *
 Z80RegisterInfo::getPointerRegClass(const MachineFunction &MF,
-				    unsigned Kind) const {
+                                    unsigned Kind) const {
   const Z80Subtarget &Subtarget = MF.getSubtarget<Z80Subtarget>();
   switch (Kind) {
   default: llvm_unreachable("Unexpected Kind in getPointerRegClass!");
@@ -62,7 +62,7 @@ BitVector Z80RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   // Set the frame-pointer register and its aliases as reserved if needed.
   if (TFI->hasFP(MF)) {
     for (MCSubRegIterator I(Z80::UIX, this, /*IncludesSelf=*/true); I.isValid();
-	 ++I)
+         ++I)
       Reserved.set(*I);
   }
 
@@ -70,8 +70,8 @@ BitVector Z80RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
 }
 
 void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
-					  int SPAdj, unsigned FIOperandNum,
-					  RegScavenger *RS) const {
+                                          int SPAdj, unsigned FIOperandNum,
+                                          RegScavenger *RS) const {
   MachineInstr &MI = *II;
   MachineFunction &MF = *MI.getParent()->getParent();
   const Z80FrameLowering *TFI = getFrameLowering(MF);

@@ -29,11 +29,11 @@ Z80InstrInfo::Z80InstrInfo(Z80Subtarget &STI)
 }
 
 void Z80InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
-				       MachineBasicBlock::iterator MI,
-				       unsigned SrcReg, bool isKill,
-				       int FrameIndex,
-				       const TargetRegisterClass *RC,
-				       const TargetRegisterInfo *TRI) const {
+                                       MachineBasicBlock::iterator MI,
+                                       unsigned SrcReg, bool isKill,
+                                       int FrameIndex,
+                                       const TargetRegisterClass *RC,
+                                       const TargetRegisterInfo *TRI) const {
   const MachineFunction &MF = *MBB.getParent();
   unsigned Opc;
   switch (RC->getSize()) {
@@ -48,10 +48,10 @@ void Z80InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
 }
 
 void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
-					MachineBasicBlock::iterator MI,
-					unsigned DestReg, int FrameIndex,
-					const TargetRegisterClass *RC,
-					const TargetRegisterInfo *TRI) const {
+                                        MachineBasicBlock::iterator MI,
+                                        unsigned DestReg, int FrameIndex,
+                                        const TargetRegisterClass *RC,
+                                        const TargetRegisterInfo *TRI) const {
   const MachineFunction &MF = *MBB.getParent();
   unsigned Opc;
   switch (RC->getSize()) {

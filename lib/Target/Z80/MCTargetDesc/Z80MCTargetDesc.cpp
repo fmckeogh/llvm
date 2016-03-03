@@ -40,7 +40,7 @@ std::string Z80_MC::ParseZ80Triple(const Triple &TT) {
 }
 
 MCSubtargetInfo *Z80_MC::createZ80MCSubtargetInfo(const Triple &TT,
-						  StringRef CPU, StringRef FS) {
+                                                  StringRef CPU, StringRef FS) {
   std::string ArchFS = Z80_MC::ParseZ80Triple(TT);
   if (!FS.empty()) {
     if (!ArchFS.empty())
@@ -65,15 +65,15 @@ static MCRegisterInfo *createZ80MCRegisterInfo(const Triple &TT) {
 }
 
 static MCAsmInfo *createZ80MCAsmInfo(const MCRegisterInfo &MRI,
-				     const Triple &TheTriple) {
+                                     const Triple &TheTriple) {
   return new Z80ELFMCAsmInfo(TheTriple);
 }
 
 static MCInstPrinter *createZ80MCInstPrinter(const Triple &TT,
-					     unsigned SyntaxVariant,
-					     const MCAsmInfo &MAI,
-					     const MCInstrInfo &MII,
-					     const MCRegisterInfo &MRI) {
+                                             unsigned SyntaxVariant,
+                                             const MCAsmInfo &MAI,
+                                             const MCInstrInfo &MII,
+                                             const MCRegisterInfo &MRI) {
   if (SyntaxVariant == 0)
     return new Z80InstPrinter(MAI, MII, MRI);
   return nullptr;
@@ -93,7 +93,7 @@ extern "C" void LLVMInitializeZ80TargetMC() {
 
     // Register the MC subtarget info.
     TargetRegistry::RegisterMCSubtargetInfo(*T,
-					    Z80_MC::createZ80MCSubtargetInfo);
+                                            Z80_MC::createZ80MCSubtargetInfo);
 
     // Register the MCInstPrinter.
     TargetRegistry::RegisterMCInstPrinter(*T, createZ80MCInstPrinter);

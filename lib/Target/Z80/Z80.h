@@ -24,8 +24,8 @@ class Z80TargetMachine;
 
 /// This pass converts a legalized DAG into a Z80-specific DAG, ready for
 /// instruction scheduling.
- FunctionPass *createZ80ISelDag(Z80TargetMachine &TM,
-				CodeGenOpt::Level OptLevel);
+FunctionPass *createZ80ISelDag(Z80TargetMachine &TM,
+                               CodeGenOpt::Level OptLevel);
 } // End llvm namespace
 
 #endif

@@ -211,7 +211,7 @@ def XOR8rr : I<0x90, (outs), (ins    R8:$arg), [(set A, (xor A,  R8:$arg))]>;
 def XOR8ri : I<0xEE, (outs), (ins i8imm:$arg), [(set A, (xor A, imm:$arg))]>;
 }
 let AsmString =  "or\ta, $arg" in {
-def  OR8rr : I<0x90, (outs), (ins    R8:$arg), [(set A, (or  A,  R8:$arg))]>;
-def  OR8ri : I<0xF6, (outs), (ins i8imm:$arg), [(set A, (or  A, imm:$arg))]>;
+def  OR8rr : I<0x90, (outs), (ins    R8:$arg), [(set A, ( or A,  R8:$arg))]>;
+def  OR8ri : I<0xF6, (outs), (ins i8imm:$arg), [(set A, ( or A, imm:$arg))]>;
 }
 }

@@ -41,7 +41,7 @@ bool Z80FrameLowering::hasFP(const MachineFunction &MF) const {
 /// automatically adjust the stack pointer. Adjust the stack pointer to allocate
 /// space for local variables.
 void Z80FrameLowering::emitPrologue(MachineFunction &MF,
-				    MachineBasicBlock &MBB) const {
+                                    MachineBasicBlock &MBB) const {
   const MachineFrameInfo *MFI = MF.getFrameInfo();
   MachineBasicBlock::iterator MBBI = MBB.begin();
   unsigned FramePtr = TRI->getFrameRegister(MF);
@@ -65,12 +65,12 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
   default:
     if (hasFP(MF)) {
       BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::LEA24rr : Z80::LEA16rr))
-	.addReg(ScratchReg).addReg(FramePtr).addImm(-StackSize);
+        .addReg(ScratchReg).addReg(FramePtr).addImm(-StackSize);
     } else if (StackSize) {
       BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri))
-	.addReg(ScratchReg).addImm(-StackSize);
+        .addReg(ScratchReg).addImm(-StackSize);
       BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::ADD24rr : Z80::ADD16rr))
-	.addReg(StackPtr);
+        .addReg(StackPtr);
     }
     BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::LD24sp : Z80::LD16sp))
       .addReg(ScratchReg);
@@ -81,11 +81,11 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
     break;
   case 2:
     BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::DEC24r : Z80::DEC16r),
-	    StackPtr).addReg(StackPtr);
+            StackPtr).addReg(StackPtr);
     // Fallthrough
   case 1:
     BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::DEC24r : Z80::DEC16r),
-	    StackPtr).addReg(StackPtr);
+            StackPtr).addReg(StackPtr);
     break;
   case 0:
     break;
@@ -93,7 +93,7 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
 }
 
 void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
-				    MachineBasicBlock &MBB) const {
+                                    MachineBasicBlock &MBB) const {
   if (!hasFP(MF))
     return;
   MachineBasicBlock::iterator MBBI = MBB.getFirstTerminator();
@@ -107,5 +107,5 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
   BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::LD24sp : Z80::LD16sp))
     .addReg(FrameReg);
   BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::POP24r : Z80::POP16r),
-	  FrameReg);
+          FrameReg);
 }

@@ -26,7 +26,7 @@ namespace Z80ISD {
   enum NodeType : unsigned {
     // Start the numbering where the builtin ops leave off.
     FIRST_NUMBER = ISD::BUILTIN_OP_END,
-	
+
     /// Return with a flag operand. Operand 0 is the chain operand, operand
     /// 1 is the number of bytes of stack to pop.
     RET_FLAG
@@ -42,25 +42,25 @@ class Z80TargetLowering final : public TargetLowering {
 
 public:
   explicit Z80TargetLowering(const Z80TargetMachine &TM,
-			     const Z80Subtarget &STI);
+                             const Z80Subtarget &STI);
 
   /// This method returs the name of a target specific DAG node.
   const char *getTargetNodeName(unsigned Opcode) const override;
 
 private:
   SDValue LowerFormalArguments(SDValue Chain,
-			       CallingConv::ID CallConv, bool isVarArg,
-			       const SmallVectorImpl<ISD::InputArg> &Ins,
-			       SDLoc DL, SelectionDAG &DAG,
-			       SmallVectorImpl<SDValue> &InVals) const override;
+                               CallingConv::ID CallConv, bool isVarArg,
+                               const SmallVectorImpl<ISD::InputArg> &Ins,
+                               SDLoc DL, SelectionDAG &DAG,
+                               SmallVectorImpl<SDValue> &InVals) const override;
   SDValue LowerReturn(SDValue Chain,
-		      CallingConv::ID CallConv, bool isVarArg,
-		      const SmallVectorImpl<ISD::OutputArg> &Outs,
-		      const SmallVectorImpl<SDValue> &OutVals,
-		      SDLoc DL, SelectionDAG &DAG) const override;
+                      CallingConv::ID CallConv, bool isVarArg,
+                      const SmallVectorImpl<ISD::OutputArg> &Outs,
+                      const SmallVectorImpl<SDValue> &OutVals,
+                      SDLoc DL, SelectionDAG &DAG) const override;
 
   EVT getTypeForExtReturn(LLVMContext &Context, EVT VT,
-			  ISD::NodeType ExtendKind) const override;
+                          ISD::NodeType ExtendKind) const override;
 };
 } // End llvm namespace
 

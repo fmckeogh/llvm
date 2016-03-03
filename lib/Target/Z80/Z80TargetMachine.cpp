@@ -34,12 +34,12 @@ static std::string computeDataLayout(const Triple &TT) {
 /// Z80TargetMachine ctor - Create a Z80 target.
 ///
 Z80TargetMachine::Z80TargetMachine(const Target &T, const Triple &TT,
-				   StringRef CPU, StringRef FS,
-				   const TargetOptions &Options,
-				   Reloc::Model RM, CodeModel::Model CM,
-				   CodeGenOpt::Level OL)
+                                   StringRef CPU, StringRef FS,
+                                   const TargetOptions &Options,
+                                   Reloc::Model RM, CodeModel::Model CM,
+                                   CodeGenOpt::Level OL)
     : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options, RM, CM,
-			OL),
+                        OL),
       TLOF(make_unique<TargetLoweringObjectFileELF>()),
       Subtarget(TT, CPU, FS, *this) {
   initAsmInfo();

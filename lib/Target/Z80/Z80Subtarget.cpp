@@ -23,18 +23,16 @@ using namespace llvm;
 #include "Z80GenSubtargetInfo.inc"
 
 Z80Subtarget &Z80Subtarget::initializeSubtargetDependencies(StringRef CPU,
-							    StringRef FS) {
+                                                            StringRef FS) {
   ParseSubtargetFeatures(CPU, FS);
   return *this;
 }
 
 Z80Subtarget::Z80Subtarget(const Triple &TT, const std::string &CPU,
-			   const std::string &FS, const Z80TargetMachine &TM)
+                           const std::string &FS, const Z80TargetMachine &TM)
     : Z80GenSubtargetInfo(TT, CPU, FS),
       In24BitMode(TT.getArch() == Triple::ez80),
       In16BitMode(TT.getArch() == Triple::z80),
       InstrInfo(initializeSubtargetDependencies(CPU, FS)),
       TLInfo(TM, *this), FrameLowering(*this) {
 }
-
-			   

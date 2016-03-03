@@ -28,13 +28,13 @@ void Z80InstPrinter::printRegName(raw_ostream &OS, unsigned RegNo) const {
 }
 
 void Z80InstPrinter::printInst(const MCInst *MI, raw_ostream &OS,
-			       StringRef Annot, const MCSubtargetInfo &STI) {
+                               StringRef Annot, const MCSubtargetInfo &STI) {
   printInstruction(MI, OS);
   printAnnotation(OS, Annot);
 }
 
 void Z80InstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
-				  raw_ostream &OS) {
+                                  raw_ostream &OS) {
   const MCOperand &Op = MI->getOperand(OpNo);
   if (Op.isReg()) {
     printRegName(OS, Op.getReg());
@@ -49,13 +49,13 @@ void Z80InstPrinter::printOperand(const MCInst *MI, unsigned OpNo,
 }
 
 void Z80InstPrinter::printImmMem(const MCInst *MI, unsigned Op,
-				 raw_ostream &OS) {
+                                 raw_ostream &OS) {
   OS << markup("<mem:") << '(';
   MI->getOperand(Op).getExpr()->print(OS, &MAI);
   OS << ')' << markup(">");;
 }
 void Z80InstPrinter::printRegOffAddr(const MCInst *MI, unsigned Op,
-				     raw_ostream &OS) {
+                                     raw_ostream &OS) {
   printOperand(MI, Op, OS);
   if (auto off = MI->getOperand(Op+1).getImm()) {
     if (off >= 0) {
@@ -66,7 +66,7 @@ void Z80InstPrinter::printRegOffAddr(const MCInst *MI, unsigned Op,
   }
 }
 void Z80InstPrinter::printRegOffMem(const MCInst *MI, unsigned Op,
-				    raw_ostream &OS) {
+                                    raw_ostream &OS) {
   OS << markup("<mem:") << '(';
   printRegOffAddr(MI, Op, OS);
   OS << ')' << markup(">");

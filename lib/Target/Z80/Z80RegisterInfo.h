@@ -34,7 +34,7 @@ public:
   /// values.
   const TargetRegisterClass *
   getPointerRegClass(const MachineFunction &MF,
-		     unsigned Kind = 0) const override;
+                     unsigned Kind = 0) const override;
 
   /// getCalleeSavedRegs - Return a null-terminated list of all of the
   /// callee-save registers on this target.
@@ -47,8 +47,8 @@ public:
   BitVector getReservedRegs(const MachineFunction &MF) const override;
 
   void eliminateFrameIndex(MachineBasicBlock::iterator MI,
-			   int SPAdj, unsigned FIOperandNum,
-			   RegScavenger *RS = nullptr) const override;
+                           int SPAdj, unsigned FIOperandNum,
+                           RegScavenger *RS = nullptr) const override;
 
   // Debug information queries.
   unsigned getFrameRegister(const MachineFunction &MF) const override;

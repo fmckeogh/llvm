@@ -70,11 +70,11 @@ SDNode *Z80DAGToDAGISel::Select(SDNode *Node) {
   SDNode *ResNode = SelectCode(Node);
 
   DEBUG(dbgs() << "=> ";
-	if (ResNode == nullptr || ResNode == Node)
-	  Node->dump(CurDAG);
-	else
-	  ResNode->dump(CurDAG);
-	dbgs() << '\n');
+        if (ResNode == nullptr || ResNode == Node)
+          Node->dump(CurDAG);
+        else
+          ResNode->dump(CurDAG);
+        dbgs() << '\n');
 
   return ResNode;
 }
@@ -98,6 +98,6 @@ bool Z80DAGToDAGISel::SelectRegOffMem(SDValue N, SDValue &Reg, SDValue &Off) {
 /// This pass converts a legalized DAG into Z80-specific DAG,
 /// ready for instruction scheduling.
 FunctionPass *llvm::createZ80ISelDag(Z80TargetMachine &TM,
-				     CodeGenOpt::Level OptLevel) {
+                                     CodeGenOpt::Level OptLevel) {
   return new Z80DAGToDAGISel(TM, OptLevel);
 }

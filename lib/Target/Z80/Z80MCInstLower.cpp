@@ -18,7 +18,7 @@
 using namespace llvm;
 
 namespace {
-  /// Z80MCInstLower - This class is used to lower a MachineInstr into an MC
+  /// Z80MCInstLower - This class is used to lower a MachineInstr into an MCInst.
   class Z80MCInstLower {
     MCContext &Ctx;
     Z80AsmPrinter &Printer;
@@ -27,19 +27,19 @@ namespace {
     Z80MCInstLower(MCContext &Ctx, Z80AsmPrinter &AP);
 
     Optional<MCOperand> LowerMachineOperand(const MachineInstr *MI,
-					    const MachineOperand &MO) const;
+                                            const MachineOperand &MO) const;
 
     void Lower(const MachineInstr *MI, MCInst &OutMI) const;
   };
 }
 
 Z80MCInstLower::Z80MCInstLower(MCContext &MCC,
-			       Z80AsmPrinter &AP)
+                               Z80AsmPrinter &AP)
     : Ctx(MCC), Printer(AP) {}
 
 Optional<MCOperand>
 Z80MCInstLower::LowerMachineOperand(const MachineInstr *MI,
-				    const MachineOperand &MO) const {
+                                    const MachineOperand &MO) const {
   switch (MO.getType()) {
   default:
     MI->dump();

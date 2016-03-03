@@ -20,7 +20,7 @@ class LLVM_LIBRARY_VISIBILITY Z80AsmPrinter : public AsmPrinter {
 
 public:
   explicit Z80AsmPrinter(TargetMachine &TM,
-			 std::unique_ptr<MCStreamer> Streamer)
+                         std::unique_ptr<MCStreamer> Streamer)
     : AsmPrinter(TM, std::move(Streamer)) {}
 
   const char *getPassName() const override {

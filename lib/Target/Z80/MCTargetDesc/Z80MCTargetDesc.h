@@ -31,7 +31,7 @@ std::string ParseZ80Triple(const Triple &TT);
 /// Create a Z80 MCSubtargetInfo instance.  This is exposed so Asm parser, etc.
 /// do not need to go through TargetRegistry.
 MCSubtargetInfo *createZ80MCSubtargetInfo(const Triple &TT, StringRef CPU,
-					  StringRef FS);
+                                          StringRef FS);
 }
 } // End llvm namespace
 

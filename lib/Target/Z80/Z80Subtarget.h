@@ -42,7 +42,7 @@ public:
   /// This constructor initializes the data members to match that
   /// of the specified triple.
   Z80Subtarget(const Triple &TT, const std::string &CPU, const std::string &FS,
-	       const Z80TargetMachine &TM);
+               const Z80TargetMachine &TM);
 
   const Z80TargetLowering *getTargetLowering() const override {
     return &TLInfo;

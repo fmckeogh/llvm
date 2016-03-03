@@ -39,15 +39,15 @@ public:
   const Z80RegisterInfo &getRegisterInfo() const { return RI; }
 
   void storeRegToStackSlot(MachineBasicBlock &MBB,
-			   MachineBasicBlock::iterator MI,
-			   unsigned SrcReg, bool isKill, int FrameIndex,
-			   const TargetRegisterClass *RC,
-			   const TargetRegisterInfo *TRI) const override;
+                           MachineBasicBlock::iterator MI,
+                           unsigned SrcReg, bool isKill, int FrameIndex,
+                           const TargetRegisterClass *RC,
+                           const TargetRegisterInfo *TRI) const override;
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
-			    MachineBasicBlock::iterator MI,
-			    unsigned SrcReg, int FrameIndex,
-			    const TargetRegisterClass *RC,
-			    const TargetRegisterInfo *TRI) const override;
+                            MachineBasicBlock::iterator MI,
+                            unsigned SrcReg, int FrameIndex,
+                            const TargetRegisterClass *RC,
+                            const TargetRegisterInfo *TRI) const override;
 };
 
 } // End llvm namespace
