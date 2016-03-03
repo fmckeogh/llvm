@@ -144,22 +144,28 @@ def PUSH24r : I<0xC5, (outs), (ins S24:$reg)>;
 }
 
 let AsmString = "add\thl, $reg" in {
-let Defs = [HL] in
-def ADD16rr : I<0x09, (outs), (ins G16:$reg)>;
-let Defs = [UHL] in
-def ADD24rr : I<0x09, (outs), (ins G24:$reg)>;
+let Defs = [HL], Uses = [HL] in
+def ADD16rr : I<0x09, (outs), (ins G16:$reg),
+                [(set  HL, (add  HL, G16:$reg))]>;
+let Defs = [UHL], Uses = [UHL] in
+def ADD24rr : I<0x09, (outs), (ins G24:$reg),
+                [(set UHL, (add UHL, G24:$reg))]>;
 }
 let AsmString = "add\tix, $reg" in {
-let Defs = [IX] in
-def ADD16rrx : PI<IXPrfx, 0x09, (outs), (ins X16:$reg)>;
-let Defs = [UIX] in
-def ADD24rrx : PI<IXPrfx, 0x09, (outs), (ins X24:$reg)>;
+let Defs = [IX], Uses = [IX] in
+def ADD16rrx : PI<IXPrfx, 0x09, (outs), (ins X16:$reg),
+                  [(set  IX, (add  IX, X16:$reg))]>;
+let Defs = [UIX], Uses = [UIX] in
+def ADD24rrx : PI<IXPrfx, 0x09, (outs), (ins X24:$reg),
+                  [(set UIX, (add UIX, X24:$reg))]>;
 }
 let AsmString = "add\tiy, $reg" in {
-let Defs = [IY] in
-def ADD16rry : PI<IYPrfx, 0x09, (outs), (ins Y16:$reg)>;
-let Defs = [UIY] in
-def ADD24rry : PI<IYPrfx, 0x09, (outs), (ins Y24:$reg)>;
+let Defs = [IY], Uses = [IY] in
+def ADD16rry : PI<IYPrfx, 0x09, (outs), (ins Y16:$reg),
+                  [(set  IY, (add  IY, Y16:$reg))]>;
+let Defs = [UIY], Uses = [UIY] in
+def ADD24rry : PI<IYPrfx, 0x09, (outs), (ins Y24:$reg),
+                  [(set UIY, (add UIY, Y24:$reg))]>;
 }
 
 let AsmString = "lea\t$dst, $src" in {
