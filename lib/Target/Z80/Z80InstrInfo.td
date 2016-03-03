@@ -95,7 +95,7 @@ def LD24ri : I<0x01, (outs R24:$dst), (ins i24imm:$src),
                [(set R24:$dst, imm:$src)]>;
 
 def  LD8rim : I<0x3A, (outs  A8:$dst), (ins imem:$src),
-               [(set A8 :$dst, (i8  (load imempat:$src)))]>;
+               [(set  A8:$dst, (i8  (load imempat:$src)))]>;
 def LD16rim : I<0x2A, (outs R16:$dst), (ins imem:$src),
                [(set R16:$dst, (i16 (load imempat:$src)))]>;
 def LD24rim : I<0x2A, (outs R24:$dst), (ins imem:$src),
@@ -109,14 +109,14 @@ def LD24rrm : I<0x46, (outs R24:$dst), (ins rmem:$src),
                [(set R24:$dst, (i24 (load rmempat:$src)))]>;
 
 def  LD8imr : I<0x32, (outs), (ins imem:$dst,  A8:$src),
-               [(store A8 :$src, imempat:$dst)]>;
+               [(store  A8:$src, imempat:$dst)]>;
 def LD16imr : I<0x22, (outs), (ins imem:$dst, R16:$src),
                [(store R16:$src, imempat:$dst)]>;
 def LD24imr : I<0x22, (outs), (ins imem:$dst, R24:$src),
                [(store R24:$src, imempat:$dst)]>;
 
-def  LD8rmr : I<0x32, (outs), (ins rmem :$dst, R8 :$src),
-               [(store R8 :$src, rmempat:$dst)]>;
+def  LD8rmr : I<0x32, (outs), (ins rmem:$dst,  R8:$src),
+               [(store  R8:$src, rmempat:$dst)]>;
 def LD16rmr : I<0x22, (outs), (ins rmem:$dst, R16:$src),
                [(store R16:$src, rmempat:$dst)]>;
 def LD24rmr : I<0x22, (outs), (ins rmem:$dst, R24:$src),
@@ -162,4 +162,24 @@ def ADD24rry : PI<IYPrfx, 0x09, (outs), (ins Y24:$reg)>;
 let AsmString = "lea\t$dst, $src" in {
 def LEA16rr : PI<ExtPrfx, 0x02, (outs L16:$dst), (ins raddr16:$src)>;
 def LEA24rr : PI<ExtPrfx, 0x02, (outs L24:$dst), (ins raddr24:$src)>;
+}
+
+let Defs = [F] in {
+let AsmString = "inc\t$reg" in {
+def INC8r  : I<0x04, (outs  R8:$reg), (ins  R8:$src),
+               [(set  R8:$reg, (add  R8:$src, 1))]>;
+def INC16r : I<0x03, (outs R16:$reg), (ins R16:$src),
+               [(set R16:$reg, (add R16:$src, 1))]>;
+def INC24r : I<0x03, (outs R24:$reg), (ins R24:$src),
+               [(set R24:$reg, (add R24:$src, 1))]>;
+}
+
+let AsmString = "dec\t$reg" in {
+def DEC8r  : I<0x05, (outs  R8:$reg), (ins  R8:$src),
+               [(set  R8:$reg, (sub  R8:$src, 1))]>;
+def DEC16r : I<0x0B, (outs R16:$reg), (ins R16:$src),
+               [(set R16:$reg, (sub R16:$src, 1))]>;
+def DEC24r : I<0x0B, (outs R24:$reg), (ins R24:$src),
+               [(set R24:$reg, (sub R24:$src, 1))]>;
+}
 }
