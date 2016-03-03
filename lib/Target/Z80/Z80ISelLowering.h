@@ -34,7 +34,7 @@ namespace Z80ISD {
 }
 
 //===----------------------------------------------------------------------===//
-//  X86 Implementation of the TargetLowering interface
+//  Z80 Implementation of the TargetLowering interface
 class Z80TargetLowering final : public TargetLowering {
     /// Keep a reference to the Z80Subtarget around so that we can
     /// make the right decision when generating code for different targets.

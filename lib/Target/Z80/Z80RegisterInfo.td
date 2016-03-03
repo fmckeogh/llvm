@@ -21,7 +21,7 @@ class Z80Reg<string n, bits<16> Enc = -1, list<Register> subregs = []>
 }
 
 // Subregister indices.
-let Namespace = "X86" in {
+let Namespace = "Z80" in {
   def sub_low   : SubRegIndex<8>;
   def sub_high  : SubRegIndex<8, 8>;
   def sub_short : SubRegIndex<16>;
