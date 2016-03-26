@@ -26,11 +26,23 @@ namespace llvm {
 class Z80TargetMachine;
 
 class Z80Subtarget final : public Z80GenSubtargetInfo {
+  /// What processor and OS we're targeting.
+  Triple TargetTriple;
+
   /// True if compiling for 24-bit, false for 16-bit.
   bool In24BitMode;
 
   /// True if compiling for 16-bit, false for 24-bit.
   bool In16BitMode;
+
+  /// True if target has undocumented z80 instructions.
+  bool HasUndocOps;
+
+  /// True if target has ez80 instructions.
+  bool HasZ180Ops;
+
+  /// True if target has ez80 instructions.
+  bool HasEZ80Ops;
 
   // Ordering here is important. Z80InstrInfo initializes Z80RegisterInfo which
   // Z80TargetLowering needs.
@@ -61,10 +73,17 @@ public:
 
 private:
   Z80Subtarget &initializeSubtargetDependencies(StringRef CPU, StringRef FS);
+  void initializeEnvironment();
 public:
+  const Triple &getTargetTriple() const { return TargetTriple; }
   /// Is this ez80 (disregarding specific ABI / programming model)
   bool is24Bit() const { return In24BitMode; }
   bool is16Bit() const { return In16BitMode; }
+  bool hasUndocOps() const { return HasUndocOps; }
+  bool hasZ180Ops()  const { return HasZ180Ops;  }
+  bool hasEZ80Ops()  const { return HasEZ80Ops;  }
+  bool has24BitEZ80Ops()  const { return In24BitMode && HasEZ80Ops; }
+  bool has16BitEZ80Ops()  const { return In16BitMode && HasEZ80Ops; }
 };
 } // End llvm namespace
 

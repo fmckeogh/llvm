@@ -16,16 +16,10 @@
 //===----------------------------------------------------------------------===//
 def RetCC_Z80_C : CallingConv<[
   CCIfType<[i1],  CCPromoteToType<i8>>,
-  CCIfType<[i8],  CCAssignToReg<[A]>>,
-  CCIfType<[i16], CCAssignToReg<[HL]>>,
-  CCIfType<[i32], CCAssignToRegWithShadow<[HL], [DE]>>
-]>;
-def RetCC_EZ80_C : CallingConv<[
-  CCIfType<[i1],  CCPromoteToType<i8>>,
-  CCIfType<[i8],  CCAssignToReg<[A]>>,
-  CCIfType<[i16], CCAssignToReg<[HL]>>,
-  CCIfType<[i24], CCAssignToReg<[UHL]>>,
-  CCIfType<[i32], CCAssignToRegWithShadow<[UHL], [E]>>
+  CCIfType<[i8],  CCAssignToReg<[A, C, E, L]>>,
+  CCIfType<[i16], CCAssignToReg<[HL, BC, DE, IY]>>,
+  CCIfType<[i24], CCAssignToReg<[UHL, UBC, UDE, UIY]>>,
+  CCIfType<[i32], CCAssignToReg<[EUHL, AUBC]>>
 ]>;
 
 //===----------------------------------------------------------------------===//
@@ -44,6 +38,12 @@ def CC_EZ80_C : CallingConv<[
   CCIfType<[i32, f32], CCAssignToStack<6, 1>>,
   CCIfType<[i64, f64], CCAssignToStack<9, 1>>
 ]>;
+def CC_Z80_LC : CallingConv<[
+  CCIfType<[i8],  CCAssignToReg<[A, C]>>,
+  CCIfType<[i16], CCAssignToReg<[HL, BC]>>,
+  CCIfType<[i24], CCAssignToReg<[UHL, UBC]>>,
+  CCIfType<[i32], CCAssignToReg<[EUHL, AUBC]>>
+]>;
 
 //===----------------------------------------------------------------------===//
 // Callee-saved Registers.
@@ -51,3 +51,5 @@ def CC_EZ80_C : CallingConv<[
 
 def CSR_Z80_C : CalleeSavedRegs<(add IX)>;
 def CSR_EZ80_C : CalleeSavedRegs<(add UIX)>;
+def CSR_Z80_LC : CalleeSavedRegs<(add A, L16)>;
+def CSR_EZ80_LC : CalleeSavedRegs<(add A, L24)>;

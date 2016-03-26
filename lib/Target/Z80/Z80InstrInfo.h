@@ -38,6 +38,9 @@ public:
   ///
   const Z80RegisterInfo &getRegisterInfo() const { return RI; }
 
+  void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+                   DebugLoc DL, unsigned DstReg, unsigned SrcReg,
+                   bool KillSrc) const override;
   void storeRegToStackSlot(MachineBasicBlock &MBB,
                            MachineBasicBlock::iterator MI,
                            unsigned SrcReg, bool isKill, int FrameIndex,
@@ -45,7 +48,7 @@ public:
                            const TargetRegisterInfo *TRI) const override;
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MI,
-                            unsigned SrcReg, int FrameIndex,
+                            unsigned DstReg, int FrameIndex,
                             const TargetRegisterClass *RC,
                             const TargetRegisterInfo *TRI) const override;
 };

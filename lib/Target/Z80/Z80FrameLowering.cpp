@@ -37,75 +37,147 @@ bool Z80FrameLowering::hasFP(const MachineFunction &MF) const {
           MFI->isFrameAddressTaken());
 }
 
+void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
+                                            MachineBasicBlock &MBB,
+                                            MachineBasicBlock::iterator MI,
+                                            DebugLoc DL, int32_t Offset,
+                                            int32_t FPOffsetFromSP) const {
+  if (!Offset)
+    return;
+
+  bool OptSize = MF.getFunction()->getAttributes()
+    .hasAttribute(AttributeSet::FunctionIndex, Attribute::OptimizeForSize);
+  unsigned ScratchReg = Is24Bit ? Z80::UHL : Z80::HL;
+  uint32_t WordSize = Is24Bit ? 3 : 2;
+
+  // Optimal if we are trying to set SP = FP
+  //   LD SP, FP
+  if (FPOffsetFromSP >= 0 && FPOffsetFromSP + Offset == 0) {
+    assert(hasFP(MF) && "This function doesn't have a frame pointer");
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24SP : Z80::LD16SP))
+      .addReg(TRI->getFrameRegister(MF));
+    return;
+  }
+
+  // Optimal for small offsets
+  //   POP/PUSH HL for every WordSize bytes
+  unsigned SmallCost = OptSize ? 1 : Is24Bit ? 4 : Offset >= 0 ? 10 : 11;
+  uint32_t PopPushCount = std::abs(Offset) / WordSize;
+  SmallCost *= PopPushCount;
+  //   INC/DEC SP for remaining bytes
+  uint32_t IncDecCount = std::abs(Offset) % WordSize;
+  SmallCost += (OptSize || Is24Bit ? 1 : 6) * IncDecCount;
+
+  // Optimal for large offsets
+  //   LD HL, Offset
+  unsigned LargeCost = OptSize || Is24Bit ? 1 + WordSize : 10;
+  //   ADD HL, SP
+  LargeCost += OptSize || Is24Bit ? 1 : 11;
+  //   LD SP, HL
+  LargeCost += OptSize || Is24Bit ? 1 : 6;
+
+  // Optimal for large offsets when possible
+  //   LEA HL, FP + SPOffsetFromFP + Offset
+  //   LD SP, HL
+  bool CanUseLEA = STI.hasEZ80Ops() && FPOffsetFromSP >= 0 &&
+      isInt<8>(FPOffsetFromSP + Offset);
+  unsigned LEACost = CanUseLEA ? 4 : LargeCost;
+
+  // Prefer smaller version
+  if (SmallCost <= LargeCost && SmallCost <= LEACost) {
+    while (PopPushCount--)
+      BuildMI(MBB, MI, DL, TII.get(Offset >= 0 ? (Is24Bit ? Z80::POP24r
+                                                            : Z80::POP16r)
+                                                 : (Is24Bit ? Z80::PUSH24r
+                                                            : Z80::PUSH16r)))
+        .addReg(ScratchReg, getDefRegState(Offset >= 0));
+    unsigned StackReg = Is24Bit ? Z80::SPL : Z80::SPS;
+    while (IncDecCount--)
+      BuildMI(MBB, MI, DL, TII.get(Offset >= 0 ? (Is24Bit ? Z80::INC24r
+                                                            : Z80::INC16r)
+                                                 : (Is24Bit ? Z80::DEC24r
+                                                            : Z80::DEC16r)),
+              StackReg).addReg(StackReg);
+    return;
+  }
+
+  if (LargeCost <= LEACost) {
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
+            ScratchReg).addImm(Offset);
+  } else {
+    assert(CanUseLEA && hasFP(MF) && "Can't use lea");
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LEA24rr : Z80::LEA16rr),
+            ScratchReg).addReg(TRI->getFrameRegister(MF))
+      .addImm(FPOffsetFromSP + Offset);
+  }
+  BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24SP : Z80::LD16SP))
+    .addReg(ScratchReg);
+}
+
 /// emitPrologue - Push callee-saved registers onto the stack, which
 /// automatically adjust the stack pointer. Adjust the stack pointer to allocate
 /// space for local variables.
 void Z80FrameLowering::emitPrologue(MachineFunction &MF,
                                     MachineBasicBlock &MBB) const {
-  const MachineFrameInfo *MFI = MF.getFrameInfo();
-  MachineBasicBlock::iterator MBBI = MBB.begin();
-  unsigned FramePtr = TRI->getFrameRegister(MF);
-  unsigned StackPtr = Is24Bit ? Z80::SPL : Z80::SPS;
-  unsigned ScratchReg = Is24Bit ? Z80::UHL : Z80::HL;
-  uint64_t StackSize = MFI->getStackSize();
+  MachineBasicBlock::iterator MI = MBB.begin();
 
   // Debug location must be unknown since the first debug location is used
   // to determine the end of the prologue.
   DebugLoc DL;
 
   if (hasFP(MF)) {
-    BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
-      .addReg(FramePtr);
-    BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri))
-      .addReg(FramePtr).addImm(0);
-    BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::ADD24rrx : Z80::ADD16rrx))
-      .addReg(StackPtr);
+    unsigned FrameReg = TRI->getFrameRegister(MF);
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
+      .addReg(FrameReg);
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri))
+      .addReg(FrameReg).addImm(0);
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao),
+            FrameReg).addReg(FrameReg).addReg(Is24Bit ? Z80::SPL : Z80::SPS);
   }
-  switch (StackSize) {
-  default:
-    if (hasFP(MF)) {
-      BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::LEA24rr : Z80::LEA16rr))
-        .addReg(ScratchReg).addReg(FramePtr).addImm(-StackSize);
-    } else if (StackSize) {
-      BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri))
-        .addReg(ScratchReg).addImm(-StackSize);
-      BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::ADD24rr : Z80::ADD16rr))
-        .addReg(StackPtr);
-    }
-    BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::LD24sp : Z80::LD16sp))
-      .addReg(ScratchReg);
-    break;
-  case 3:
-    BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
-      .addReg(ScratchReg);
-    break;
-  case 2:
-    BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::DEC24r : Z80::DEC16r),
-            StackPtr).addReg(StackPtr);
-    // Fallthrough
-  case 1:
-    BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::DEC24r : Z80::DEC16r),
-            StackPtr).addReg(StackPtr);
-    break;
-  case 0:
-    break;
-  }
+  int32_t StackSize = (int32_t)MF.getFrameInfo()->getStackSize();
+  BuildStackAdjustment(MF, MBB, MI, DL, -StackSize, 0);
 }
 
 void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
                                     MachineBasicBlock &MBB) const {
-  if (!hasFP(MF))
-    return;
-  MachineBasicBlock::iterator MBBI = MBB.getFirstTerminator();
-  assert(MBBI->getOpcode() == Z80::RET && "Can only emit epilog if returning");
-  unsigned FrameReg = Is24Bit ? Z80::UIX : Z80::IX;
+  MachineBasicBlock::iterator MI = MBB.getFirstTerminator();
+  assert(MI->getOpcode() == Z80::RET && "Can only emit epilog if returning");
 
   DebugLoc DL;
-  if (MBBI != MBB.end())
-    DL = MBBI->getDebugLoc();
+  if (MI != MBB.end())
+    DL = MI->getDebugLoc();
 
-  BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::LD24sp : Z80::LD16sp))
-    .addReg(FrameReg);
-  BuildMI(MBB, MBBI, DL, TII.get(Is24Bit ? Z80::POP24r : Z80::POP16r),
-          FrameReg);
+  int32_t StackSize = (int32_t)MF.getFrameInfo()->getStackSize();
+  if (hasFP(MF)) {
+    unsigned FrameReg = TRI->getFrameRegister(MF);
+    if (StackSize)
+      BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24SP : Z80::LD16SP))
+        .addReg(FrameReg);
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::POP24r : Z80::POP16r),
+            FrameReg);
+  } else {
+    BuildStackAdjustment(MF, MBB, MI, DL, StackSize, -StackSize);
+  }
+}
+
+void Z80FrameLowering::
+eliminateCallFramePseudoInstr(MachineFunction &MF,
+                              MachineBasicBlock &MBB,
+                              MachineBasicBlock::iterator MI) const {
+  if (!hasReservedCallFrame(MF)) {
+    // We need to keep the stack aligned properly.  To do this, we round the
+    // amount of space needed for the outgoing arguments up to the next
+    // alignment boundary.
+    uint64_t Amount = alignTo(MI->getOperand(0).getImm(),
+                              getStackAlignment());
+    if (MI->getOpcode() == TII.getCallFrameSetupOpcode()) {
+      Amount = -Amount;
+    } else {
+      assert(MI->getOpcode() == TII.getCallFrameDestroyOpcode());
+      Amount -= MI->getOperand(1).getImm();
+    }
+    BuildStackAdjustment(MF, MBB, MI, MI->getDebugLoc(), Amount);
+  }
+
+  MBB.erase(MI);
 }

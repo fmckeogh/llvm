@@ -36,16 +36,20 @@ Z80RegisterInfo::getPointerRegClass(const MachineFunction &MF,
   const Z80Subtarget &Subtarget = MF.getSubtarget<Z80Subtarget>();
   switch (Kind) {
   default: llvm_unreachable("Unexpected Kind in getPointerRegClass!");
-  case 0:
-    if (Is24Bit)
-      return &Z80::G24RegClass;
-    return &Z80::G16RegClass;
+  case 0: return Is24Bit ? &Z80::G24RegClass : &Z80::G16RegClass;
+  case 1: return Is24Bit ? &Z80::A24RegClass : &Z80::A16RegClass;
   }
 }
 
 const MCPhysReg *
 Z80RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
-  return Is24Bit ? CSR_EZ80_C_SaveList : CSR_Z80_C_SaveList;
+  switch (MF->getFunction()->getCallingConv()) {
+  default: llvm_unreachable("Unsupported calling convention");
+  case CallingConv::C:
+    return Is24Bit ? CSR_EZ80_C_SaveList : CSR_Z80_C_SaveList;
+  case CallingConv::Z80_LibCall:
+    return Is24Bit ? CSR_EZ80_LC_SaveList : CSR_Z80_LC_SaveList;
+  }
 }
 
 BitVector Z80RegisterInfo::getReservedRegs(const MachineFunction &MF) const {

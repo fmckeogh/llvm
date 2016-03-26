@@ -7667,7 +7667,7 @@ class Z80TargetInfo : public Z80TargetInfoBase {
 public:
   explicit Z80TargetInfo(const llvm::Triple &T) : Z80TargetInfoBase(T) {
     PointerWidth = IntWidth = 16;
-    DataLayoutString = "e-p:16:8-p1:8:8-i16:8-i32:8-a:8-n8:16";
+    DataLayoutString = "e-m:o-p:16:8-p1:8:8-i16:8-i32:8-a:8-n8:16";
   }
 
 protected:
@@ -7682,7 +7682,7 @@ class EZ80TargetInfo : public Z80TargetInfoBase {
 public:
   explicit EZ80TargetInfo(const llvm::Triple &T) : Z80TargetInfoBase(T) {
     PointerWidth = IntWidth = 24;
-    DataLayoutString = "e-p:24:8-p1:16:8-i16:8-i24:8-i32:8-a:8-n8:16:24";
+    DataLayoutString = "e-m:o-p:24:8-p1:16:8-p2:16:8-i16:8-i24:8-i32:8-a:8-n8:16:24";
   }
 
 protected:

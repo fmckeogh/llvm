@@ -19,13 +19,13 @@ void Z80ELFMCAsmInfo::anchor() { }
 
 Z80ELFMCAsmInfo::Z80ELFMCAsmInfo(const Triple &T) {
   bool is24Bit = T.getArch() == Triple::ez80;
+  AssemblerDialect = is24Bit;
   PointerSize = is24Bit ? 3 : 2;
   CalleeSaveStackSlotSize = is24Bit ? 3 : 2;
   MaxInstLength = 6;
   DollarIsPC = true;
   SeparatorString = "\\";
   CommentString = ";";
-  LabelSuffix = ":";
   InlineAsmStart = InlineAsmEnd = "";
   Code16Directive = "\t.assume\tadl = 0";
   Code24Directive = "\t.assume\tadl = 1";
@@ -35,7 +35,7 @@ Z80ELFMCAsmInfo::Z80ELFMCAsmInfo(const Triple &T) {
   Data16bitsDirective = "\t.word\t";
   Data24bitsDirective = "\t.long\t";
   Data32bitsDirective = Data64bitsDirective = nullptr;
-  GlobalDirective = ".global";
+  GlobalDirective = ".global\t";
   HasDotTypeDotSizeDirective = false;
   HasIdentDirective = false;
   WeakDirective = nullptr;

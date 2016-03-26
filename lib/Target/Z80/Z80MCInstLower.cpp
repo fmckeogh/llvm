@@ -13,6 +13,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "Z80AsmPrinter.h"
+#include "llvm/IR/Mangler.h"
+#include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCInst.h"
 #include "llvm/MC/MCStreamer.h"
 using namespace llvm;
@@ -21,21 +23,50 @@ namespace {
   /// Z80MCInstLower - This class is used to lower a MachineInstr into an MCInst.
   class Z80MCInstLower {
     MCContext &Ctx;
-    Z80AsmPrinter &Printer;
+    const MachineFunction &Func;
+    Z80AsmPrinter &AsmPrinter;
 
   public:
-    Z80MCInstLower(MCContext &Ctx, Z80AsmPrinter &AP);
+    Z80MCInstLower(const MachineFunction &MF, Z80AsmPrinter &AP);
 
     Optional<MCOperand> LowerMachineOperand(const MachineInstr *MI,
                                             const MachineOperand &MO) const;
+
+    MCSymbol *GetGlobalAddressSymbol(const MachineOperand &MO) const;
+    MCSymbol *GetExternalSymbolSymbol(const MachineOperand &MO) const;
+    MCOperand LowerSymbolOperand(const MachineOperand &MO, MCSymbol *Sym) const;
 
     void Lower(const MachineInstr *MI, MCInst &OutMI) const;
   };
 }
 
-Z80MCInstLower::Z80MCInstLower(MCContext &MCC,
-                               Z80AsmPrinter &AP)
-    : Ctx(MCC), Printer(AP) {}
+Z80MCInstLower::Z80MCInstLower(const MachineFunction &MF, Z80AsmPrinter &AP)
+    : Ctx(MF.getContext()), Func(MF), AsmPrinter(AP) {}
+
+/// GetGlobalAddressSymbol - Lower an MO_GlobalAddress operand to an MCSymbol.
+MCSymbol *
+Z80MCInstLower::GetGlobalAddressSymbol(const MachineOperand &MO) const {
+  assert(!MO.getTargetFlags() && "Unknown target flag on GV operand");
+  return AsmPrinter.getSymbol(MO.getGlobal());
+}
+
+/// GetExternalSymbolSymbol - Lower an MO_ExternalSymbol operand to an MCSymbol.
+MCSymbol *
+Z80MCInstLower::GetExternalSymbolSymbol(const MachineOperand &MO) const {
+  assert(!MO.getTargetFlags() && "Unknown target flag on GV operand");
+  return AsmPrinter.GetExternalSymbolSymbol(MO.getSymbolName());
+}
+
+MCOperand Z80MCInstLower::LowerSymbolOperand(const MachineOperand &MO,
+                                             MCSymbol *Sym) const {
+  // FIXME: We would like an efficient form for this, so we don't have to do a
+  // lot of extra uniquing.
+  const MCExpr *Expr = MCSymbolRefExpr::create(Sym, Ctx);
+
+  assert(!MO.getTargetFlags() && "Unknown target flag on GV operand");
+
+  return MCOperand::createExpr(Expr);
+}
 
 Optional<MCOperand>
 Z80MCInstLower::LowerMachineOperand(const MachineInstr *MI,
@@ -48,6 +79,10 @@ Z80MCInstLower::LowerMachineOperand(const MachineInstr *MI,
     return MCOperand::createReg(MO.getReg());
   case MachineOperand::MO_Immediate:
     return MCOperand::createImm(MO.getImm());
+  case MachineOperand::MO_GlobalAddress:
+    return LowerSymbolOperand(MO, GetGlobalAddressSymbol(MO));
+  case MachineOperand::MO_ExternalSymbol:
+    return LowerSymbolOperand(MO, GetExternalSymbolSymbol(MO));
   }
 }
 
@@ -61,7 +96,7 @@ void Z80MCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
 }
 
 void Z80AsmPrinter::EmitInstruction(const MachineInstr *MI) {
-  Z80MCInstLower MCInstLowering(OutContext, *this);
+  Z80MCInstLower MCInstLowering(*MF, *this);
 
   MCInst TmpInst;
   MCInstLowering.Lower(MI, TmpInst);

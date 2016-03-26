@@ -17,13 +17,37 @@
 include "llvm/Target/Target.td"
 
 //===----------------------------------------------------------------------===//
+// Z80 Subtarget features
+//===----------------------------------------------------------------------===//
+
+def FeatureUndoc : SubtargetFeature<"undoc", "HasUndocOps", "true",
+                                    "Enable undocumented z80 instructions">;
+def FeatureZ180  : SubtargetFeature<"z180", "HasZ180Ops", "true",
+                                    "Support z180 instructions">;
+def FeatureEZ80  : SubtargetFeature<"ez80", "HasEZ80Ops", "true",
+                                    "Support ez80 instructions">;
+
+//===----------------------------------------------------------------------===//
 // Z80 Subtarget state
-//
+//===----------------------------------------------------------------------===//
 
 def Mode24Bit : SubtargetFeature<"24bit-mode", "In24BitMode", "true",
-                                  "24-bit mode (ez80)">;
+                                  "24-bit mode (ez80)", [FeatureEZ80]>;
 def Mode16Bit : SubtargetFeature<"16bit-mode", "In16BitMode", "true",
                                   "16-bit mode (z80)">;
+
+//===----------------------------------------------------------------------===//
+// Z80 processors supported
+//===----------------------------------------------------------------------===//
+
+let CompleteModel = 0 in def GenericModel : SchedMachineModel;
+class Proc<string Name, list<SubtargetFeature> Features>
+  : ProcessorModel<Name, GenericModel, Features>;
+def : Proc<"z80",        []>;
+def : Proc<"z80-undoc",  [FeatureUndoc]>;
+def : Proc<"z180",       [FeatureZ180]>;
+def : Proc<"z180-undoc", [FeatureUndoc, FeatureZ180]>;
+def : Proc<"ez80",       [FeatureZ180, FeatureEZ80]>;
 
 //===----------------------------------------------------------------------===//
 // Register File Description
@@ -45,8 +69,18 @@ def Z80InstrInfo : InstrInfo;
 
 include "Z80CallingConv.td"
 
+//===----------------------------------------------------------------------===//
+// Assembly writer
+//===----------------------------------------------------------------------===//
+
+def Z80AsmWriter : AsmWriter;
+def EZ80AsmWriter : AsmWriter {
+  string AsmWriterClassName = "EInstPrinter";
+  let Variant = 1;
+}
 
 def Z80 : Target {
   // Information about the instructions...
   let InstructionSet = Z80InstrInfo;
+  let AssemblyWriters = [Z80AsmWriter, EZ80AsmWriter];
 }

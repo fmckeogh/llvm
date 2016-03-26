@@ -25,13 +25,85 @@ using namespace llvm;
 void Z80InstrInfo::anchor() {}
 
 Z80InstrInfo::Z80InstrInfo(Z80Subtarget &STI)
-    : Z80GenInstrInfo(), Subtarget(STI), RI(STI.getTargetTriple()) {
+    : Z80GenInstrInfo((STI.is24Bit() ? Z80::ADJCALLSTACKDOWN24
+                                     : Z80::ADJCALLSTACKDOWN16),
+                      (STI.is24Bit() ? Z80::ADJCALLSTACKUP24
+                                     : Z80::ADJCALLSTACKUP16)),
+      Subtarget(STI), RI(STI.getTargetTriple()) {
+}
+
+void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
+                               MachineBasicBlock::iterator MI, DebugLoc DL,
+                               unsigned DstReg, unsigned SrcReg,
+                               bool KillSrc) const {
+  if (RI.isSuperOrSubRegisterEq(DstReg, SrcReg))
+    return;
+  if (Z80::G8RegClass.contains(DstReg, SrcReg)) {
+    BuildMI(MBB, MI, DL, get(Z80::LD8rr), DstReg)
+      .addReg(SrcReg, getKillRegState(KillSrc));
+    return;
+  } else if (Z80::X8RegClass.contains(DstReg, SrcReg)) {
+    BuildMI(MBB, MI, DL, get(Z80::LD8xx), DstReg)
+      .addReg(SrcReg, getKillRegState(KillSrc));
+    return;
+  } else if (Z80::Y8RegClass.contains(DstReg, SrcReg)) {
+    BuildMI(MBB, MI, DL, get(Z80::LD8yy), DstReg)
+      .addReg(SrcReg, getKillRegState(KillSrc));
+    return;
+  } else if (Z80::R8RegClass.contains(DstReg, SrcReg)) {
+    for (unsigned *Reg : {&DstReg, &SrcReg}) {
+      switch (*Reg) {
+        case Z80::H: *Reg = Z80::D; break;
+        case Z80::L: *Reg = Z80::E; break;
+      }
+    }
+    unsigned EX = Subtarget.is24Bit() ? Z80::EX24DE : Z80::EX16DE;
+    BuildMI(MBB, MI, DL, get(EX));
+    BuildMI(MBB, MI, DL, get(Z80::LD8rr), DstReg)
+      .addReg(SrcReg, getKillRegState(KillSrc));
+    BuildMI(MBB, MI, DL, get(EX));
+    return;
+  }
+  bool Is24Bit = Z80::R24RegClass.contains(DstReg, SrcReg);
+  if (KillSrc && (Is24Bit == Subtarget.is24Bit())) {
+    bool DE = false, HL = false;
+    for (unsigned Reg : {DstReg, SrcReg}) {
+      switch (Reg) {
+        case Z80::DE: case Z80::UDE: DE = true; break;
+        case Z80::HL: case Z80::UHL: HL = true; break;
+      }
+    }
+    if (DE && HL) {
+      BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::EX24DE : Z80::EX16DE))
+        .addReg(DstReg, RegState::ImplicitDefine)
+        .addReg(SrcReg, RegState::ImplicitKill);
+      return;
+    }
+  }
+  if (Is24Bit) {
+    // Both are 24 bits so preserve upper byte
+    BuildMI(MBB, MI, DL, get(Z80::PUSH24r))
+      .addReg(SrcReg, getKillRegState(KillSrc));
+    BuildMI(MBB, MI, DL, get(Z80::POP24r), DstReg);
+    return;
+  }
+  unsigned DstHiReg = RI.getSubReg(DstReg, Z80::sub_high);
+  unsigned SrcHiReg = RI.getSubReg(SrcReg, Z80::sub_high);
+  unsigned DstLoReg = RI.getSubReg(DstReg, Z80::sub_low);
+  unsigned SrcLoReg = RI.getSubReg(SrcReg, Z80::sub_low);
+  if (DstHiReg && SrcHiReg && DstLoReg && SrcLoReg) {
+    copyPhysReg(MBB, MI, DL, DstHiReg, SrcHiReg, KillSrc);
+    copyPhysReg(MBB, MI, DL, DstLoReg, SrcLoReg, KillSrc);
+    return;
+  }
+  dbgs() << RI.getName(DstReg) << " = "
+         << RI.getName(SrcReg) << '\n';
+  llvm_unreachable("Unimplemented reg copy");
 }
 
 void Z80InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                        MachineBasicBlock::iterator MI,
-                                       unsigned SrcReg, bool isKill,
-                                       int FrameIndex,
+                                       unsigned SrcReg, bool isKill, int FI,
                                        const TargetRegisterClass *RC,
                                        const TargetRegisterInfo *TRI) const {
   const MachineFunction &MF = *MBB.getParent();
@@ -43,13 +115,12 @@ void Z80InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   case 3: Opc = Z80::LD24rmr; break;
   }
   BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Opc))
-    .addFrameIndex(FrameIndex).addImm(0)
-    .addReg(SrcReg, getKillRegState(isKill));
+    .addFrameIndex(FI).addImm(0).addReg(SrcReg, getKillRegState(isKill));
 }
 
 void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MI,
-                                        unsigned DestReg, int FrameIndex,
+                                        unsigned DstReg, int FI,
                                         const TargetRegisterClass *RC,
                                         const TargetRegisterInfo *TRI) const {
   const MachineFunction &MF = *MBB.getParent();
@@ -60,6 +131,6 @@ void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   case 2: Opc = Z80::LD16rrm; break;
   case 3: Opc = Z80::LD24rrm; break;
   }
-  BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Opc), DestReg)
-    .addFrameIndex(FrameIndex).addImm(0);
+  BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Opc), DstReg)
+    .addFrameIndex(FI).addImm(0);
 }

@@ -26,9 +26,9 @@ extern "C" void LLVMInitializeZ80Target() {
 
 static std::string computeDataLayout(const Triple &TT) {
   if (TT.isArch16Bit())
-    return "e-p:16:8-p1:8:8-i16:8-i32:8-a:8-n8:16";
+    return "e-m:o-p:16:8-p1:8:8-i16:8-i32:8-a:8-n8:16";
   else
-    return "e-p:24:8-p1:16:8-i16:8-i24:8-i32:8-a:8-n8:16:24";
+    return "e-m:o-p:24:8-p1:16:8-p2:16:8-i16:8-i24:8-i32:8-a:8-n8:16:24";
 }
 
 /// Z80TargetMachine ctor - Create a Z80 target.

@@ -13,6 +13,7 @@
 
 #include "Z80MCTargetDesc.h"
 #include "InstPrinter/Z80InstPrinter.h"
+#include "InstPrinter/EZ80InstPrinter.h"
 #include "Z80MCAsmInfo.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
@@ -76,6 +77,8 @@ static MCInstPrinter *createZ80MCInstPrinter(const Triple &TT,
                                              const MCRegisterInfo &MRI) {
   if (SyntaxVariant == 0)
     return new Z80InstPrinter(MAI, MII, MRI);
+  if (SyntaxVariant == 1)
+    return new Z80EInstPrinter(MAI, MII, MRI);
   return nullptr;
 }
 
