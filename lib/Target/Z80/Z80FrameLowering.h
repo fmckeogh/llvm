@@ -46,7 +46,7 @@ public:
                                    const TargetRegisterInfo *TRI) const override;
   */
 
-  void eliminateCallFramePseudoInstr(
+  MachineBasicBlock::iterator eliminateCallFramePseudoInstr(
     MachineFunction &MF, MachineBasicBlock &MBB,
     MachineBasicBlock::iterator MI) const override;
 

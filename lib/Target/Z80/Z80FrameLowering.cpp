@@ -160,24 +160,22 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
   }
 }
 
-void Z80FrameLowering::
-eliminateCallFramePseudoInstr(MachineFunction &MF,
-                              MachineBasicBlock &MBB,
-                              MachineBasicBlock::iterator MI) const {
+MachineBasicBlock::iterator Z80FrameLowering::
+eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
+                              MachineBasicBlock::iterator I) const {
   if (!hasReservedCallFrame(MF)) {
     // We need to keep the stack aligned properly.  To do this, we round the
     // amount of space needed for the outgoing arguments up to the next
     // alignment boundary.
-    uint64_t Amount = alignTo(MI->getOperand(0).getImm(),
-                              getStackAlignment());
-    if (MI->getOpcode() == TII.getCallFrameSetupOpcode()) {
+    uint64_t Amount = alignTo(I->getOperand(0).getImm(), getStackAlignment());
+    if (I->getOpcode() == TII.getCallFrameSetupOpcode()) {
       Amount = -Amount;
     } else {
-      assert(MI->getOpcode() == TII.getCallFrameDestroyOpcode());
-      Amount -= MI->getOperand(1).getImm();
+      assert(I->getOpcode() == TII.getCallFrameDestroyOpcode());
+      Amount -= I->getOperand(1).getImm();
     }
-    BuildStackAdjustment(MF, MBB, MI, MI->getDebugLoc(), Amount);
+    BuildStackAdjustment(MF, MBB, I, I->getDebugLoc(), Amount);
   }
 
-  MBB.erase(MI);
+  return MBB.erase(I);
 }
