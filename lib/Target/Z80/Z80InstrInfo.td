@@ -77,6 +77,9 @@ def rmem : Operand<iPTR> {
 
 def i24imm : Operand<i24> { let OperandType = "OPERAND_IMMEDIATE"; }
 
+def brtarget : Operand<OtherVT>;
+def brtarget8 : Operand<OtherVT>;
+
 //===----------------------------------------------------------------------===//
 // Pattern Fragments.
 //
@@ -135,14 +138,21 @@ let AsmString = "nop" in def NOP : I<0x00, (outs), (ins), []>;
 // prevent stack-pointer assignments that appear immediately before calls from
 // potentially appearing dead.  Uses for argument registers are added manually.
 let AsmString = "call\t$dst", isCall = 1 in {
-let Uses = [SPS] in
-def CALL16im : I<0xCD, (outs), (ins i16imm:$dst), [(Z80call timm:$dst)]>;
-let Uses = [SPL] in
-def CALL24im : I<0xCD, (outs), (ins i24imm:$dst), [(Z80call timm:$dst)]>;
+  let Uses = [SPS] in
+  def CALL16im : I<0xCD, (outs), (ins i16imm:$dst), [(Z80call timm:$dst)]>;
+  let Uses = [SPL] in
+  def CALL24im : I<0xCD, (outs), (ins i24imm:$dst), [(Z80call timm:$dst)]>;
 }
 
 let AsmString = "ret", isTerminator = 1, isReturn = 1, isBarrier = 1 in {
   def RET : I<0xC9, (outs), (ins), [(Z80retflag)]>;
+}
+
+let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
+  let AsmString = "jr\t$dst" in
+  def JR : I<0x18, (outs), (ins brtarget:$dst), [(br bb:$dst)]>;
+  let AsmString = "jp\t$dst" in
+  def JP : I<0xC3, (outs), (ins brtarget:$dst)>;
 }
 
 //===----------------------------------------------------------------------===//

@@ -554,14 +554,14 @@ SDValue Z80TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 }
 
 SDValue Z80TargetLowering::LowerReturn(SDValue Chain,
-                                       CallingConv::ID CallConv, bool isVarArg,
+                                       CallingConv::ID CallConv, bool IsVarArg,
                                        const SmallVectorImpl<ISD::OutputArg> &Outs,
                                        const SmallVectorImpl<SDValue> &OutVals,
                                        SDLoc DL, SelectionDAG &DAG) const {
   MachineFunction &MF = DAG.getMachineFunction();
 
   SmallVector<CCValAssign, 16> RVLocs;
-  CCState CCInfo(CallConv, isVarArg, MF, RVLocs, *DAG.getContext());
+  CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, *DAG.getContext());
   CCInfo.AnalyzeReturn(Outs, RetCC_Z80_C);
 
   SDValue Flag;
@@ -599,7 +599,7 @@ Z80TargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
   SmallVector<CCValAssign, 16> RVLocs;
   CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs,
                  *DAG.getContext());
-  CCInfo.AnalyzeCallResult(Ins, getCCAssignFn(CallConv));
+  CCInfo.AnalyzeCallResult(Ins, RetCC_Z80_C);
 
   // Copy all of the result registers out of their specified physreg.
   for (unsigned I = 0, E = RVLocs.size(); I != E; ++I) {
@@ -619,7 +619,7 @@ EVT Z80TargetLowering::getTypeForExtReturn(LLVMContext &Context, EVT VT,
 }
 
 SDValue Z80TargetLowering::LowerFormalArguments(
-    SDValue Chain, CallingConv::ID CallConv, bool isVarArg,
+    SDValue Chain, CallingConv::ID CallConv, bool IsVarArg,
     const SmallVectorImpl<ISD::InputArg> &Ins, SDLoc DL, SelectionDAG &DAG,
     SmallVectorImpl<SDValue> &InVals) const {
   MachineFunction &MF = DAG.getMachineFunction();
@@ -627,11 +627,11 @@ SDValue Z80TargetLowering::LowerFormalArguments(
   bool Is24Bit = Subtarget.is24Bit();
 
   assert(CallConv == CallingConv::C && "Unsupported calling convention");
-  assert(!isVarArg && "Var args not supported yet");
+  assert(!IsVarArg && "Var args not supported yet");
 
   // Assign locations to all of the incoming arguments.
   SmallVector<CCValAssign, 16> ArgLocs;
-  CCState CCInfo(CallConv, isVarArg, MF, ArgLocs, *DAG.getContext());
+  CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
   CCInfo.AnalyzeFormalArguments(Ins, Is24Bit ? CC_EZ80_C : CC_Z80_C);
 
   SDValue ArgValue;

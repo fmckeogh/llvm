@@ -79,6 +79,9 @@ Z80MCInstLower::LowerMachineOperand(const MachineInstr *MI,
     return MCOperand::createReg(MO.getReg());
   case MachineOperand::MO_Immediate:
     return MCOperand::createImm(MO.getImm());
+  case MachineOperand::MO_MachineBasicBlock:
+    return MCOperand::createExpr(MCSymbolRefExpr::create(
+                       MO.getMBB()->getSymbol(), Ctx));
   case MachineOperand::MO_GlobalAddress:
     return LowerSymbolOperand(MO, GetGlobalAddressSymbol(MO));
   case MachineOperand::MO_ExternalSymbol:
