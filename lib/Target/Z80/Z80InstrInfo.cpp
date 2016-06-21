@@ -80,6 +80,15 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
       return;
     }
   }
+  if ((SrcReg == Z80::SPS || SrcReg == Z80::SPL) &&
+      (Z80::A16RegClass.contains(DstReg) ||
+       Z80::A24RegClass.contains(DstReg))) {
+    BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::LD24ri : Z80::LD16ri), DstReg)
+      .addImm(0);
+    BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao), DstReg)
+      .addReg(DstReg).addReg(SrcReg, getKillRegState(KillSrc));
+    return;
+  }
   if (Is24Bit) {
     // Both are 24 bits so preserve upper byte
     BuildMI(MBB, MI, DL, get(Z80::PUSH24r))
