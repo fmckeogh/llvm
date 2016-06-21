@@ -33,9 +33,9 @@ Z80InstrInfo::Z80InstrInfo(Z80Subtarget &STI)
 }
 
 void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
-                               MachineBasicBlock::iterator MI, DebugLoc DL,
-                               unsigned DstReg, unsigned SrcReg,
-                               bool KillSrc) const {
+                               MachineBasicBlock::iterator MI,
+                               const DebugLoc &DL, unsigned DstReg,
+                               unsigned SrcReg, bool KillSrc) const {
   if (RI.isSuperOrSubRegisterEq(DstReg, SrcReg))
     return;
   if (Z80::G8RegClass.contains(DstReg, SrcReg)) {

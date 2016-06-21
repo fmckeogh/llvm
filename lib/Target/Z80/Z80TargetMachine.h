@@ -25,8 +25,9 @@ class Z80TargetMachine : public LLVMTargetMachine {
 
 public:
   Z80TargetMachine(const Target &T, const Triple &TT, StringRef CPU,
-                   StringRef FS, const TargetOptions &Options, Reloc::Model RM,
-                   CodeModel::Model CM, CodeGenOpt::Level OL);
+                   StringRef FS, const TargetOptions &Options,
+                   Optional<Reloc::Model> RM, CodeModel::Model CM,
+                   CodeGenOpt::Level OL);
   ~Z80TargetMachine() override;
   const Z80Subtarget *getSubtargetImpl(const Function &F) const override {
     return &Subtarget;

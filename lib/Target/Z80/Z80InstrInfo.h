@@ -59,7 +59,7 @@ public:
   const Z80RegisterInfo &getRegisterInfo() const { return RI; }
 
   void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-                   DebugLoc DL, unsigned DstReg, unsigned SrcReg,
+                   const DebugLoc &DL, unsigned DstReg, unsigned SrcReg,
                    bool KillSrc) const override;
   void storeRegToStackSlot(MachineBasicBlock &MBB,
                            MachineBasicBlock::iterator MI,

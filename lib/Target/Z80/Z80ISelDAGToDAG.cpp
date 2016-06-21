@@ -52,14 +52,14 @@ namespace {
 #include "Z80GenDAGISel.inc"
 
   private:
-    SDNode *Select(SDNode *N) override;
+    void Select(SDNode *N) override;
 
     bool SelectImmMem(SDValue N, SDValue &Const);
     bool SelectRegOffMem(SDValue N, SDValue &Reg, SDValue &Off);
   };
 }
 
-SDNode *Z80DAGToDAGISel::Select(SDNode *Node) {
+void Z80DAGToDAGISel::Select(SDNode *Node) {
   SDLoc DL(Node);
 
   // Dump information about the Node being selected
@@ -69,7 +69,7 @@ SDNode *Z80DAGToDAGISel::Select(SDNode *Node) {
   if (Node->isMachineOpcode()) {
     DEBUG(dbgs() << "== "; Node->dump(CurDAG); dbgs() << '\n');
     Node->setNodeId(-1);
-    return nullptr;
+    return;
   }
 
   // Select the default instruction
@@ -81,8 +81,6 @@ SDNode *Z80DAGToDAGISel::Select(SDNode *Node) {
         else
           ResNode->dump(CurDAG);
         dbgs() << '\n');
-
-  return ResNode;
 }
 
 bool Z80DAGToDAGISel::SelectImmMem(SDValue N, SDValue &Imm) {

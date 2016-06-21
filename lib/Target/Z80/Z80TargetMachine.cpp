@@ -14,6 +14,7 @@
 #include "Z80TargetMachine.h"
 #include "Z80.h"
 #include "llvm/CodeGen/Passes.h"
+#include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/Support/TargetRegistry.h"
 using namespace llvm;
@@ -31,15 +32,21 @@ static std::string computeDataLayout(const Triple &TT) {
     return "e-m:o-p:24:8-p1:16:8-p2:16:8-i16:8-i24:8-i32:8-a:8-n8:16:24";
 }
 
+static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
+  if (!RM.hasValue())
+    return Reloc::Static;
+  return *RM;
+}
+
 /// Z80TargetMachine ctor - Create a Z80 target.
 ///
 Z80TargetMachine::Z80TargetMachine(const Target &T, const Triple &TT,
                                    StringRef CPU, StringRef FS,
                                    const TargetOptions &Options,
-                                   Reloc::Model RM, CodeModel::Model CM,
-                                   CodeGenOpt::Level OL)
-    : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options, RM, CM,
-                        OL),
+                                   Optional<Reloc::Model> RM,
+                                   CodeModel::Model CM, CodeGenOpt::Level OL)
+  : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
+                      getEffectiveRelocModel(RM), CM, OL),
       TLOF(make_unique<TargetLoweringObjectFileELF>()),
       Subtarget(TT, CPU, FS, *this) {
   initAsmInfo();
