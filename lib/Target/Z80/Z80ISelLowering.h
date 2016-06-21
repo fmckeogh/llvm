@@ -36,7 +36,13 @@ namespace Z80ISD {
 
     /// Return with a flag operand. Operand 0 is the chain operand, operand
     /// 1 is the number of bytes of stack to pop.
-    RET_FLAG
+    RET_FLAG,
+
+    /// Z80 conditional branches. Operand 0 is the chain operand, operand 1
+    /// is the block to branch if condition is true, operand 2 is the
+    /// condition code, and operand 3 is the flag operand produced by a CP
+    /// instruction.
+    BRCC
   };
 }
 

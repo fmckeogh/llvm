@@ -32,6 +32,7 @@ namespace llvm {
     virtual StringRef getRegName(unsigned RegNo) const = 0;
 
     void printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
+    void printCCOperand(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
 
     void printImmMem(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
     void printRegOffAddr(const MCInst *MI, unsigned OpNo, raw_ostream &OS);

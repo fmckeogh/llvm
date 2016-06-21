@@ -15,6 +15,7 @@
 #include "Z80InstPrinter.h"
 #include "llvm/MC/MCExpr.h"
 #include "llvm/MC/MCInst.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FormattedStream.h"
 using namespace llvm;
 
@@ -31,7 +32,7 @@ void Z80InstPrinterBase::printInst(const MCInst *MI, raw_ostream &OS,
 }
 
 void Z80InstPrinterBase::printOperand(const MCInst *MI, unsigned OpNo,
-                                  raw_ostream &OS) {
+                                      raw_ostream &OS) {
   const MCOperand &Op = MI->getOperand(OpNo);
   if (Op.isReg()) {
     printRegName(OS, Op.getReg());
@@ -44,15 +45,29 @@ void Z80InstPrinterBase::printOperand(const MCInst *MI, unsigned OpNo,
     OS << markup(">");
   }
 }
+void Z80InstPrinterBase::printCCOperand(const MCInst *MI, unsigned Op,
+                                        raw_ostream &OS) {
+  switch (MI->getOperand(Op).getImm()) {
+  default: llvm_unreachable("Invalid CC operand!");
+    case 0: OS << "nz"; break;
+    case 1: OS << "z"; break;
+    case 2: OS << "nc"; break;
+    case 3: OS << "c"; break;
+    case 4: OS << "po"; break;
+    case 5: OS << "pe"; break;
+    case 6: OS << "p"; break;
+    case 7: OS << "m"; break;
+  }
+}
 
 void Z80InstPrinterBase::printImmMem(const MCInst *MI, unsigned Op,
-                                 raw_ostream &OS) {
+                                     raw_ostream &OS) {
   OS << markup("<mem:") << '(';
   MI->getOperand(Op).getExpr()->print(OS, &MAI);
   OS << ')' << markup(">");;
 }
 void Z80InstPrinterBase::printRegOffAddr(const MCInst *MI, unsigned Op,
-                                     raw_ostream &OS) {
+                                         raw_ostream &OS) {
   printOperand(MI, Op, OS);
   if (auto off = MI->getOperand(Op+1).getImm()) {
     if (off >= 0) {
@@ -63,7 +78,7 @@ void Z80InstPrinterBase::printRegOffAddr(const MCInst *MI, unsigned Op,
   }
 }
 void Z80InstPrinterBase::printRegOffMem(const MCInst *MI, unsigned Op,
-                                    raw_ostream &OS) {
+                                        raw_ostream &OS) {
   OS << markup("<mem:") << '(';
   printRegOffAddr(MI, Op, OS);
   OS << ')' << markup(">");
