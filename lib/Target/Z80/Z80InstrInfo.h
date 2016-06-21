@@ -23,6 +23,26 @@
 namespace llvm {
 class Z80Subtarget;
 
+namespace Z80 {
+  // Z80 specific condition code. These correspond to Z80_*_COND in
+  // Z80InstrInfo.td. THey must be kept in synch.
+enum CondCode {
+  COND_NZ = 0,
+  COND_Z = 1,
+  COND_NC = 2,
+  COND_C = 3,
+  LAST_SIMPLE_COND = COND_C,
+
+  COND_PO = 4,
+  COND_PE = 5,
+  COND_P = 6,
+  COND_M = 7,
+  LAST_VALID_COND = COND_M,
+
+  COND_INVALID
+};
+} // end namespace Z80;
+
 class Z80InstrInfo final : public Z80GenInstrInfo {
   Z80Subtarget &Subtarget;
   const Z80RegisterInfo RI;

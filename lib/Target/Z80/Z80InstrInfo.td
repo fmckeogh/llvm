@@ -51,6 +51,21 @@ def Z80callseq_end   : SDNode<"ISD::CALLSEQ_END", SDT_Z80CallSeqEnd,
 include "Z80InstrFormats.td"
 
 //===----------------------------------------------------------------------===//
+// Pattern fragments.
+//
+
+// Z80 specific condition code. These correspond to CondCode in
+// Z80InstrInfo.h. They must be kept in synch.
+def Z80_COND_NZ : PatLeaf<(i8 0)>;
+def Z80_COND_Z  : PatLeaf<(i8 1)>;
+def Z80_COND_NC : PatLeaf<(i8 2)>;
+def Z80_COND_C  : PatLeaf<(i8 3)>;
+def Z80_COND_PO : PatLeaf<(i8 4)>;
+def Z80_COND_PE : PatLeaf<(i8 5)>;
+def Z80_COND_P  : PatLeaf<(i8 6)>;
+def Z80_COND_M  : PatLeaf<(i8 7)>;
+
+//===----------------------------------------------------------------------===//
 // Z80 Operand Definitions.
 //
 
