@@ -104,6 +104,9 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
   if (LargeCost <= LEACost) {
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
             ScratchReg).addImm(Offset);
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao),
+            ScratchReg).addReg(ScratchReg)
+      .addReg(Is24Bit ? Z80::SPL : Z80::SPS);
   } else {
     assert(CanUseLEA && hasFP(MF) && "Can't use lea");
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LEA24rr : Z80::LEA16rr),
