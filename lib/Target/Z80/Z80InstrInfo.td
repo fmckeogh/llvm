@@ -28,6 +28,7 @@ def SDT_Z80mlt           : SDTypeProfile<1, 1, [SDTCisI16<0>, SDTCisI16<1>]>;
 def SDT_Z80Call          : SDTypeProfile<0, -1, [SDTCisPtr<0>]>;
 def SDT_Z80CallSeqStart  : SDCallSeqStart<[SDTCisI16<0>]>;
 def SDT_Z80CallSeqEnd    : SDCallSeqEnd<[SDTCisI16<0>, SDTCisI16<1>]>;
+def SDT_Z80Cmp           : SDTypeProfile<0, 2, [SDTCisSameAs<0, 1>]>;
 def SDT_Z80BrCC          : SDTypeProfile<0, 2, [SDTCisVT<0, OtherVT>,
                                                 SDTCisVT<1, i8>]>;
 
@@ -45,7 +46,8 @@ def Z80callseq_start : SDNode<"ISD::CALLSEQ_START", SDT_Z80CallSeqStart,
                               [SDNPHasChain, SDNPOutGlue]>;
 def Z80callseq_end   : SDNode<"ISD::CALLSEQ_END", SDT_Z80CallSeqEnd,
                               [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
-def Z80brcc          : SDNode<"Z80ISD::BRCC", SDT_Z80BrCC,
+def Z80cmp           : SDNode<"Z80ISD::CMP", SDT_Z80Cmp, [SDNPOutGlue]>;
+def Z80brcc          : SDNode<"Z80ISD::BR_CC", SDT_Z80BrCC,
                               [SDNPHasChain, SDNPInGlue]>;
 
 //===----------------------------------------------------------------------===//
@@ -151,7 +153,15 @@ def ADJCALLSTACKUP24   : P<(outs), (ins i16imm:$amt1, i16imm:$amt2),
                          Requires<[In24BitMode]>;
 }
 
-let AsmString = "nop" in def NOP : I<0x00, (outs), (ins), []>;
+let usesCustomInserter = 1, Defs = [F] in {
+  def Cmp16 : P<(outs), (ins A16:$dst, O16:$src),
+                [(Z80cmp A16:$dst, O16:$src), (implicit F)]>;
+  def Cmp24 : P<(outs), (ins A24:$dst, O24:$src),
+                [(Z80cmp A24:$dst, O24:$src), (implicit F)]>;
+}
+
+let AsmString = "nop", hasSideEffects = 0 in
+def NOP : I<0x00, (outs), (ins), []>;
 
 //===----------------------------------------------------------------------===//
 //  Control Flow Instructions.
@@ -381,6 +391,16 @@ def  OR8ri  : I<0xF6, (outs), (ins i8imm:$arg),
                 [(set A, (or  A, imm:$arg)), (implicit F)]>;
 def  OR8rrm : I<0xB6, (outs), (ins rmem:$arg),
                 [(set A, (or  A, (i8 (load raddr:$arg)))), (implicit F)]>;
+}
+}
+let Defs = [F], Uses = [A] in {
+let AsmString =  "cp\ta, $arg" in {
+def  CP8rr  : I<0xB8, (outs), (ins R8:$arg),
+                [(Z80cmp A, R8:$arg), (implicit F)]>;
+def  CP8ri  : I<0xFE, (outs), (ins i8imm:$arg),
+                [(Z80cmp A, imm:$arg), (implicit F)]>;
+def  CP8rrm : I<0xBE, (outs), (ins rmem:$arg),
+                [(Z80cmp A, (i8 (load raddr:$arg))), (implicit F)]>;
 }
 }
 

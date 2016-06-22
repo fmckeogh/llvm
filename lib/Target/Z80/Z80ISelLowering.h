@@ -38,11 +38,14 @@ namespace Z80ISD {
     /// 1 is the number of bytes of stack to pop.
     RET_FLAG,
 
+    /// Z80 compare
+    CMP,
+
     /// Z80 conditional branches. Operand 0 is the chain operand, operand 1
     /// is the block to branch if condition is true, operand 2 is the
     /// condition code, and operand 3 is the flag operand produced by a CP
     /// instruction.
-    BRCC
+    BR_CC
   };
 }
 
@@ -127,7 +130,16 @@ public:
   void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;
 
+  MachineBasicBlock *
+    EmitInstrWithCustomInserter(MachineInstr *MI,
+                                MachineBasicBlock *BB) const override;
+
 private:
+  SDValue EmitCMP(SDValue &LHS, SDValue &RHS, SDValue &TargetCC,
+                  ISD::CondCode CC, const SDLoc &DL, SelectionDAG &DAG) const;
+
+  SDValue LowerBR_CC(SDValue Op, SelectionDAG &DAG) const;
+
   CCAssignFn *getCCAssignFn(CallingConv::ID CallConv) const;
 
   SDValue LowerFormalArguments(SDValue Chain,
@@ -150,6 +162,9 @@ private:
 
   EVT getTypeForExtReturn(LLVMContext &Context, EVT VT,
                           ISD::NodeType ExtendKind) const override;
+
+  MachineBasicBlock *EmitLoweredCmp(MachineInstr *MI,
+                                    MachineBasicBlock *BB) const;
 };
 } // End llvm namespace
 

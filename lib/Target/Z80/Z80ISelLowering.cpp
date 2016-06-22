@@ -48,7 +48,9 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
                           ISD::SREM,    ISD::UREM,
                           ISD::SDIVREM, ISD::UDIVREM })
       setOperationAction(Opc, VT, LibCall);
+    setOperationAction(ISD::BR_CC, VT, Custom);
   }
+  setOperationAction(ISD::BRCOND, MVT::Other, Expand);
   if (Subtarget.hasEZ80Ops())
     setOperationAction(ISD::MUL, MVT::i8, Custom);
 
@@ -273,6 +275,47 @@ static SDValue LowerMUL(SDValue Op, SelectionDAG &DAG) {
   return DAG.getTargetExtractSubreg(Z80::sub_low, DL, MVT::i8, Result);
 }
 
+SDValue Z80TargetLowering::EmitCMP(SDValue &LHS, SDValue &RHS, SDValue &TargetCC,
+                ISD::CondCode CC, const SDLoc &DL, SelectionDAG &DAG) const {
+  assert(!LHS.getValueType().isFloatingPoint() && "We don't handle FP yet");
+
+  Z80::CondCode TCC = Z80::COND_INVALID;
+  switch (CC) {
+  default: llvm_unreachable("Invalid integer condition!");
+  case ISD::SETEQ:
+    TCC = Z80::COND_Z;
+    // Minor optimization: if LHS is a constant, swap operands, then the
+    // constant can be folded into comparison.
+    if (LHS.getOpcode() == ISD::Constant)
+      std::swap(LHS, RHS);
+    break;
+  case ISD::SETNE:
+    TCC = Z80::COND_NZ;
+    // Minor optimization: if LHS is a constant, swap operands, then the
+    // constant can be folded into comparison.
+    if (LHS.getOpcode() == ISD::Constant)
+      std::swap(LHS, RHS);
+    break;
+  }
+
+  TargetCC = DAG.getConstant(TCC, DL, MVT::i8);
+  return DAG.getNode(Z80ISD::CMP, DL, MVT::Glue, LHS, RHS);
+}
+SDValue Z80TargetLowering::LowerBR_CC(SDValue Op, SelectionDAG &DAG) const {
+  SDValue Chain = Op.getOperand(0);
+  ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(1))->get();
+  SDValue LHS   = Op.getOperand(2);
+  SDValue RHS   = Op.getOperand(3);
+  SDValue Dest  = Op.getOperand(4);
+  SDLoc dl  (Op);
+
+  SDValue TargetCC;
+  SDValue Flag = EmitCMP(LHS, RHS, TargetCC, CC, dl, DAG);
+
+  return DAG.getNode(Z80ISD::BR_CC, dl, Op.getValueType(),
+                     Chain, Dest, TargetCC, Flag);
+}
+
 SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
   case ISD::ADD:  case ISD::SUB:
@@ -282,6 +325,7 @@ SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::SRA: return LowerSHR(true, Op, DAG);
   case ISD::SRL: return LowerSHR(false, Op, DAG);
   case ISD::MUL: return LowerMUL(Op, DAG);
+  case ISD::BR_CC: return LowerBR_CC(Op, DAG);
   }
   if (Op.getValueSizeInBits() == 16) {
     switch (Op.getOpcode()) {
@@ -412,6 +456,35 @@ void Z80TargetLowering::ReplaceNodeResults(SDNode *N,
   case ISD::XOR:
   case ISD:: OR: return;
   }
+}
+
+MachineBasicBlock *
+Z80TargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
+                                               MachineBasicBlock *BB) const {
+  switch (MI->getOpcode()) {
+  default: llvm_unreachable("Unexpected instr type to insert");
+  case Z80::Cmp16:
+  case Z80::Cmp24:
+    return EmitLoweredCmp(MI, BB);
+  }
+}
+
+MachineBasicBlock *
+Z80TargetLowering::EmitLoweredCmp(MachineInstr *MI,
+                                  MachineBasicBlock *BB) const {
+  bool Is24Bit = MI->getOpcode() == Z80::Cmp24;
+  const TargetInstrInfo *TII = Subtarget.getInstrInfo();
+  DebugLoc DL = MI->getDebugLoc();
+  MachineRegisterInfo &MRI = BB->getParent()->getRegInfo();
+  DEBUG(BB->dump());
+  BuildMI(*BB, MI, DL, TII->get(Z80::OR8rr)).addReg(Z80::A);
+  BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ao : Z80::SBC16ao),
+          MRI.createVirtualRegister(Is24Bit ? &Z80::A24RegClass : &Z80::A16RegClass))
+    .addReg(MI->getOperand(0).getReg())
+    .addReg(MI->getOperand(1).getReg());
+  MI->eraseFromParent();
+  DEBUG(BB->dump());
+  return BB;
 }
 
 //===----------------------------------------------------------------------===//
@@ -657,6 +730,8 @@ const char *Z80TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case Z80ISD::MLT:          return "Z80ISD::MLT";
   case Z80ISD::CALL:         return "Z80ISD::CALL";
   case Z80ISD::RET_FLAG:     return "Z80ISD::RETFLAG";
+  case Z80ISD::CMP:          return "Z80ISD::CMP";
+  case Z80ISD::BR_CC:        return "Z80ISD::BR_CC";
   }
   return nullptr;
 }
