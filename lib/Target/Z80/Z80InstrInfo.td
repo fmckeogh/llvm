@@ -344,20 +344,20 @@ def INC8r  : BI<NoPrfx, 0x04, "inc", "$dst", "$dst = $imp",
                 [(set R8 :$dst, (add R8 :$imp, 1)), (implicit F)]>;
 def DEC8r  : BI<NoPrfx, 0x05, "dec", "$dst", "$dst = $imp",
                 (outs R8: $dst), (ins R8 :$imp),
-                [(set R8 :$dst, (sub R8 :$imp, 1)), (implicit F)]>;
+                [(set R8 :$dst, (add R8 :$imp, -1)), (implicit F)]>;
 }
 def INC16r : SI<NoPrfx, 0x03, "inc", "$dst", "$dst = $imp",
                 (outs R16:$dst), (ins R16:$imp),
                 [(set R16:$dst, (add R16:$imp, 1))]>;
 def DEC16r : SI<NoPrfx, 0x0B, "dec", "$dst", "$dst = $imp",
                 (outs R16:$dst), (ins R16:$imp),
-                [(set R16:$dst, (sub R16:$imp, 1))]>;
+                [(set R16:$dst, (add R16:$imp, -1))]>;
 def INC24r : LI<NoPrfx, 0x03, "inc", "$dst", "$dst = $imp",
                 (outs R24:$dst), (ins R24:$imp),
                 [(set R24:$dst, (add R24:$imp, 1))]>;
 def DEC24r : LI<NoPrfx, 0x0B, "dec", "$dst", "$dst = $imp",
                 (outs R24:$dst), (ins R24:$imp),
-                [(set R24:$dst, (sub R24:$imp, 1))]>;
+                [(set R24:$dst, (add R24:$imp, -1))]>;
 
 let Defs = [A, F], Uses = [A] in {
 let AsmString = "add\ta, $arg" in {
