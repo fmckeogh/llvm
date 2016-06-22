@@ -34,9 +34,10 @@ namespace llvm {
     void printOperand(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
     void printCCOperand(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
 
+    void printOffAddr(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
     void printImmMem(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
-    void printRegOffAddr(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
-    void printRegOffMem(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
+    void printRegMem(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
+    void printOffMem(const MCInst *MI, unsigned OpNo, raw_ostream &OS);
   };
 }
 

@@ -148,6 +148,7 @@ def IYLSPL : Z80RegWithSubRegs<"iylsp", [IYL,SPL]>;
 //
 
 def aptr_rc : PointerLikeRegClass<1>;
+def iptr_rc : PointerLikeRegClass<2>;
 
 class Z80RC8 <dag regList> : RegisterClass<"Z80", [i8 ], 8, regList>;
 class Z80RC16<dag regList> : RegisterClass<"Z80", [i16], 8, regList>;

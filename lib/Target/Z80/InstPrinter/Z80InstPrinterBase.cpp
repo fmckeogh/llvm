@@ -60,13 +60,7 @@ void Z80InstPrinterBase::printCCOperand(const MCInst *MI, unsigned Op,
   }
 }
 
-void Z80InstPrinterBase::printImmMem(const MCInst *MI, unsigned Op,
-                                     raw_ostream &OS) {
-  OS << markup("<mem:") << '(';
-  MI->getOperand(Op).getExpr()->print(OS, &MAI);
-  OS << ')' << markup(">");;
-}
-void Z80InstPrinterBase::printRegOffAddr(const MCInst *MI, unsigned Op,
+void Z80InstPrinterBase::printOffAddr(const MCInst *MI, unsigned Op,
                                          raw_ostream &OS) {
   printOperand(MI, Op, OS);
   if (auto off = MI->getOperand(Op+1).getImm()) {
@@ -77,9 +71,21 @@ void Z80InstPrinterBase::printRegOffAddr(const MCInst *MI, unsigned Op,
     }
   }
 }
-void Z80InstPrinterBase::printRegOffMem(const MCInst *MI, unsigned Op,
+void Z80InstPrinterBase::printImmMem(const MCInst *MI, unsigned Op,
+                                     raw_ostream &OS) {
+  OS << markup("<mem:") << '(';
+  MI->getOperand(Op).getExpr()->print(OS, &MAI);
+  OS << ')' << markup(">");;
+}
+void Z80InstPrinterBase::printRegMem(const MCInst *MI, unsigned Op,
                                         raw_ostream &OS) {
   OS << markup("<mem:") << '(';
-  printRegOffAddr(MI, Op, OS);
+  printOperand(MI, Op, OS);
+  OS << ')' << markup(">");
+}
+void Z80InstPrinterBase::printOffMem(const MCInst *MI, unsigned Op,
+                                        raw_ostream &OS) {
+  OS << markup("<mem:") << '(';
+  printOffAddr(MI, Op, OS);
   OS << ')' << markup(">");
 }

@@ -38,6 +38,7 @@ Z80RegisterInfo::getPointerRegClass(const MachineFunction &MF,
   default: llvm_unreachable("Unexpected Kind in getPointerRegClass!");
   case 0: return Is24Bit ? &Z80::G24RegClass : &Z80::G16RegClass;
   case 1: return Is24Bit ? &Z80::A24RegClass : &Z80::A16RegClass;
+  case 2: return Is24Bit ? &Z80::I24RegClass : &Z80::I16RegClass;
   }
 }
 

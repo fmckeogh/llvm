@@ -81,19 +81,25 @@ def imem : Operand<iPTR> {
   let OperandType = "OPERAND_MEMORY";
 }
 
-def rmem16 : Operand<i16> {
-  let PrintMethod = "printRegOffMem";
-  let MIOperandInfo = (ops A16, i8imm);
-}
-def rmem24 : Operand<i24> {
-  let PrintMethod = "printRegOffMem";
-  let MIOperandInfo = (ops A24, i8imm);
+def rmem : Operand<iPTR> {
+  let PrintMethod = "printRegMem";
+  let MIOperandInfo = (ops aptr_rc);
+  let OperandType = "OPERAND_MEMORY";
 }
 
-def rmem : Operand<iPTR> {
-  let PrintMethod = "printRegOffMem";
-  let MIOperandInfo = (ops aptr_rc, i8imm);
+def omem : Operand<iPTR> {
+  let PrintMethod = "printOffMem";
+  let MIOperandInfo = (ops iptr_rc, i8imm);
   let OperandType = "OPERAND_MEMORY";
+}
+
+def oaddr16 : Operand<i16> {
+  let PrintMethod = "printOffAddr";
+  let MIOperandInfo = (ops I16, i8imm);
+}
+def oaddr24 : Operand<i24> {
+  let PrintMethod = "printOffAddr";
+  let MIOperandInfo = (ops I24, i8imm);
 }
 
 def i24imm : Operand<i24> { let OperandType = "OPERAND_IMMEDIATE"; }
@@ -119,10 +125,10 @@ def imm_top_XFORM : SDNodeXForm<imm, [{
 //===----------------------------------------------------------------------===//
 // Z80 Complex Pattern Definitions.
 //
-def iaddr : ComplexPattern<iPTR, 1, "SelectImmMem",
-                           [tglobaladdr, texternalsym]>;
-def raddr : ComplexPattern<iPTR, 2, "SelectRegOffMem",
-                           [add, sub, frameindex]>;
+def imempat : ComplexPattern<iPTR, 1, "SelectImmMem",
+                             [tglobaladdr, texternalsym]>;
+def omempat : ComplexPattern<iPTR, 2, "SelectOffMem",
+                             [add, sub, frameindex]>;
 
 //===----------------------------------------------------------------------===//
 // Z80 Instruction Predicate Definitions.
@@ -215,36 +221,55 @@ def LD24ri : I<0x01, (outs R24:$dst), (ins i24imm:$src),
                [(set R24:$dst, imm:$src)]>;
 
 def LD16rim : I<0x2A, (outs R16:$dst), (ins imem:$src),
-               [(set R16:$dst, (i16 (load iaddr:$src)))]>;
+               [(set R16:$dst, (i16 (load imempat:$src)))]>;
 def LD24rim : I<0x2A, (outs R24:$dst), (ins imem:$src),
-               [(set R24:$dst, (i24 (load iaddr:$src)))]>;
+               [(set R24:$dst, (i24 (load imempat:$src)))]>;
 
 def  LD8rrm : I<0x46, (outs  R8:$dst), (ins rmem:$src),
-               [(set  R8:$dst, (i8  (load raddr:$src)))]>;
+               [(set  R8:$dst, (i8  (load iPTR:$src)))]>;
 def LD16rrm : I<0x46, (outs R16:$dst), (ins rmem:$src),
-               [(set R16:$dst, (i16 (load raddr:$src)))]>;
+               [(set R16:$dst, (i16 (load iPTR:$src)))]>;
 def LD24rrm : I<0x46, (outs R24:$dst), (ins rmem:$src),
-               [(set R24:$dst, (i24 (load raddr:$src)))]>;
+               [(set R24:$dst, (i24 (load iPTR:$src)))]>;
+
+def  LD8rom : I<0x46, (outs  R8:$dst), (ins omem:$src),
+               [(set  R8:$dst, (i8  (load omempat:$src)))]>;
+def LD16rom : I<0x46, (outs R16:$dst), (ins omem:$src),
+               [(set R16:$dst, (i16 (load omempat:$src)))]>;
+def LD24rom : I<0x46, (outs R24:$dst), (ins omem:$src),
+               [(set R24:$dst, (i24 (load omempat:$src)))]>;
 
 def LD16imr : I<0x22, (outs), (ins imem:$dst, R16:$src),
-               [(store R16:$src, iaddr:$dst)]>;
+               [(store R16:$src, imempat:$dst)]>;
 def LD24imr : I<0x22, (outs), (ins imem:$dst, R24:$src),
-               [(store R24:$src, iaddr:$dst)]>;
+               [(store R24:$src, imempat:$dst)]>;
 
 def  LD8rmr : I<0x32, (outs), (ins rmem:$dst,  R8:$src),
-               [(store  R8:$src, raddr:$dst)]>;
+               [(store  R8:$src, iPTR:$dst)]>;
 def LD16rmr : I<0x22, (outs), (ins rmem:$dst, R16:$src),
-               [(store R16:$src, raddr:$dst)]>;
+               [(store R16:$src, iPTR:$dst)]>;
 def LD24rmr : I<0x22, (outs), (ins rmem:$dst, R24:$src),
-               [(store R24:$src, raddr:$dst)]>;
+               [(store R24:$src, iPTR:$dst)]>;
+
+def  LD8omr : I<0x32, (outs), (ins omem:$dst,  R8:$src),
+               [(store  R8:$src, omempat:$dst)]>;
+def LD16omr : I<0x22, (outs), (ins omem:$dst, R16:$src),
+               [(store R16:$src, omempat:$dst)]>;
+def LD24omr : I<0x22, (outs), (ins omem:$dst, R24:$src),
+               [(store R24:$src, omempat:$dst)]>;
+
+def  LD8rmi : I<0x36, (outs), (ins rmem:$dst,  i8imm:$src),
+               [(store (i8 imm:$src), iPTR:$dst)]>;
+def  LD8omi : I<0x36, (outs), (ins omem:$dst,  i8imm:$src),
+               [(store (i8 imm:$src), omempat:$dst)]>;
 }
 
 let AsmString = "ld\ta, $src", Defs = [A] in
 def  LD8rim : I<0x3A, (outs), (ins imem:$src),
-               [(set  A, (i8  (load iaddr:$src)))]>;
+               [(set  A, (i8  (load imempat:$src)))]>;
 let AsmString = "ld\t$dst, a", Uses = [A] in
 def  LD8imr : I<0x32, (outs), (ins imem:$dst),
-               [(store  A, iaddr:$dst)]>;
+               [(store  A, imempat:$dst)]>;
 
 let AsmString = "ld\tsp, $reg" in {
 let Defs = [SPS] in
@@ -337,16 +362,16 @@ def ADD8rr  : I<0x80, (outs), (ins R8:$arg),
                 [(set A, (add A, R8:$arg)), (implicit F)]>;
 def ADD8ri  : I<0xC6, (outs), (ins i8imm:$arg),
                 [(set A, (add A, imm:$arg)), (implicit F)]>;
-def ADD8rrm : I<0x86, (outs), (ins rmem:$arg),
-                [(set A, (add A, (i8 (load raddr:$arg)))), (implicit F)]>;
+def ADD8rom : I<0x86, (outs), (ins omem:$arg),
+                [(set A, (add A, (i8 (load omempat:$arg)))), (implicit F)]>;
 }
 let AsmString = "sub\ta, $arg" in {
 def SUB8rr  : I<0x90, (outs), (ins R8:$arg),
                 [(set A, (sub A, R8:$arg)), (implicit F)]>;
 def SUB8ri  : I<0xD6, (outs), (ins i8imm:$arg),
                 [(set A, (sub A, imm:$arg)), (implicit F)]>;
-def SUB8rrm : I<0x96, (outs), (ins rmem:$arg),
-                [(set A, (sub A, (i8 (load raddr:$arg)))), (implicit F)]>;
+def SUB8rom : I<0x96, (outs), (ins omem:$arg),
+                [(set A, (sub A, (i8 (load omempat:$arg)))), (implicit F)]>;
 }
 let Uses = [A, F] in {
 let AsmString = "adc\ta, $arg" in {
@@ -354,8 +379,8 @@ def ADC8rr  : I<0x87, (outs), (ins R8:$arg),
                 [(set A, (adde A, R8:$arg)), (implicit F)]>;
 def ADC8ri  : I<0xCE, (outs), (ins i8imm:$arg),
                 [(set A, (adde A, imm:$arg)), (implicit F)]>;
-def ADC8rrm : I<0x8E, (outs), (ins rmem:$arg),
-                [(set A, (adde A, (i8 (load raddr:$arg)))), (implicit F)]>;
+def ADC8rom : I<0x8E, (outs), (ins omem:$arg),
+                [(set A, (adde A, (i8 (load omempat:$arg)))), (implicit F)]>;
 }
 }
 let Uses = [A, F] in {
@@ -364,8 +389,8 @@ def SBC8rr  : I<0x97, (outs), (ins R8:$arg),
                 [(set A, (sube A, R8:$arg)), (implicit F)]>;
 def SBC8ri  : I<0xDE, (outs), (ins i8imm:$arg),
                 [(set A, (sube A, imm:$arg)), (implicit F)]>;
-def SBC8rrm : I<0x9E, (outs), (ins rmem:$arg),
-                [(set A, (sube A, (i8 (load raddr:$arg)))), (implicit F)]>;
+def SBC8rom : I<0x9E, (outs), (ins omem:$arg),
+                [(set A, (sube A, (i8 (load omempat:$arg)))), (implicit F)]>;
 }
 }
 let AsmString = "and\ta, $arg" in {
@@ -373,24 +398,24 @@ def AND8rr  : I<0xA0, (outs), (ins R8:$arg),
                 [(set A, (and A, R8:$arg)), (implicit F)]>;
 def AND8ri  : I<0xE6, (outs), (ins i8imm:$arg),
                 [(set A, (and A, imm:$arg)), (implicit F)]>;
-def AND8rrm : I<0xA6, (outs), (ins rmem:$arg),
-                [(set A, (and A, (i8 (load raddr:$arg)))), (implicit F)]>;
+def AND8rom : I<0xA6, (outs), (ins omem:$arg),
+                [(set A, (and A, (i8 (load omempat:$arg)))), (implicit F)]>;
 }
 let AsmString = "xor\ta, $arg" in {
 def XOR8rr  : I<0xA8, (outs), (ins R8:$arg),
                 [(set A, (xor A, R8:$arg)), (implicit F)]>;
 def XOR8ri  : I<0xEE, (outs), (ins i8imm:$arg),
                 [(set A, (xor A, imm:$arg)), (implicit F)]>;
-def XOR8rrm : I<0xAE, (outs), (ins rmem:$arg),
-                [(set A, (xor A, (i8 (load raddr:$arg)))), (implicit F)]>;
+def XOR8rom : I<0xAE, (outs), (ins omem:$arg),
+                [(set A, (xor A, (i8 (load omempat:$arg)))), (implicit F)]>;
 }
 let AsmString =  "or\ta, $arg" in {
 def  OR8rr  : I<0xB0, (outs), (ins R8:$arg),
                 [(set A, (or  A, R8:$arg)), (implicit F)]>;
 def  OR8ri  : I<0xF6, (outs), (ins i8imm:$arg),
                 [(set A, (or  A, imm:$arg)), (implicit F)]>;
-def  OR8rrm : I<0xB6, (outs), (ins rmem:$arg),
-                [(set A, (or  A, (i8 (load raddr:$arg)))), (implicit F)]>;
+def  OR8rom : I<0xB6, (outs), (ins omem:$arg),
+                [(set A, (or  A, (i8 (load omempat:$arg)))), (implicit F)]>;
 }
 }
 let Defs = [F], Uses = [A] in {
@@ -399,17 +424,17 @@ def  CP8rr  : I<0xB8, (outs), (ins R8:$arg),
                 [(Z80cmp A, R8:$arg), (implicit F)]>;
 def  CP8ri  : I<0xFE, (outs), (ins i8imm:$arg),
                 [(Z80cmp A, imm:$arg), (implicit F)]>;
-def  CP8rrm : I<0xBE, (outs), (ins rmem:$arg),
-                [(Z80cmp A, (i8 (load raddr:$arg))), (implicit F)]>;
+def  CP8rom : I<0xBE, (outs), (ins omem:$arg),
+                [(Z80cmp A, (i8 (load omempat:$arg))), (implicit F)]>;
 }
 }
 
 def LEA16rr : SI<ExtPrfx, 0x02, "lea", "$dst, $src", "",
-                 (outs L16:$dst), (ins rmem16:$src),
-                 [(set L16:$dst, raddr:$src)]>;
+                 (outs L16:$dst), (ins oaddr16:$src),
+                 [(set L16:$dst, omempat:$src)]>;
 def LEA24rr : LI<ExtPrfx, 0x02, "lea", "$dst, $src", "",
-                 (outs L24:$dst), (ins rmem24:$src),
-                 [(set L24:$dst, raddr:$src)]>;
+                 (outs L24:$dst), (ins oaddr24:$src),
+                 [(set L24:$dst, omempat:$src)]>;
 
 let AsmString = "mlt\t$dst", Constraints = "$src = $dst" in {
 def MLT8rr : PI<ExtPrfx, 0x4C, (outs G16:$dst), (ins G16:$src),

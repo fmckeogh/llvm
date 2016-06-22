@@ -16,6 +16,8 @@
 #include "MCTargetDesc/Z80MCTargetDesc.h"
 #include "Z80Subtarget.h"
 #include "Z80TargetMachine.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAG.h"
 using namespace llvm;
 

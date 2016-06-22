@@ -119,9 +119,9 @@ void Z80InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   unsigned Opc;
   switch (RC->getSize()) {
   default: llvm_unreachable("Cannot store this register to stack slot!");
-  case 1: Opc = Z80::LD8rmr;  break;
-  case 2: Opc = Z80::LD16rmr; break;
-  case 3: Opc = Z80::LD24rmr; break;
+  case 1: Opc = Z80::LD8omr;  break;
+  case 2: Opc = Z80::LD16omr; break;
+  case 3: Opc = Z80::LD24omr; break;
   }
   BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Opc))
     .addFrameIndex(FI).addImm(0).addReg(SrcReg, getKillRegState(isKill));
@@ -136,9 +136,9 @@ void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   unsigned Opc;
   switch (RC->getSize()) {
   default: llvm_unreachable("Cannot load this register from stack slot!");
-  case 1: Opc = Z80::LD8rrm;  break;
-  case 2: Opc = Z80::LD16rrm; break;
-  case 3: Opc = Z80::LD24rrm; break;
+  case 1: Opc = Z80::LD8rom;  break;
+  case 2: Opc = Z80::LD16rom; break;
+  case 3: Opc = Z80::LD24rom; break;
   }
   BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Opc), DstReg)
     .addFrameIndex(FI).addImm(0);
