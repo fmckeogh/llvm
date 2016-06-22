@@ -32,6 +32,186 @@ Z80InstrInfo::Z80InstrInfo(Z80Subtarget &STI)
       Subtarget(STI), RI(STI.getTargetTriple()) {
 }
 
+/// Return the inverse of the specified condition,
+/// e.g. turning COND_E to COND_NE.
+Z80::CondCode Z80::GetOppositeBranchCondition(Z80::CondCode CC) {
+  return Z80::CondCode(CC ^ 1);
+}
+
+bool Z80InstrInfo::isUnpredicatedTerminator(const MachineInstr &MI) const {
+  if (!MI.isTerminator()) return false;
+
+  // Conditional branch is a special case.
+  if (MI.isBranch() && !MI.isBarrier())
+    return true;
+  if (!MI.isPredicable())
+    return true;
+  return !isPredicated(MI);
+}
+
+bool Z80InstrInfo::AnalyzeBranch(MachineBasicBlock &MBB,
+                                 MachineBasicBlock *&TBB,
+                                 MachineBasicBlock *&FBB,
+                                 SmallVectorImpl<MachineOperand> &Cond,
+                                 bool AllowModify) const {
+  // Start from the bottom of the block and work up, examining the
+  // terminator instructions.
+  MachineBasicBlock::iterator I = MBB.end(), UnCondBrIter = I;
+  while (I != MBB.begin()) {
+    --I;
+    if (I->isDebugValue())
+      continue;
+
+    // Working from the bottom, when we see a non-terminator instruction, we're
+    // done.
+    if (!isUnpredicatedTerminator(*I))
+      break;
+
+    // A terminator that isn't a branch can't easily be handled by this
+    // analysis.
+    if (!I->isBranch())
+      return true;
+
+    // Cannot handle indirect branches.
+    if (I->getOpcode() == Z80::JPr)
+      return true;
+
+    // Handle unconditional branches.
+    if (I->getOpcode() == Z80::JQ) {
+      UnCondBrIter = I;
+
+      if (!AllowModify) {
+        TBB = I->getOperand(0).getMBB();
+        continue;
+      }
+
+      // If the block has any instructions after a JMP, delete them.
+      while (std::next(I) != MBB.end())
+        std::next(I)->eraseFromParent();
+      Cond.clear();
+      FBB = nullptr;
+
+      // Delete the JMP if it's equivalent to a fall-through.
+      if (MBB.isLayoutSuccessor(I->getOperand(0).getMBB())) {
+        TBB = nullptr;
+        I->eraseFromParent();
+        I = MBB.end();
+        UnCondBrIter = I;
+        continue;
+      }
+
+      // TBB is used to indicate the unconditional destination.
+      TBB = I->getOperand(0).getMBB();
+      continue;
+    }
+
+    // Handle conditional branches.
+    assert(I->getOpcode() == Z80::JQCC && "Invalid conditional branch");
+    Z80::CondCode BranchCode = Z80::CondCode(I->getOperand(1).getImm());
+
+    // Working from the bottom, handle the first conditional branch.
+    if (Cond.empty()) {
+      MachineBasicBlock *TargetBB = I->getOperand(0).getMBB();
+      if (AllowModify && UnCondBrIter != MBB.end() &&
+          MBB.isLayoutSuccessor(TargetBB)) {
+        // If we can modify the code and it ends in something like:
+        //
+        //     jCC L1
+        //     jmp L2
+        //   L1:
+        //     ...
+        //   L2:
+        //
+        // Then we can change this to:
+        //
+        //     jnCC L2
+        //   L1:
+        //     ...
+        //   L2:
+        //
+        // Which is a bit more efficient.
+        // We conditionally jump to the fall-through block.
+        BranchCode = GetOppositeBranchCondition(BranchCode);
+        MachineBasicBlock::iterator OldInst = I;
+
+        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(Z80::JQCC))
+          .addMBB(UnCondBrIter->getOperand(0).getMBB()).addImm(BranchCode);
+        BuildMI(MBB, UnCondBrIter, MBB.findDebugLoc(I), get(Z80::JQ))
+          .addMBB(TargetBB);
+
+        OldInst->eraseFromParent();
+        UnCondBrIter->eraseFromParent();
+
+        // Restart the analysis.
+        UnCondBrIter = MBB.end();
+        I = MBB.end();
+        continue;
+      }
+
+      FBB = TBB;
+      TBB = I->getOperand(0).getMBB();
+      Cond.push_back(MachineOperand::CreateImm(BranchCode));
+      continue;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+unsigned Z80InstrInfo::RemoveBranch(MachineBasicBlock &MBB) const {
+  MachineBasicBlock::iterator I = MBB.end();
+  unsigned Count = 0;
+
+  while (I != MBB.begin()) {
+    --I;
+    if (I->isDebugValue())
+      continue;
+    if (I->getOpcode() != Z80::JQ &&
+        I->getOpcode() != Z80::JQCC &&
+        I->getOpcode() != Z80::JPr)
+      break;
+    // Remove the branch.
+    I->eraseFromParent();
+    I = MBB.end();
+    ++Count;
+  }
+
+  return Count;
+}
+
+unsigned Z80InstrInfo::InsertBranch(MachineBasicBlock &MBB,
+                                    MachineBasicBlock *TBB,
+                                    MachineBasicBlock *FBB,
+                                    ArrayRef<MachineOperand> Cond,
+                                    const DebugLoc &DL) const {
+  // Shouldn't be a fall through.
+  assert(TBB && "InsertBranch must not be told to insert a fallthrough");
+  assert((Cond.size() == 1 || Cond.size() == 0) &&
+         "Z80 branch conditions have one component!");
+
+  if (Cond.empty()) {
+    // Unconditional branch?
+    assert(!FBB && "Unconditional branch with multiple successors!");
+    BuildMI(&MBB, DL, get(Z80::JQ)).addMBB(TBB);
+    return 1;
+  }
+
+  // Conditional branch.
+  unsigned Count = 0;
+  BuildMI(&MBB, DL, get(Z80::JQCC)).addMBB(TBB).addImm(Cond[0].getImm());
+  ++Count;
+
+  // If FBB is null, it is implied to be a fall-through block.
+  if (!FBB) {
+    // Two-way Conditional branch. Insert the second branch.
+    BuildMI(&MBB, DL, get(Z80::JQ)).addMBB(FBB);
+    ++Count;
+  }
+  return Count;
+}
+
 void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator MI,
                                const DebugLoc &DL, unsigned DstReg,

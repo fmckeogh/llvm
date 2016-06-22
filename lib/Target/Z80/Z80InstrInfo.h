@@ -25,7 +25,7 @@ class Z80Subtarget;
 
 namespace Z80 {
   // Z80 specific condition code. These correspond to Z80_*_COND in
-  // Z80InstrInfo.td. THey must be kept in synch.
+  // Z80InstrInfo.td. They must be kept in synch.
 enum CondCode {
   COND_NZ = 0,
   COND_Z = 1,
@@ -41,6 +41,10 @@ enum CondCode {
 
   COND_INVALID
 };
+
+/// GetOppositeBranchCondition - Return the inverse of the specified cond,
+/// e.g. turning COND_Z to COND_NZ.
+CondCode GetOppositeBranchCondition(CondCode CC);
 } // end namespace Z80;
 
 class Z80InstrInfo final : public Z80GenInstrInfo {
@@ -57,6 +61,18 @@ public:
   /// always be able to get register info as well (through this method).
   ///
   const Z80RegisterInfo &getRegisterInfo() const { return RI; }
+
+  // Branch analysis.
+  bool isUnpredicatedTerminator(const MachineInstr &MI) const override;
+  bool AnalyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,
+                     MachineBasicBlock *&FBB,
+                     SmallVectorImpl<MachineOperand> &Cond,
+                     bool AllowModify) const override;
+
+  unsigned RemoveBranch(MachineBasicBlock &MBB) const override;
+  unsigned InsertBranch(MachineBasicBlock &MBB, MachineBasicBlock *TBB,
+                        MachineBasicBlock *FBB, ArrayRef<MachineOperand> Cond,
+                        const DebugLoc &DL) const override;
 
   void copyPhysReg(MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
                    const DebugLoc &DL, unsigned DstReg, unsigned SrcReg,

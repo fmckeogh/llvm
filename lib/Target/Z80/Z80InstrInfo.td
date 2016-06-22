@@ -192,8 +192,11 @@ let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
   def JQ : I<?, (outs), (ins jmptarget:$dst), [(br bb:$dst)]>;
   let AsmString = "jr\t$dst" in
   def JR : I<0x18, (outs), (ins jmptargetoff:$dst)>;
-  let AsmString = "jp\t$dst" in
-  def JP : I<0xC3, (outs), (ins jmptarget:$dst)>;
+  let AsmString = "jp\t$dst" in {
+    def JP : I<0xC3, (outs), (ins jmptarget:$dst)>;
+    let isIndirectBranch = 1 in
+    def JPr : I<0xE9, (outs), (ins rmem:$dst), [(brind iPTR:$dst)]>;
+  }
 }
 let isBranch = 1, isTerminator = 1, Uses = [F] in {
   let AsmString = "jq\t$cc, $dst" in
