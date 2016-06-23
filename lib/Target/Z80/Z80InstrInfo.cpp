@@ -19,6 +19,8 @@
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 using namespace llvm;
 
+#define DEBUG_TYPE "z80-instr-info"
+
 #define GET_INSTRINFO_CTOR_DTOR
 #include "Z80GenInstrInfo.inc"
 
@@ -219,14 +221,10 @@ void Z80InstrInfo::getUnconditionalBranch(MCInst &Branch,
   Branch.addOperand(MCOperand::createExpr(Target));
 }
 
-
-
 void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator MI,
                                const DebugLoc &DL, unsigned DstReg,
                                unsigned SrcReg, bool KillSrc) const {
-  if (RI.isSuperOrSubRegisterEq(DstReg, SrcReg))
-    return;
   for (auto Regs : {std::make_pair(DstReg, &SrcReg),
                     std::make_pair(SrcReg, &DstReg)}) {
     if (Z80::R8RegClass.contains(Regs.first) &&
@@ -234,6 +232,8 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
          Z80::R24RegClass.contains(*Regs.second)))
       *Regs.second = RI.getSubReg(*Regs.second, Z80::sub_low);
   }
+  if (DstReg == SrcReg)
+    return;
   if (Z80::G8RegClass.contains(DstReg, SrcReg)) {
     BuildMI(MBB, MI, DL, get(Z80::LD8rr), DstReg)
       .addReg(SrcReg, getKillRegState(KillSrc));
@@ -301,8 +301,8 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     copyPhysReg(MBB, MI, DL, DstLoReg, SrcLoReg, KillSrc);
     return;
   }
-  dbgs() << RI.getName(DstReg) << " = "
-         << RI.getName(SrcReg) << '\n';
+  DEBUG(dbgs() << RI.getName(DstReg) << " = "
+               << RI.getName(SrcReg) << '\n');
   llvm_unreachable("Unimplemented reg copy");
 }
 
@@ -347,7 +347,7 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineBasicBlock::iterator MI) const {
   case Z80::RCF:
     MIB->setDesc(get(Z80::OR8ar));
     MIB.addReg(Z80::A, RegState::Undef);
-    MIB->dump();
+    DEBUG(MIB->dump());
     return true;
   }
 }

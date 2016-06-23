@@ -60,24 +60,23 @@ bool Z80MachineLateOptimization::runOnMachineFunction(MachineFunction &MF) {
             I->getOperand(0).setIsUse();
             I->getOperand(0).setIsUndef();
             I->RemoveOperand(1);
-            DEBUG(I->dump());
+            DEBUG(dbgs() << '!');
             Changed = true;
           }
           break;
         case Z80::LD24ri: // ld hl, -1/0 -> set-cf \ sbc hl, hl
           if (I->getOperand(0).getReg() == Z80::UHL) {
             int Imm = I->getOperand(1).getImm();
-            if (Imm == 0)
-              BuildMI(MBB, *I, I->getDebugLoc(), TII->get(Z80::RCF));
-            else if (Imm == -1)
-              BuildMI(MBB, *I, I->getDebugLoc(), TII->get(Z80::SCF));
-            else break;
-            I->setDesc(TII->get(Z80::SBC24ar));
-            I->getOperand(0).setIsUse();
-            I->getOperand(0).setIsUndef();
-            I->RemoveOperand(1);
-            DEBUG(I->dump());
-            Changed = true;
+            if (Imm == 0 || Imm == -1) {
+              BuildMI(MBB, *I, I->getDebugLoc(),
+                      TII->get(Imm ? Z80::SCF : Z80::RCF));
+              I->setDesc(TII->get(Z80::SBC24ar));
+              I->getOperand(0).setIsUse();
+              I->getOperand(0).setIsUndef();
+              I->RemoveOperand(1);
+              DEBUG(dbgs() << '!');
+              Changed = true;
+            }
           }
           break;
         }
@@ -85,7 +84,9 @@ bool Z80MachineLateOptimization::runOnMachineFunction(MachineFunction &MF) {
         UsedFlags = false;
       if (I->readsRegister(Z80::F, TRI))
         UsedFlags = true;
+      DEBUG(dbgs() << (UsedFlags ? "true" : "false") << ":\t"; I->dump());
     }
+    DEBUG(dbgs() << '\n');
   }
   return Changed;
 }
