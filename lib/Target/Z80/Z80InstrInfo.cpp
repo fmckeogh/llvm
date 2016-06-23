@@ -218,6 +218,13 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                unsigned SrcReg, bool KillSrc) const {
   if (RI.isSuperOrSubRegisterEq(DstReg, SrcReg))
     return;
+  for (auto Regs : {std::make_pair(DstReg, &SrcReg),
+                    std::make_pair(SrcReg, &DstReg)}) {
+    if (Z80::R8RegClass.contains(Regs.first) &&
+        (Z80::R16RegClass.contains(*Regs.second) ||
+         Z80::R24RegClass.contains(*Regs.second)))
+      *Regs.second = RI.getSubReg(*Regs.second, Z80::sub_low);
+  }
   if (Z80::G8RegClass.contains(DstReg, SrcReg)) {
     BuildMI(MBB, MI, DL, get(Z80::LD8rr), DstReg)
       .addReg(SrcReg, getKillRegState(KillSrc));
@@ -231,7 +238,7 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
       .addReg(SrcReg, getKillRegState(KillSrc));
     return;
   } else if (Z80::R8RegClass.contains(DstReg, SrcReg)) {
-    for (unsigned *Reg : {&DstReg, &SrcReg}) {
+    for (auto Reg : {&DstReg, &SrcReg}) {
       switch (*Reg) {
         case Z80::H: *Reg = Z80::D; break;
         case Z80::L: *Reg = Z80::E; break;
@@ -247,7 +254,7 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   bool Is24Bit = Z80::R24RegClass.contains(DstReg, SrcReg);
   if (KillSrc && (Is24Bit == Subtarget.is24Bit())) {
     bool DE = false, HL = false;
-    for (unsigned Reg : {DstReg, SrcReg}) {
+    for (auto Reg : {DstReg, SrcReg}) {
       switch (Reg) {
         case Z80::DE: case Z80::UDE: DE = true; break;
         case Z80::HL: case Z80::UHL: HL = true; break;
