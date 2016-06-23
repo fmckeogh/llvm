@@ -26,6 +26,9 @@ class Z80TargetMachine;
 /// instruction scheduling.
 FunctionPass *createZ80ISelDag(Z80TargetMachine &TM,
                                CodeGenOpt::Level OptLevel);
+
+/// Return a pass that optimizes instructions after register selection.
+FunctionPass *createZ80MachineLateOptimization();
 } // End llvm namespace
 
 #endif

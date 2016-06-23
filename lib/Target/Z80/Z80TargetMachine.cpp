@@ -71,6 +71,7 @@ public:
   }
 
   bool addInstSelector() override;
+  void addMachineLateOptimization() override;
 };
 } // namespace
 
@@ -82,4 +83,9 @@ bool Z80PassConfig::addInstSelector() {
   // Install an instruction selector.
   addPass(createZ80ISelDag(getZ80TargetMachine(), getOptLevel()));
   return false;
+}
+
+void Z80PassConfig::addMachineLateOptimization() {
+  addPass(createZ80MachineLateOptimization());
+  TargetPassConfig::addMachineLateOptimization();
 }

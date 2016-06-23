@@ -15,6 +15,7 @@ set(sources
   Z80ISelDAGToDAG.cpp
   Z80ISelLowering.cpp
   Z80InstrInfo.cpp
+  Z80MachineLateOptimization.cpp
   Z80MCInstLower.cpp
   Z80RegisterInfo.cpp
   Z80Subtarget.cpp
