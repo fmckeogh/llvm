@@ -32,9 +32,8 @@ Z80FrameLowering::Z80FrameLowering(const Z80Subtarget &STI)
 bool Z80FrameLowering::hasFP(const MachineFunction &MF) const {
   const MachineFrameInfo *MFI = MF.getFrameInfo();
 
-  return (MF.getTarget().Options.DisableFramePointerElim(MF) ||
-          MFI->hasVarSizedObjects() ||
-          MFI->isFrameAddressTaken());
+  return !MF.getTarget().Options.DisableFramePointerElim(MF) &&
+    (MFI->hasVarSizedObjects() || MFI->isFrameAddressTaken());
 }
 
 void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
