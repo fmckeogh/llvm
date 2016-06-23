@@ -359,93 +359,36 @@ def DEC24r : LI<NoPrfx, 0x0B, "dec", "$dst", "$dst = $imp",
                 (outs R24:$dst), (ins R24:$imp),
                 [(set R24:$dst, (add R24:$imp, -1))]>;
 
-let Defs = [A, F], Uses = [A] in {
-let AsmString = "add\ta, $arg" in {
-def ADD8rr  : I<0x80, (outs), (ins R8:$arg),
-                [(set A, (add A, R8:$arg)), (implicit F)]>;
-def ADD8ri  : I<0xC6, (outs), (ins i8imm:$arg),
-                [(set A, (add A, imm:$arg)), (implicit F)]>;
-def ADD8rrm : I<0x86, (outs), (ins rmem:$arg),
-                [(set A, (add A, (i8 (load    iPTR:$arg)))), (implicit F)]>;
-def ADD8rom : I<0x86, (outs), (ins omem:$arg),
-                [(set A, (add A, (i8 (load omempat:$arg)))), (implicit F)]>;
+multiclass ALU8<bits<3> OpCode, string Mnemonic, SDNode OpNode, bit Commutable,
+                list<Register> UseList = [A]> {
+  let AsmString = Mnemonic#"\ta, $arg", Defs = [A, F], Uses = UseList in {
+    let isCommutable = Commutable in
+    def 8ar  : I<{0b10, OpCode, 0b000}, (outs), (ins    R8:$arg),
+                 [(set A, (OpNode A,                R8:$arg)),   (implicit F)]>;
+    def 8ai  : I<{0b11, OpCode, 0b110}, (outs), (ins i8imm:$arg),
+                 [(set A, (OpNode A,               imm:$arg)),   (implicit F)]>;
+    def 8arm : I<{0b10, OpCode, 0b110}, (outs), (ins  rmem:$arg),
+                 [(set A, (OpNode A, (i8 (load    iPTR:$arg)))), (implicit F)]>;
+    def 8aom : I<{0b10, OpCode, 0b110}, (outs), (ins  omem:$arg),
+                 [(set A, (OpNode A, (i8 (load omempat:$arg)))), (implicit F)]>;
+  }
 }
-let AsmString = "sub\ta, $arg" in {
-def SUB8rr  : I<0x90, (outs), (ins R8:$arg),
-                [(set A, (sub A, R8:$arg)), (implicit F)]>;
-def SUB8ri  : I<0xD6, (outs), (ins i8imm:$arg),
-                [(set A, (sub A, imm:$arg)), (implicit F)]>;
-def SUB8rrm : I<0x96, (outs), (ins rmem:$arg),
-                [(set A, (sub A, (i8 (load    iPTR:$arg)))), (implicit F)]>;
-def SUB8rom : I<0x96, (outs), (ins omem:$arg),
-                [(set A, (sub A, (i8 (load omempat:$arg)))), (implicit F)]>;
-}
-let Uses = [A, F] in {
-let AsmString = "adc\ta, $arg" in {
-def ADC8rr  : I<0x87, (outs), (ins R8:$arg),
-                [(set A, (adde A, R8:$arg)), (implicit F)]>;
-def ADC8ri  : I<0xCE, (outs), (ins i8imm:$arg),
-                [(set A, (adde A, imm:$arg)), (implicit F)]>;
-def ADC8rrm : I<0x8E, (outs), (ins rmem:$arg),
-                [(set A, (adde A, (i8 (load    iPTR:$arg)))), (implicit F)]>;
-def ADC8rom : I<0x8E, (outs), (ins omem:$arg),
-                [(set A, (adde A, (i8 (load omempat:$arg)))), (implicit F)]>;
-}
-}
-let Uses = [A, F] in {
-let AsmString = "sbc\ta, $arg" in {
-def SBC8rr  : I<0x97, (outs), (ins R8:$arg),
-                [(set A, (sube A, R8:$arg)), (implicit F)]>;
-def SBC8ri  : I<0xDE, (outs), (ins i8imm:$arg),
-                [(set A, (sube A, imm:$arg)), (implicit F)]>;
-def SBC8rrm : I<0x9E, (outs), (ins rmem:$arg),
-                [(set A, (sube A, (i8 (load    iPTR:$arg)))), (implicit F)]>;
-def SBC8rom : I<0x9E, (outs), (ins omem:$arg),
-                [(set A, (sube A, (i8 (load omempat:$arg)))), (implicit F)]>;
-}
-}
-let AsmString = "and\ta, $arg" in {
-def AND8rr  : I<0xA0, (outs), (ins R8:$arg),
-                [(set A, (and A, R8:$arg)), (implicit F)]>;
-def AND8ri  : I<0xE6, (outs), (ins i8imm:$arg),
-                [(set A, (and A, imm:$arg)), (implicit F)]>;
-def AND8rrm : I<0xA6, (outs), (ins rmem:$arg),
-                [(set A, (and A, (i8 (load    iPTR:$arg)))), (implicit F)]>;
-def AND8rom : I<0xA6, (outs), (ins omem:$arg),
-                [(set A, (and A, (i8 (load omempat:$arg)))), (implicit F)]>;
-}
-let AsmString = "xor\ta, $arg" in {
-def XOR8rr  : I<0xA8, (outs), (ins R8:$arg),
-                [(set A, (xor A, R8:$arg)), (implicit F)]>;
-def XOR8ri  : I<0xEE, (outs), (ins i8imm:$arg),
-                [(set A, (xor A, imm:$arg)), (implicit F)]>;
-def XOR8rrm : I<0xAE, (outs), (ins rmem:$arg),
-                [(set A, (xor A, (i8 (load    iPTR:$arg)))), (implicit F)]>;
-def XOR8rom : I<0xAE, (outs), (ins omem:$arg),
-                [(set A, (xor A, (i8 (load omempat:$arg)))), (implicit F)]>;
-}
-let AsmString =  "or\ta, $arg" in {
-def  OR8rr  : I<0xB0, (outs), (ins R8:$arg),
-                [(set A, (or  A, R8:$arg)), (implicit F)]>;
-def  OR8ri  : I<0xF6, (outs), (ins i8imm:$arg),
-                [(set A, (or  A, imm:$arg)), (implicit F)]>;
-def  OR8rrm : I<0xB6, (outs), (ins rmem:$arg),
-                [(set A, (or  A, (i8 (load    iPTR:$arg)))), (implicit F)]>;
-def  OR8rom : I<0xB6, (outs), (ins omem:$arg),
-                [(set A, (or  A, (i8 (load omempat:$arg)))), (implicit F)]>;
-}
-}
-let Defs = [F], Uses = [A] in {
-let AsmString =  "cp\ta, $arg" in {
-def  CP8rr  : I<0xB8, (outs), (ins R8:$arg),
-                [(Z80cmp A, R8:$arg), (implicit F)]>;
-def  CP8ri  : I<0xFE, (outs), (ins i8imm:$arg),
-                [(Z80cmp A, imm:$arg), (implicit F)]>;
-def  CP8rrm : I<0xBE, (outs), (ins rmem:$arg),
+defm ADD : ALU8<0, "add",  add, 1>;
+defm ADC : ALU8<1, "adc", adde, 1, [A, F]>;
+defm SUB : ALU8<2, "sub",  sub, 0>;
+defm SBC : ALU8<3, "sbc", sube, 0, [A, F]>;
+defm AND : ALU8<4, "and",  and, 1>;
+defm XOR : ALU8<5, "xor",  xor, 1>;
+defm  OR : ALU8<6,  "or",   or, 1>;
+let AsmString = "cp\ta, $arg", Defs = [F], Uses = [A], isCompare = 1 in {
+def  CP8ar  : I<0xB8, (outs), (ins R8:$arg),
+                [(Z80cmp A,                R8:$arg),   (implicit F)]>;
+def  CP8ai  : I<0xFE, (outs), (ins i8imm:$arg),
+                [(Z80cmp A,               imm:$arg),   (implicit F)]>;
+def  CP8arm : I<0xBE, (outs), (ins rmem:$arg),
                 [(Z80cmp A, (i8 (load    iPTR:$arg))), (implicit F)]>;
-def  CP8rom : I<0xBE, (outs), (ins omem:$arg),
+def  CP8aom : I<0xBE, (outs), (ins omem:$arg),
                 [(Z80cmp A, (i8 (load omempat:$arg))), (implicit F)]>;
-}
 }
 
 def LEA16rr : SI<ExtPrfx, 0x02, "lea", "$dst, $src", "",
