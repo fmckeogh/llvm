@@ -296,6 +296,18 @@ def PUSH16r : I<0xC5, (outs), (ins S16:$reg)>;
 def PUSH24r : I<0xC5, (outs), (ins S24:$reg)>;
 }
 
+let Defs = [F] in {
+  let isPseudo = 1 in
+  def RCF : P;
+  let AsmString = "scf" in
+  def SCF : I<0x37>;
+  let AsmString = "ccf", Uses = [F] in
+  def CCF : I<0x37>;
+}
+
+//===----------------------------------------------------------------------===//
+//  Arithmetic Instructions.
+//
 
 let Defs = [F] in {
 def ADD16ao : SI<NoPrfx, 0x09, "add", "$dst, $src", "$imp = $dst",
@@ -310,32 +322,16 @@ def ADD16aa : SI<NoPrfx, 0x29, "add", "$dst, $src", "$src = $dst",
 def ADD24aa : LI<NoPrfx, 0x29, "add", "$dst, $src", "$src = $dst",
                  (outs A24:$dst), (ins A24:$src),
                  [(set A24:$dst, (add A24:$src, A24:$src)), (implicit F)]>;
-let Uses = [F] in {
-def SBC16ao : SI<ExtPrfx, 0x42, "sbc", "$dst, $src", "$imp = $dst",
-                 (outs A16:$dst), (ins A16:$imp, O16:$src),
-                 [(set A16:$dst, (sube A16:$imp, O16:$src)), (implicit F)]>;
-def SBC24ao : LI<ExtPrfx, 0x42, "sbc", "$dst, $src", "$imp = $dst",
-                 (outs A24:$dst), (ins A24:$imp, O24:$src),
-                 [(set A24:$dst, (sube A24:$imp, O24:$src)), (implicit F)]>;
-def SBC16aa : SI<ExtPrfx, 0x62, "sbc", "$dst, $src", "$imp = $dst, $src = $dst",
-                 (outs A16:$dst), (ins A16:$imp, A16:$src),
-                 [(set A16:$dst, (sube A16:$imp, A16:$src)), (implicit F)]>;
-def SBC24aa : LI<ExtPrfx, 0x62, "sbc", "$dst, $src", "$imp = $dst, $src = $dst",
-                 (outs A24:$dst), (ins A24:$imp, A24:$src),
-                 [(set A24:$dst, (sube A24:$imp, A24:$src)), (implicit F)]>;
-def ADC16ao : SI<ExtPrfx, 0x4A, "adc", "$dst, $src", "$imp = $dst",
-                 (outs A16:$dst), (ins A16:$imp, O16:$src),
-                 [(set A16:$dst, (adde A16:$imp, O16:$src)), (implicit F)]>;
-def ADC24ao : LI<ExtPrfx, 0x4A, "adc", "$dst, $src", "$imp = $dst",
-                 (outs A24:$dst), (ins A24:$imp, O24:$src),
-                 [(set A24:$dst, (adde A24:$imp, O24:$src)), (implicit F)]>;
-def ADC16aa : SI<ExtPrfx, 0x6A, "adc", "$dst, $src", "$imp = $dst, $src = $dst",
-                 (outs A16:$dst), (ins A16:$imp, A16:$src),
-                 [(set A16:$dst, (adde A16:$imp, A16:$src)), (implicit F)]>;
-def ADC24aa : LI<ExtPrfx, 0x6A, "adc", "$dst, $src", "$imp = $dst, $src = $dst",
-                 (outs A24:$dst), (ins A24:$imp, A24:$src),
-                 [(set A24:$dst, (adde A24:$imp, A24:$src)), (implicit F)]>;
 }
+let Defs = [HL, F], Uses = [HL, F] in {
+def SBC16ar : SI<ExtPrfx, 0x42, "sbc", "hl, $src", "", (outs), (ins O16:$src),
+                 [(set  HL, (sube  HL, O16:$src))]>;
+def SBC24ar : LI<ExtPrfx, 0x42, "sbc", "hl, $src", "", (outs), (ins O24:$src),
+                 [(set UHL, (sube UHL, O24:$src))]>;
+def ADC16ar : SI<ExtPrfx, 0x4A, "adc", "hl, $src", "", (outs), (ins O16:$src),
+                 [(set  HL, (adde  HL, O16:$src))]>;
+def ADC24ar : LI<ExtPrfx, 0x4A, "adc", "hl, $src", "", (outs), (ins O24:$src),
+                 [(set UHL, (adde UHL, O24:$src))]>;
 }
 
 let Defs = [F] in {

@@ -87,6 +87,7 @@ public:
                             unsigned DstReg, int FrameIndex,
                             const TargetRegisterClass *RC,
                             const TargetRegisterInfo *TRI) const override;
+  bool expandPostRAPseudo(MachineBasicBlock::iterator MI) const override;
 };
 
 } // End llvm namespace

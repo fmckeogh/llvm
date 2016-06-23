@@ -330,3 +330,15 @@ void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Opc), DstReg)
     .addFrameIndex(FI).addImm(0);
 }
+
+bool Z80InstrInfo::expandPostRAPseudo(MachineBasicBlock::iterator MI) const {
+  MachineInstrBuilder MIB(*MI->getParent()->getParent(), MI);
+  switch (MI->getOpcode()) {
+  default: return false;
+  case Z80::RCF:
+    MIB->setDesc(get(Z80::OR8ar));
+    MIB.addReg(Z80::A, RegState::Undef);
+    MIB->dump();
+    return true;
+  }
+}

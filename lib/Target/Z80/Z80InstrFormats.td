@@ -46,9 +46,9 @@ class LI<Prefix p, bits<8> o, string op, string args, string con,
          dag outs, dag ins, list<dag> pattern = []>
   : Z80Inst<p, o, outs, ins, pattern, !strconcat(op, "{.lil|}\t", args), con>;
 
-class P<dag outs, dag ins, list<dag> pattern = []>
+class P<dag outs = (outs), dag ins = (ins), list<dag> pattern = []>
   : Z80Inst<?, ?, outs, ins, pattern>;
-class I<bits<8> o, dag outs, dag ins, list<dag> pattern = []>
+class I<bits<8> o, dag outs = (outs), dag ins = (ins), list<dag> pattern = []>
   : Z80Inst<NoPrfx, o, outs, ins, pattern>;
 class PI<Prefix prfx, bits<8> o, dag outs, dag ins, list<dag> pattern = []>
   : Z80Inst<prfx, o, outs, ins, pattern>;
