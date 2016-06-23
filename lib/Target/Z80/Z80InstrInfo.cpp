@@ -16,6 +16,7 @@
 #include "Z80Subtarget.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineRegisterInfo.h"
 using namespace llvm;
 
 #define GET_INSTRINFO_CTOR_DTOR
@@ -212,6 +213,14 @@ unsigned Z80InstrInfo::InsertBranch(MachineBasicBlock &MBB,
   return Count;
 }
 
+void Z80InstrInfo::getUnconditionalBranch(MCInst &Branch,
+                                          const MCSymbolRefExpr *Target) const {
+  Branch.setOpcode(Z80::JQ);
+  Branch.addOperand(MCOperand::createExpr(Target));
+}
+
+
+
 void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator MI,
                                const DebugLoc &DL, unsigned DstReg,
@@ -341,4 +350,51 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineBasicBlock::iterator MI) const {
     MIB->dump();
     return true;
   }
+}
+
+bool Z80InstrInfo::analyzeCompare(const MachineInstr *MI,
+                                  unsigned &SrcReg, unsigned &SrcReg2,
+                                  int &CmpMask, int &CmpValue) const {
+  switch (MI->getOpcode()) {
+  default: return false;
+  case Z80::CP8ai:
+    SrcReg = Z80::A;
+    SrcReg2 = 0;
+    CmpMask = ~0;
+    CmpValue = MI->getOperand(0).getImm();
+    return true;
+  case Z80::CP8ar:
+    SrcReg = Z80::A;
+    SrcReg2 = MI->getOperand(0).getReg();
+    CmpMask = ~0;
+    CmpValue = 0;
+    return true;
+  case Z80::CP8arm:
+  case Z80::CP8aom:
+    SrcReg = Z80::A;
+    SrcReg2 = 0;
+    CmpMask = ~0;
+    CmpValue = 0;
+    return true;
+  }
+}
+
+bool Z80InstrInfo::optimizeCompareInstr(MachineInstr *CmpInstr,
+                                        unsigned SrcReg, unsigned SrcReg2,
+                                        int CmpMask, int CmpValue,
+                                        const MachineRegisterInfo *MRI) const {
+  // Get the unique definition of SrcReg.
+  MachineInstr *MI = MRI->getUniqueVRegDef(SrcReg);
+  if (!MI) return false;
+
+  // CmpInstr is the first instruction of the BB.
+  MachineBasicBlock::iterator I = CmpInstr, Def = MI;
+
+  // If we are comparing against zero, check whether we can use MI to update F.
+  // If MI is not in the same BB as CmpInstr, do not optimize.
+  bool IsCmpZero = (SrcReg2 == 0 && CmpValue == 0);
+  if (IsCmpZero && MI->getParent() != CmpInstr->getParent())
+    return false;
+
+  llvm_unreachable("Unimplemented!");
 }

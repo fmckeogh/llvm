@@ -29,8 +29,12 @@ def SDT_Z80Call          : SDTypeProfile<0, -1, [SDTCisPtr<0>]>;
 def SDT_Z80CallSeqStart  : SDCallSeqStart<[SDTCisI16<0>]>;
 def SDT_Z80CallSeqEnd    : SDCallSeqEnd<[SDTCisI16<0>, SDTCisI16<1>]>;
 def SDT_Z80Cmp           : SDTypeProfile<0, 2, [SDTCisSameAs<0, 1>]>;
-def SDT_Z80BrCC          : SDTypeProfile<0, 2, [SDTCisVT<0, OtherVT>,
+def SDT_Z80BrCond        : SDTypeProfile<0, 2, [SDTCisVT<0, OtherVT>,
                                                 SDTCisVT<1, i8>]>;
+def SDT_Z80Select        : SDTypeProfile<1, 3, [SDTCisInt<0>,
+                                                SDTCisVT<1, i8>,
+                                                SDTCisSameAs<0, 2>,
+                                                SDTCisSameAs<0, 3>]>;
 
 //===----------------------------------------------------------------------===//
 // Z80 specific DAG Nodes.
@@ -47,8 +51,9 @@ def Z80callseq_start : SDNode<"ISD::CALLSEQ_START", SDT_Z80CallSeqStart,
 def Z80callseq_end   : SDNode<"ISD::CALLSEQ_END", SDT_Z80CallSeqEnd,
                               [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
 def Z80cmp           : SDNode<"Z80ISD::CMP", SDT_Z80Cmp, [SDNPOutGlue]>;
-def Z80brcc          : SDNode<"Z80ISD::BR_CC", SDT_Z80BrCC,
-                              [SDNPHasChain, SDNPInGlue]>;
+def Z80brcond        : SDNode<"Z80ISD::BRCOND", SDT_Z80BrCond, [SDNPHasChain,
+                                                                SDNPInGlue]>;
+def Z80select        : SDNode<"Z80ISD::SELECT", SDT_Z80Select, [SDNPInGlue]>;
 
 //===----------------------------------------------------------------------===//
 // Z80 Instruction Format Definitions.
@@ -160,10 +165,14 @@ def ADJCALLSTACKUP24   : P<(outs), (ins i16imm:$amt1, i16imm:$amt2),
 }
 
 let usesCustomInserter = 1, Defs = [F] in {
-  def Cmp16 : P<(outs), (ins A16:$dst, O16:$src),
-                [(Z80cmp A16:$dst, O16:$src), (implicit F)]>;
-  def Cmp24 : P<(outs), (ins A24:$dst, O24:$src),
-                [(Z80cmp A24:$dst, O24:$src), (implicit F)]>;
+  def Cmp16 : P<(outs), (ins O16:$src), [(Z80cmp  HL, O16:$src), (implicit F)]>;
+  def Cmp24 : P<(outs), (ins O24:$src), [(Z80cmp UHL, O24:$src), (implicit F)]>;
+  def Select8  : P<(outs  R8:$dst), (ins i8imm:$cc,  R8:$true,  R8:$false),
+                   [(set  R8:$dst, (Z80select imm:$cc,  R8:$true,  R8:$false))]>;
+  def Select16 : P<(outs R16:$dst), (ins i8imm:$cc, R16:$true, R16:$false),
+                   [(set R16:$dst, (Z80select imm:$cc, R16:$true, R16:$false))]>;
+  def Select24 : P<(outs R24:$dst), (ins i8imm:$cc, R24:$true, R24:$false),
+                   [(set R24:$dst, (Z80select imm:$cc, R24:$true, R24:$false))]>;
 }
 
 let AsmString = "nop", hasSideEffects = 0 in
@@ -188,23 +197,24 @@ let AsmString = "ret", isTerminator = 1, isReturn = 1, isBarrier = 1 in {
 }
 
 let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
-  let AsmString = "jq\t$dst" in
-  def JQ : I<?, (outs), (ins jmptarget:$dst), [(br bb:$dst)]>;
-  let AsmString = "jr\t$dst" in
-  def JR : I<0x18, (outs), (ins jmptargetoff:$dst)>;
-  let AsmString = "jp\t$dst" in {
-    def JP : I<0xC3, (outs), (ins jmptarget:$dst)>;
+  let AsmString = "jq\t$target" in
+  def JQ : I<?, (outs), (ins jmptarget:$target), [(br bb:$target)]>;
+  let AsmString = "jr\t$target" in
+  def JR : I<0x18, (outs), (ins jmptargetoff:$target)>;
+  let AsmString = "jp\t$target" in {
+    def JP : I<0xC3, (outs), (ins jmptarget:$target)>;
     let isIndirectBranch = 1 in
-    def JPr : I<0xE9, (outs), (ins rmem:$dst), [(brind iPTR:$dst)]>;
+    def JPr : I<0xE9, (outs), (ins rmem:$target), [(brind iPTR:$target)]>;
   }
 }
 let isBranch = 1, isTerminator = 1, Uses = [F] in {
-  let AsmString = "jq\t$cc, $dst" in
-  def JQCC : I<?, (outs), (ins jmptarget:$dst, cc:$cc), [(Z80brcc bb:$dst, imm:$cc)]>;
-  let AsmString = "jr\t$cc, $dst" in
-  def JRCC : I<0x18, (outs), (ins jmptargetoff:$dst, cc:$cc)>;
-  let AsmString = "jp\t$cc, $dst" in
-  def JPCC : I<0xC3, (outs), (ins jmptarget:$dst, cc:$cc)>;
+  let AsmString = "jq\t$cc, $target" in
+  def JQCC : I<?, (outs), (ins jmptarget:$target, cc:$cc),
+               [(Z80brcond bb:$target, imm:$cc)]>;
+  let AsmString = "jr\t$cc, $target" in
+  def JRCC : I<0x18, (outs), (ins jmptargetoff:$target, cc:$cc)>;
+  let AsmString = "jp\t$cc, $target" in
+  def JPCC : I<0xC3, (outs), (ins jmptarget:$target, cc:$cc)>;
 }
 
 //===----------------------------------------------------------------------===//

@@ -51,6 +51,9 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
                           ISD::SDIVREM, ISD::UDIVREM })
       setOperationAction(Opc, VT, LibCall);
     setOperationAction(ISD::BR_CC, VT, Custom);
+    setOperationAction(ISD::SETCC, VT, Custom);
+    setOperationAction(ISD::SELECT, VT, Expand);
+    setOperationAction(ISD::SELECT_CC, VT, Custom);
   }
   setOperationAction(ISD::BRCOND, MVT::Other, Expand);
   if (Subtarget.hasEZ80Ops())
@@ -68,6 +71,7 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   // Compute derived properties from the register classes
   computeRegisterProperties(STI.getRegisterInfo());
 
+  setBooleanContents(ZeroOrOneBooleanContent);
   setJumpIsExpensive();
   setSelectIsExpensive();
 
@@ -303,19 +307,51 @@ SDValue Z80TargetLowering::EmitCMP(SDValue &LHS, SDValue &RHS, SDValue &TargetCC
   TargetCC = DAG.getConstant(TCC, DL, MVT::i8);
   return DAG.getNode(Z80ISD::CMP, DL, MVT::Glue, LHS, RHS);
 }
+
 SDValue Z80TargetLowering::LowerBR_CC(SDValue Op, SelectionDAG &DAG) const {
   SDValue Chain = Op.getOperand(0);
   ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(1))->get();
   SDValue LHS   = Op.getOperand(2);
   SDValue RHS   = Op.getOperand(3);
   SDValue Dest  = Op.getOperand(4);
-  SDLoc dl  (Op);
+  SDLoc DL(Op);
 
   SDValue TargetCC;
-  SDValue Flag = EmitCMP(LHS, RHS, TargetCC, CC, dl, DAG);
+  SDValue Flag = EmitCMP(LHS, RHS, TargetCC, CC, DL, DAG);
 
-  return DAG.getNode(Z80ISD::BR_CC, dl, Op.getValueType(),
+  return DAG.getNode(Z80ISD::BRCOND, DL, Op.getValueType(),
                      Chain, Dest, TargetCC, Flag);
+}
+
+SDValue Z80TargetLowering::LowerSETCC(SDValue Op, SelectionDAG &DAG) const {
+  SDValue LHS = Op.getOperand(0);
+  SDValue RHS = Op.getOperand(1);
+  SDLoc DL(Op);
+
+  ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(2))->get();
+  SDValue TargetCC;
+  SDValue Flag = EmitCMP(LHS, RHS, TargetCC, CC, DL, DAG);
+
+  EVT VT = Op.getValueType();
+  return DAG.getNode(Z80ISD::SELECT, DL, DAG.getVTList(VT, MVT::Glue),
+                     DAG.getConstant(1, DL, VT), DAG.getConstant(0, DL, VT),
+                     TargetCC, Flag);
+}
+
+SDValue Z80TargetLowering::LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const {
+  SDValue LHS = Op.getOperand(0);
+  SDValue RHS = Op.getOperand(1);
+  SDValue TV  = Op.getOperand(2);
+  SDValue FV  = Op.getOperand(3);
+  ISD::CondCode CC = cast<CondCodeSDNode>(Op.getOperand(4))->get();
+  SDLoc DL(Op);
+
+  SDValue TargetCC;
+  SDValue Flag = EmitCMP(LHS, RHS, TargetCC, CC, DL, DAG);
+
+  return DAG.getNode(Z80ISD::SELECT, DL,
+                     DAG.getVTList(Op.getValueType(), MVT::Glue), TV, FV,
+                     TargetCC, Flag);
 }
 
 SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
@@ -328,6 +364,8 @@ SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::SRL: return LowerSHR(false, Op, DAG);
   case ISD::MUL: return LowerMUL(Op, DAG);
   case ISD::BR_CC: return LowerBR_CC(Op, DAG);
+  case ISD::SETCC: return LowerSETCC(Op, DAG);
+  case ISD::SELECT_CC: return LowerSELECT_CC(Op, DAG);
   }
   if (Op.getValueSizeInBits() == 16) {
     switch (Op.getOpcode()) {
@@ -468,6 +506,10 @@ Z80TargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
   case Z80::Cmp16:
   case Z80::Cmp24:
     return EmitLoweredCmp(MI, BB);
+  case Z80::Select8:
+  case Z80::Select16:
+  case Z80::Select24:
+    return EmitLoweredSelect(MI, BB);
   }
 }
 
@@ -479,13 +521,71 @@ Z80TargetLowering::EmitLoweredCmp(MachineInstr *MI,
   DebugLoc DL = MI->getDebugLoc();
   MachineRegisterInfo &MRI = BB->getParent()->getRegInfo();
   DEBUG(BB->dump());
-  BuildMI(*BB, MI, DL, TII->get(Z80::OR8rr)).addReg(Z80::A);
-  BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ao : Z80::SBC16ao),
-          MRI.createVirtualRegister(Is24Bit ? &Z80::A24RegClass : &Z80::A16RegClass))
-    .addReg(MI->getOperand(0).getReg())
-    .addReg(MI->getOperand(1).getReg());
+  BuildMI(*BB, MI, DL, TII->get(Z80::RCF));
+  BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ar : Z80::SBC16ar))
+          .addReg(MI->getOperand(0).getReg());
   MI->eraseFromParent();
   DEBUG(BB->dump());
+  return BB;
+}
+
+MachineBasicBlock *
+Z80TargetLowering::EmitLoweredSelect(MachineInstr *MI,
+                                     MachineBasicBlock *BB) const {
+  const TargetInstrInfo *TII = Subtarget.getInstrInfo();
+  DebugLoc DL = MI->getDebugLoc();
+
+  // To "insert" a SELECT_CC instruction, we actually have to insert the
+  // diamond control-flow pattern.  The incoming instruction knows the
+  // destination vreg to set, the condition code register to branch on, the
+  // true/false values to select between, and a branch opcode to use.
+  const BasicBlock *LLVM_BB = BB->getBasicBlock();
+  MachineFunction::iterator I = ++BB->getIterator();
+
+  //  thisMBB:
+  //  ...
+  //   %FalseVal = ...
+  //   cmpTY ccX, r1, r2
+  //   bCC copy1MBB
+  //   fallthrough --> copy0MBB
+  MachineBasicBlock *thisMBB = BB;
+  MachineFunction *F = BB->getParent();
+  MachineBasicBlock *copy0MBB = F->CreateMachineBasicBlock(LLVM_BB);
+  MachineBasicBlock *copy1MBB = F->CreateMachineBasicBlock(LLVM_BB);
+  F->insert(I, copy0MBB);
+  F->insert(I, copy1MBB);
+
+  // Update machine-CFG edges by transferring all successors of the current
+  // block to the new block which will contain the Phi node for the select.
+  copy1MBB->splice(copy1MBB->begin(), BB,
+                   std::next(MachineBasicBlock::iterator(MI)), BB->end());
+  copy1MBB->transferSuccessorsAndUpdatePHIs(BB);
+  // Next, add the true and fallthrough blocks as its successors.
+  BB->addSuccessor(copy0MBB);
+  BB->addSuccessor(copy1MBB);
+
+  BuildMI(BB, DL, TII->get(Z80::JQCC)).addMBB(copy1MBB)
+    .addImm(MI->getOperand(1).getImm());
+
+  //  copy0MBB:
+  //   %TrueVal = ...
+  //   # fallthrough to copy1MBB
+  BB = copy0MBB;
+
+  // Update machine-CFG edges
+  BB->addSuccessor(copy1MBB);
+
+  //  copy1MBB:
+  //   %Result = phi [ %FalseValue, copy0MBB ], [ %TrueValue, thisMBB ]
+  //  ...
+  BB = copy1MBB;
+  BuildMI(*BB, BB->begin(), DL, TII->get(Z80::PHI),
+          MI->getOperand(0).getReg())
+    .addReg(MI->getOperand(2).getReg()).addMBB(thisMBB)
+    .addReg(MI->getOperand(3).getReg()).addMBB(copy0MBB);
+
+  MI->eraseFromParent();   // The pseudo instruction is gone now.
+  DEBUG(F->dump());
   return BB;
 }
 
@@ -733,7 +833,15 @@ const char *Z80TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case Z80ISD::CALL:         return "Z80ISD::CALL";
   case Z80ISD::RET_FLAG:     return "Z80ISD::RETFLAG";
   case Z80ISD::CMP:          return "Z80ISD::CMP";
-  case Z80ISD::BR_CC:        return "Z80ISD::BR_CC";
+  case Z80ISD::BRCOND:       return "Z80ISD::BRCOND";
+  case Z80ISD::SELECT:       return "Z80ISD::SELECT";
   }
   return nullptr;
+}
+
+EVT Z80TargetLowering::getSetCCResultType(const DataLayout &DL,
+                                          LLVMContext &Context,
+                                          EVT VT) const {
+  assert(!VT.isVector() && "No default SetCC type for vectors!");
+  return MVT::i1;
 }

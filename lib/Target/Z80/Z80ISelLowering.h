@@ -41,11 +41,14 @@ namespace Z80ISD {
     /// Z80 compare
     CMP,
 
-    /// Z80 conditional branches. Operand 0 is the chain operand, operand 1
-    /// is the block to branch if condition is true, operand 2 is the
-    /// condition code, and operand 3 is the flag operand produced by a CP
-    /// instruction.
-    BR_CC
+    /// BRCOND - Z80 conditional branch.  The first operand is the chain, the
+    /// second is the block to branch to if the condition is true, the third is
+    /// the condition, and the fourth is the flag operand.
+    BRCOND,
+
+    /// SELECT - Z80 select - This selects between a true value and a false
+    /// value (ops #1 and #2) based on the condition in op #0 and flag in op #3.
+    SELECT
   };
 }
 
@@ -76,6 +79,10 @@ public:
 
   /// This method returs the name of a target specific DAG node.
   const char *getTargetNodeName(unsigned Opcode) const override;
+
+    /// Return the value type to use for ISD::SETCC.
+    EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
+                           EVT VT) const override;
 
   /// Provide custom lowering hooks for some operations.
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
@@ -139,6 +146,8 @@ private:
                   ISD::CondCode CC, const SDLoc &DL, SelectionDAG &DAG) const;
 
   SDValue LowerBR_CC(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
 
   CCAssignFn *getCCAssignFn(CallingConv::ID CallConv) const;
 
@@ -165,6 +174,8 @@ private:
 
   MachineBasicBlock *EmitLoweredCmp(MachineInstr *MI,
                                     MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitLoweredSelect(MachineInstr *MI,
+                                       MachineBasicBlock *BB) const;
 };
 } // End llvm namespace
 
