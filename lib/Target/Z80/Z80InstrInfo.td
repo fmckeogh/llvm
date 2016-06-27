@@ -80,34 +80,31 @@ def Z80_COND_M  : PatLeaf<(i8 7)>;
 // Z80 Operand Definitions.
 //
 
-def imem : Operand<iPTR> {
-  let PrintMethod = "printImmMem";
+def mem : Operand<iPTR> {
+  let PrintMethod = "printMem";
   let MIOperandInfo = (ops imm);
   let OperandType = "OPERAND_MEMORY";
 }
-
-def rmem : Operand<iPTR> {
-  let PrintMethod = "printRegMem";
+def ptr : Operand<iPTR> {
+  let PrintMethod = "printPtr";
   let MIOperandInfo = (ops aptr_rc);
   let OperandType = "OPERAND_MEMORY";
 }
-
-def omem : Operand<iPTR> {
-  let PrintMethod = "printOffMem";
+def off : Operand<iPTR> {
+  let PrintMethod = "printOff";
   let MIOperandInfo = (ops iptr_rc, i8imm);
   let OperandType = "OPERAND_MEMORY";
 }
-
-def oaddr16 : Operand<i16> {
-  let PrintMethod = "printOffAddr";
+def off16 : Operand<i16> {
+  let PrintMethod = "printAddr";
   let MIOperandInfo = (ops I16, i8imm);
 }
-def oaddr24 : Operand<i24> {
-  let PrintMethod = "printOffAddr";
+def off24 : Operand<i24> {
+  let PrintMethod = "printAddr";
   let MIOperandInfo = (ops I24, i8imm);
 }
 
-def i24imm : Operand<i24> { let OperandType = "OPERAND_IMMEDIATE"; }
+let OperandType = "OPERAND_IMMEDIATE" in def i24imm : Operand<i24>;
 
 def jmptarget : Operand<OtherVT>;
 def jmptargetoff : Operand<OtherVT>;
@@ -130,10 +127,10 @@ def imm_top_XFORM : SDNodeXForm<imm, [{
 //===----------------------------------------------------------------------===//
 // Z80 Complex Pattern Definitions.
 //
-def imempat : ComplexPattern<iPTR, 1, "SelectImmMem",
-                             [tglobaladdr, texternalsym]>;
-def omempat : ComplexPattern<iPTR, 2, "SelectOffMem",
-                             [add, sub, frameindex]>;
+def mempat : ComplexPattern<iPTR, 1, "SelectMem",
+                            [globaladdr, externalsym]>;
+def offpat : ComplexPattern<iPTR, 2, "SelectOff",
+                            [add, sub, frameindex]>;
 
 //===----------------------------------------------------------------------===//
 // Z80 Instruction Predicate Definitions.
@@ -187,9 +184,9 @@ def NOP : I<0x00, (outs), (ins), []>;
 // potentially appearing dead.  Uses for argument registers are added manually.
 let AsmString = "call\t$dst", isCall = 1 in {
   let Uses = [SPS] in
-  def CALL16im : I<0xCD, (outs), (ins i16imm:$dst), [(Z80call timm:$dst)]>;
+  def CALL16i : I<0xCD, (outs), (ins i16imm:$dst), [(Z80call mempat:$dst)]>;
   let Uses = [SPL] in
-  def CALL24im : I<0xCD, (outs), (ins i24imm:$dst), [(Z80call timm:$dst)]>;
+  def CALL24i : I<0xCD, (outs), (ins i24imm:$dst), [(Z80call mempat:$dst)]>;
 }
 
 let AsmString = "ret", isTerminator = 1, isReturn = 1, isBarrier = 1 in {
@@ -204,7 +201,7 @@ let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
   let AsmString = "jp\t$target" in {
     def JP : I<0xC3, (outs), (ins jmptarget:$target)>;
     let isIndirectBranch = 1 in
-    def JPr : I<0xE9, (outs), (ins rmem:$target), [(brind iPTR:$target)]>;
+    def JPr : I<0xE9, (outs), (ins ptr:$target), [(brind iPTR:$target)]>;
   }
 }
 let isBranch = 1, isTerminator = 1, Uses = [F] in {
@@ -229,60 +226,64 @@ def  LD8yy : PI<IYPrfx, 0x40, (outs Y8:$dst), (ins Y8:$src)>;
 def  LD8ri : I<0x06, (outs  R8:$dst), (ins  i8imm:$src),
                [(set  R8:$dst, imm:$src)]>;
 def LD16ri : I<0x01, (outs R16:$dst), (ins i16imm:$src),
-               [(set R16:$dst, imm:$src)]>;
+               [(set R16:$dst, mempat:$src)]>;
 def LD24ri : I<0x01, (outs R24:$dst), (ins i24imm:$src),
-               [(set R24:$dst, imm:$src)]>;
+               [(set R24:$dst, mempat:$src)]>;
 
-def LD16rim : I<0x2A, (outs R16:$dst), (ins imem:$src),
-               [(set R16:$dst, (i16 (load imempat:$src)))]>;
-def LD24rim : I<0x2A, (outs R24:$dst), (ins imem:$src),
-               [(set R24:$dst, (i24 (load imempat:$src)))]>;
+let mayLoad = 1 in {
+def LD16rm : I<0x2A, (outs R16:$dst), (ins mem:$src),
+              [(set R16:$dst, (i16 (load mempat:$src)))]>;
+def LD24rm : I<0x2A, (outs R24:$dst), (ins mem:$src),
+              [(set R24:$dst, (i24 (load mempat:$src)))]>;
 
-def  LD8rrm : I<0x46, (outs  R8:$dst), (ins rmem:$src),
-               [(set  R8:$dst, (i8  (load iPTR:$src)))]>;
-def LD16rrm : I<0x46, (outs R16:$dst), (ins rmem:$src),
-               [(set R16:$dst, (i16 (load iPTR:$src)))]>;
-def LD24rrm : I<0x46, (outs R24:$dst), (ins rmem:$src),
-               [(set R24:$dst, (i24 (load iPTR:$src)))]>;
+def  LD8rp : I<0x46, (outs  R8:$dst), (ins ptr:$src),
+              [(set  R8:$dst, (i8  (load iPTR:$src)))]>;
+def LD16rp : I<0x46, (outs R16:$dst), (ins ptr:$src),
+              [(set R16:$dst, (i16 (load iPTR:$src)))]>;
+def LD24rp : I<0x46, (outs R24:$dst), (ins ptr:$src),
+              [(set R24:$dst, (i24 (load iPTR:$src)))]>;
 
-def  LD8rom : I<0x46, (outs  R8:$dst), (ins omem:$src),
-               [(set  R8:$dst, (i8  (load omempat:$src)))]>;
-def LD16rom : I<0x46, (outs R16:$dst), (ins omem:$src),
-               [(set R16:$dst, (i16 (load omempat:$src)))]>;
-def LD24rom : I<0x46, (outs R24:$dst), (ins omem:$src),
-               [(set R24:$dst, (i24 (load omempat:$src)))]>;
-
-def LD16imr : I<0x22, (outs), (ins imem:$dst, R16:$src),
-               [(store R16:$src, imempat:$dst)]>;
-def LD24imr : I<0x22, (outs), (ins imem:$dst, R24:$src),
-               [(store R24:$src, imempat:$dst)]>;
-
-def  LD8rmr : I<0x32, (outs), (ins rmem:$dst,  R8:$src),
-               [(store  R8:$src, iPTR:$dst)]>;
-def LD16rmr : I<0x22, (outs), (ins rmem:$dst, R16:$src),
-               [(store R16:$src, iPTR:$dst)]>;
-def LD24rmr : I<0x22, (outs), (ins rmem:$dst, R24:$src),
-               [(store R24:$src, iPTR:$dst)]>;
-
-def  LD8omr : I<0x32, (outs), (ins omem:$dst,  R8:$src),
-               [(store  R8:$src, omempat:$dst)]>;
-def LD16omr : I<0x22, (outs), (ins omem:$dst, R16:$src),
-               [(store R16:$src, omempat:$dst)]>;
-def LD24omr : I<0x22, (outs), (ins omem:$dst, R24:$src),
-               [(store R24:$src, omempat:$dst)]>;
-
-def  LD8rmi : I<0x36, (outs), (ins rmem:$dst,  i8imm:$src),
-               [(store (i8 imm:$src), iPTR:$dst)]>;
-def  LD8omi : I<0x36, (outs), (ins omem:$dst,  i8imm:$src),
-               [(store (i8 imm:$src), omempat:$dst)]>;
+def  LD8ro : I<0x46, (outs  R8:$dst), (ins off:$src),
+              [(set  R8:$dst, (i8  (load offpat:$src)))]>;
+def LD16ro : I<0x46, (outs R16:$dst), (ins off:$src),
+              [(set R16:$dst, (i16 (load offpat:$src)))]>;
+def LD24ro : I<0x46, (outs R24:$dst), (ins off:$src),
+              [(set R24:$dst, (i24 (load offpat:$src)))]>;
 }
 
-let AsmString = "ld\ta, $src", Defs = [A] in
-def  LD8rim : I<0x3A, (outs), (ins imem:$src),
-               [(set  A, (i8  (load imempat:$src)))]>;
-let AsmString = "ld\t$dst, a", Uses = [A] in
-def  LD8imr : I<0x32, (outs), (ins imem:$dst),
-               [(store  A, imempat:$dst)]>;
+let mayStore = 1 in {
+def LD16mr : I<0x22, (outs), (ins mem:$dst, R16:$src),
+              [(store R16:$src, mempat:$dst)]>;
+def LD24mr : I<0x22, (outs), (ins mem:$dst, R24:$src),
+              [(store R24:$src, mempat:$dst)]>;
+
+def  LD8pr : I<0x32, (outs), (ins ptr:$dst,  R8:$src),
+              [(store  R8:$src, iPTR:$dst)]>;
+def LD16pr : I<0x22, (outs), (ins ptr:$dst, R16:$src),
+              [(store R16:$src, iPTR:$dst)]>;
+def LD24pr : I<0x22, (outs), (ins ptr:$dst, R24:$src),
+              [(store R24:$src, iPTR:$dst)]>;
+
+def  LD8or : I<0x32, (outs), (ins off:$dst,  R8:$src),
+              [(store  R8:$src, offpat:$dst)]>;
+def LD16or : I<0x22, (outs), (ins off:$dst, R16:$src),
+              [(store R16:$src, offpat:$dst)]>;
+def LD24or : I<0x22, (outs), (ins off:$dst, R24:$src),
+              [(store R24:$src, offpat:$dst)]>;
+
+def  LD8pi : I<0x36, (outs), (ins ptr:$dst,  i8imm:$src),
+              [(store (i8 imm:$src), iPTR:$dst)]>;
+def  LD8oi : I<0x36, (outs), (ins off:$dst,  i8imm:$src),
+              [(store (i8 imm:$src), offpat:$dst)]>;
+}
+}
+
+let AsmString = "ld\ta, $src", Defs = [A], mayLoad = 1 in
+def  LD8am : I<0x3A, (outs), (ins mem:$src),
+              [(set  A, (i8  (load mempat:$src)))]>;
+let AsmString = "ld\t$dst, a", Uses = [A], mayStore = 1 in
+def  LD8ma : I<0x32, (outs), (ins mem:$dst),
+              [(store  A, mempat:$dst)]>;
 
 let AsmString = "ld\tsp, $reg" in {
 let Defs = [SPS] in
@@ -365,59 +366,65 @@ def DEC24r : LI<NoPrfx, 0x0B, "dec", "$dst", "$dst = $imp",
                 (outs R24:$dst), (ins R24:$imp),
                 [(set R24:$dst, (add R24:$imp, -1))]>;
 
-multiclass ALU8<bits<3> OpCode, string Mnemonic, SDNode OpNode, bit Commutable,
-                list<Register> UseList = [A]> {
-  let AsmString = Mnemonic#"\ta, $arg", Defs = [A, F], Uses = UseList in {
+multiclass ALU8<bits<3> opcode, string mnemonic, SDNode op, bit Commutable> {
+  let AsmString = mnemonic#"\ta, $arg", Defs = [A, F], Uses = [A] in {
     let isCommutable = Commutable in
-    def 8ar  : I<{0b10, OpCode, 0b000}, (outs), (ins    R8:$arg),
-                 [(set A, (OpNode A,                R8:$arg)),   (implicit F)]>;
-    def 8ai  : I<{0b11, OpCode, 0b110}, (outs), (ins i8imm:$arg),
-                 [(set A, (OpNode A,               imm:$arg)),   (implicit F)]>;
-    def 8arm : I<{0b10, OpCode, 0b110}, (outs), (ins  rmem:$arg),
-                 [(set A, (OpNode A, (i8 (load    iPTR:$arg)))), (implicit F)]>;
-    def 8aom : I<{0b10, OpCode, 0b110}, (outs), (ins  omem:$arg),
-                 [(set A, (OpNode A, (i8 (load omempat:$arg)))), (implicit F)]>;
+    def 8ar : I<{0b10, opcode, 0b000}, (outs), (ins    R8:$arg),
+                [(set A, (op A,               R8:$arg))]>;
+    def 8ai : I<{0b11, opcode, 0b110}, (outs), (ins i8imm:$arg),
+                [(set A, (op A,              imm:$arg))]>;
+    def 8am : I<{0b10, opcode, 0b110}, (outs), (ins   ptr:$arg),
+                [(set A, (op A, (i8 (load   iPTR:$arg))))]>;
+    def 8ao : I<{0b10, opcode, 0b110}, (outs), (ins   off:$arg),
+                [(set A, (op A, (i8 (load offpat:$arg))))]>;
   }
 }
-defm ADD : ALU8<0, "add",  add, 1>;
-defm ADC : ALU8<1, "adc", adde, 1, [A, F]>;
-defm SUB : ALU8<2, "sub",  sub, 0>;
-defm SBC : ALU8<3, "sbc", sube, 0, [A, F]>;
-defm AND : ALU8<4, "and",  and, 1>;
-defm XOR : ALU8<5, "xor",  xor, 1>;
-defm  OR : ALU8<6,  "or",   or, 1>;
+multiclass ALU8F<bits<3> opcode, string mnemonic, SDNode op, bit Commutable> {
+  let AsmString = mnemonic#"\ta, $arg", Defs = [A, F], Uses = [A, F] in {
+    let isCommutable = Commutable in
+    def 8ar : I<{0b10, opcode, 0b000}, (outs), (ins    R8:$arg),
+                [(set A, (op A,               R8:$arg))]>;
+    def 8ai : I<{0b11, opcode, 0b110}, (outs), (ins i8imm:$arg),
+                [(set A, (op A,              imm:$arg))]>;
+    def 8am : I<{0b10, opcode, 0b110}, (outs), (ins   ptr:$arg),
+                [(set A, (op A, (i8 (load   iPTR:$arg))))]>;
+    def 8ao : I<{0b10, opcode, 0b110}, (outs), (ins   off:$arg),
+                [(set A, (op A, (i8 (load offpat:$arg))))]>;
+  }
+}
+defm ADD : ALU8 <0, "add", add,  1>;
+defm ADC : ALU8F<1, "adc", adde, 1>;
+defm SUB : ALU8 <2, "sub", sub,  0>;
+defm SBC : ALU8F<3, "sbc", sube, 0>;
+defm AND : ALU8 <4, "and", and,  1>;
+defm XOR : ALU8 <5, "xor", xor,  1>;
+defm  OR : ALU8 <6, "or",  or,   1>;
 let AsmString = "cp\ta, $arg", Defs = [F], Uses = [A], isCompare = 1 in {
-def  CP8ar  : I<0xB8, (outs), (ins R8:$arg),
+def  CP8ar : I<0xB8, (outs), (ins R8:$arg),
                 [(Z80cmp A,                R8:$arg),   (implicit F)]>;
-def  CP8ai  : I<0xFE, (outs), (ins i8imm:$arg),
+def  CP8ai : I<0xFE, (outs), (ins i8imm:$arg),
                 [(Z80cmp A,               imm:$arg),   (implicit F)]>;
-def  CP8arm : I<0xBE, (outs), (ins rmem:$arg),
+def  CP8am : I<0xBE, (outs), (ins ptr:$arg),
                 [(Z80cmp A, (i8 (load    iPTR:$arg))), (implicit F)]>;
-def  CP8aom : I<0xBE, (outs), (ins omem:$arg),
-                [(Z80cmp A, (i8 (load omempat:$arg))), (implicit F)]>;
+def  CP8ao : I<0xBE, (outs), (ins off:$arg),
+                [(Z80cmp A, (i8 (load offpat:$arg))), (implicit F)]>;
 }
 
-def LEA16rr : SI<ExtPrfx, 0x02, "lea", "$dst, $src", "",
-                 (outs L16:$dst), (ins oaddr16:$src),
-                 [(set L16:$dst, omempat:$src)]>;
-def LEA24rr : LI<ExtPrfx, 0x02, "lea", "$dst, $src", "",
-                 (outs L24:$dst), (ins oaddr24:$src),
-                 [(set L24:$dst, omempat:$src)]>;
+def LEA16ro : SI<ExtPrfx, 0x02, "lea", "$dst, $src", "",
+                 (outs L16:$dst), (ins off16:$src),
+                 [(set L16:$dst, offpat:$src)]>;
+def LEA24ro : LI<ExtPrfx, 0x02, "lea", "$dst, $src", "",
+                 (outs L24:$dst), (ins off24:$src),
+                 [(set L24:$dst, offpat:$src)]>;
 
-let AsmString = "mlt\t$dst", Constraints = "$src = $dst" in {
+let AsmString = "mlt\t$dst", Constraints = "$src = $dst" in
 def MLT8rr : PI<ExtPrfx, 0x4C, (outs G16:$dst), (ins G16:$src),
                 [(set G16:$dst, (Z80mlt G16:$src))]>;
-}
 
 //===----------------------------------------------------------------------===//
 // Non-Instruction Patterns.
 //===----------------------------------------------------------------------===//
 
-// calls
-def : Pat<(Z80call (i16 tglobaladdr :$dst)), (CALL16im tglobaladdr :$dst)>;
-def : Pat<(Z80call (i16 texternalsym:$dst)), (CALL16im texternalsym:$dst)>;
-def : Pat<(Z80call (i24 tglobaladdr :$dst)), (CALL24im tglobaladdr :$dst)>;
-def : Pat<(Z80call (i24 texternalsym:$dst)), (CALL24im texternalsym:$dst)>;
 
 //===----------------------------------------------------------------------===//
 // Subsystems.

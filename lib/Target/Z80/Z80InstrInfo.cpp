@@ -315,9 +315,9 @@ void Z80InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   unsigned Opc;
   switch (RC->getSize()) {
   default: llvm_unreachable("Cannot store this register to stack slot!");
-  case 1: Opc = Z80::LD8omr;  break;
-  case 2: Opc = Z80::LD16omr; break;
-  case 3: Opc = Z80::LD24omr; break;
+  case 1: Opc = Z80::LD8or;  break;
+  case 2: Opc = Z80::LD16or; break;
+  case 3: Opc = Z80::LD24or; break;
   }
   BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Opc))
     .addFrameIndex(FI).addImm(0).addReg(SrcReg, getKillRegState(isKill));
@@ -332,9 +332,9 @@ void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   unsigned Opc;
   switch (RC->getSize()) {
   default: llvm_unreachable("Cannot load this register from stack slot!");
-  case 1: Opc = Z80::LD8rom;  break;
-  case 2: Opc = Z80::LD16rom; break;
-  case 3: Opc = Z80::LD24rom; break;
+  case 1: Opc = Z80::LD8ro;  break;
+  case 2: Opc = Z80::LD16ro; break;
+  case 3: Opc = Z80::LD24ro; break;
   }
   BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Opc), DstReg)
     .addFrameIndex(FI).addImm(0);
@@ -369,8 +369,8 @@ bool Z80InstrInfo::analyzeCompare(const MachineInstr *MI,
     CmpMask = ~0;
     CmpValue = 0;
     return true;
-  case Z80::CP8arm:
-  case Z80::CP8aom:
+  case Z80::CP8am:
+  case Z80::CP8ao:
     SrcReg = Z80::A;
     SrcReg2 = 0;
     CmpMask = ~0;

@@ -80,9 +80,9 @@ public:
   /// This method returs the name of a target specific DAG node.
   const char *getTargetNodeName(unsigned Opcode) const override;
 
-    /// Return the value type to use for ISD::SETCC.
-    EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
-                           EVT VT) const override;
+  /// Return the value type to use for ISD::SETCC.
+  EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
+                         EVT VT) const override;
 
   /// Provide custom lowering hooks for some operations.
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
@@ -141,7 +141,7 @@ public:
     EmitInstrWithCustomInserter(MachineInstr *MI,
                                 MachineBasicBlock *BB) const override;
 
-private:
+ private:
   SDValue EmitCMP(SDValue &LHS, SDValue &RHS, SDValue &TargetCC,
                   ISD::CondCode CC, const SDLoc &DL, SelectionDAG &DAG) const;
 

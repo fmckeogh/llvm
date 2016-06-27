@@ -54,8 +54,8 @@ namespace {
   private:
     void Select(SDNode *N) override;
 
-    bool SelectImmMem(SDValue N, SDValue &Imm);
-    bool SelectOffMem(SDValue N, SDValue &Reg, SDValue &Off);
+    bool SelectMem(SDValue N, SDValue &Mem);
+    bool SelectOff(SDValue N, SDValue &Reg, SDValue &Off);
   };
 }
 
@@ -83,7 +83,7 @@ void Z80DAGToDAGISel::Select(SDNode *Node) {
         dbgs() << '\n');
 }
 
-bool Z80DAGToDAGISel::SelectImmMem(SDValue N, SDValue &Imm) {
+bool Z80DAGToDAGISel::SelectMem(SDValue N, SDValue &Mem) {
   switch (N.getOpcode()) {
   case ISD::Constant:
     uint64_t Val = cast<ConstantSDNode>(N)->getSExtValue();
@@ -92,13 +92,12 @@ bool Z80DAGToDAGISel::SelectImmMem(SDValue N, SDValue &Imm) {
   }
   return false;
 }
-bool Z80DAGToDAGISel::SelectOffMem(SDValue N, SDValue &Reg, SDValue &Off) {
+bool Z80DAGToDAGISel::SelectOff(SDValue N, SDValue &Reg, SDValue &Off) {
   switch (N.getOpcode()) {
-  default:
-    return false;
+  default: return false;
   case ISD::ADD:
     for (int I = 0; I != 2; ++I) {
-      if (SelectImmMem(N.getOperand(I ^ 1), Off)) {
+      if (SelectMem(N.getOperand(I ^ 1), Off)) {
         Reg = N.getOperand(I);
         DEBUG(dbgs() << "Selected ADD:\n";
               N.dumpr();

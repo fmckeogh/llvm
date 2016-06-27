@@ -79,7 +79,7 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
   //   LEA HL, FP + SPOffsetFromFP + Offset
   //   LD SP, HL
   bool CanUseLEA = STI.hasEZ80Ops() && FPOffsetFromSP >= 0 &&
-      isInt<8>(FPOffsetFromSP + Offset);
+    isInt<8>(FPOffsetFromSP + Offset) && hasFP(MF);
   unsigned LEACost = CanUseLEA ? 4 : LargeCost;
 
   // Prefer smaller version
@@ -108,7 +108,7 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
       .addReg(Is24Bit ? Z80::SPL : Z80::SPS);
   } else {
     assert(CanUseLEA && hasFP(MF) && "Can't use lea");
-    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LEA24rr : Z80::LEA16rr),
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LEA24ro : Z80::LEA16ro),
             ScratchReg).addReg(TRI->getFrameRegister(MF))
       .addImm(FPOffsetFromSP + Offset);
   }

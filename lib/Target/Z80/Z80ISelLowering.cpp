@@ -831,7 +831,7 @@ const char *Z80TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case Z80ISD::FIRST_NUMBER: break;
   case Z80ISD::MLT:          return "Z80ISD::MLT";
   case Z80ISD::CALL:         return "Z80ISD::CALL";
-  case Z80ISD::RET_FLAG:     return "Z80ISD::RETFLAG";
+  case Z80ISD::RET_FLAG:     return "Z80ISD::RET_FLAG";
   case Z80ISD::CMP:          return "Z80ISD::CMP";
   case Z80ISD::BRCOND:       return "Z80ISD::BRCOND";
   case Z80ISD::SELECT:       return "Z80ISD::SELECT";
