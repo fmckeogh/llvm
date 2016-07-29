@@ -499,9 +499,9 @@ void Z80TargetLowering::ReplaceNodeResults(SDNode *N,
 }
 
 MachineBasicBlock *
-Z80TargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
+Z80TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                MachineBasicBlock *BB) const {
-  switch (MI->getOpcode()) {
+  switch (MI.getOpcode()) {
   default: llvm_unreachable("Unexpected instr type to insert");
   case Z80::Cmp16:
   case Z80::Cmp24:
@@ -514,26 +514,26 @@ Z80TargetLowering::EmitInstrWithCustomInserter(MachineInstr *MI,
 }
 
 MachineBasicBlock *
-Z80TargetLowering::EmitLoweredCmp(MachineInstr *MI,
+Z80TargetLowering::EmitLoweredCmp(MachineInstr &MI,
                                   MachineBasicBlock *BB) const {
-  bool Is24Bit = MI->getOpcode() == Z80::Cmp24;
+  bool Is24Bit = MI.getOpcode() == Z80::Cmp24;
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
-  DebugLoc DL = MI->getDebugLoc();
+  DebugLoc DL = MI.getDebugLoc();
   MachineRegisterInfo &MRI = BB->getParent()->getRegInfo();
   DEBUG(BB->dump());
   BuildMI(*BB, MI, DL, TII->get(Z80::RCF));
   BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ar : Z80::SBC16ar))
-          .addReg(MI->getOperand(0).getReg());
-  MI->eraseFromParent();
+          .addReg(MI.getOperand(0).getReg());
+  MI.eraseFromParent();
   DEBUG(BB->dump());
   return BB;
 }
 
 MachineBasicBlock *
-Z80TargetLowering::EmitLoweredSelect(MachineInstr *MI,
+Z80TargetLowering::EmitLoweredSelect(MachineInstr &MI,
                                      MachineBasicBlock *BB) const {
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
-  DebugLoc DL = MI->getDebugLoc();
+  DebugLoc DL = MI.getDebugLoc();
 
   // To "insert" a SELECT_CC instruction, we actually have to insert the
   // diamond control-flow pattern.  The incoming instruction knows the
@@ -565,7 +565,7 @@ Z80TargetLowering::EmitLoweredSelect(MachineInstr *MI,
   BB->addSuccessor(copy1MBB);
 
   BuildMI(BB, DL, TII->get(Z80::JQCC)).addMBB(copy1MBB)
-    .addImm(MI->getOperand(1).getImm());
+    .addImm(MI.getOperand(1).getImm());
 
   //  copy0MBB:
   //   %TrueVal = ...
@@ -580,11 +580,11 @@ Z80TargetLowering::EmitLoweredSelect(MachineInstr *MI,
   //  ...
   BB = copy1MBB;
   BuildMI(*BB, BB->begin(), DL, TII->get(Z80::PHI),
-          MI->getOperand(0).getReg())
-    .addReg(MI->getOperand(2).getReg()).addMBB(thisMBB)
-    .addReg(MI->getOperand(3).getReg()).addMBB(copy0MBB);
+          MI.getOperand(0).getReg())
+    .addReg(MI.getOperand(2).getReg()).addMBB(thisMBB)
+    .addReg(MI.getOperand(3).getReg()).addMBB(copy0MBB);
 
-  MI->eraseFromParent();   // The pseudo instruction is gone now.
+  MI.eraseFromParent();   // The pseudo instruction is gone now.
   DEBUG(F->dump());
   return BB;
 }
@@ -625,6 +625,10 @@ SDValue Z80TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
       .getValueAsString() == "true")
     IsTailCall = false;
 
+  if (IsTailCall)
+    IsTailCall = IsEligibleForTailCallOptimization(
+        Callee, CallConv, IsVarArg, CLI.RetTy, Outs, OutVals, Ins, DAG);
+
   // Analyze operands of the call, assigning locations to each operand.
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
@@ -634,12 +638,14 @@ SDValue Z80TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   unsigned NumBytes = CCInfo.getAlignedCallFrameSize();
   MVT PtrVT = getPointerTy(DAG.getDataLayout());
 
-  Chain = DAG.getCALLSEQ_START(Chain, DAG.getIntPtrConstant(NumBytes, DL, true),
-                               DL);
+  if (!IsTailCall)
+    Chain = DAG.getCALLSEQ_START(Chain,
+                                 DAG.getIntPtrConstant(NumBytes, DL, true), DL);
 
   SmallVector<std::pair<unsigned, SDValue>, 2> RegsToPass;
   SmallVector<SDValue, 14> MemOpChains;
   SDValue StackPtr;
+  const TargetRegisterInfo *RegInfo = Subtarget.getRegisterInfo();
 
   // Walk the register/memloc assignments, inserting copies/loads.
   for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
@@ -666,7 +672,7 @@ SDValue Z80TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
 
     if (VA.isRegLoc()) {
       RegsToPass.push_back(std::make_pair(VA.getLocReg(), Arg));
-    } else {
+    } else if (!IsTailCall) {
       assert(VA.isMemLoc());
       if (!StackPtr.getNode())
         StackPtr = DAG.getCopyFromReg(Chain, DL, Is24Bit ? Z80::SPL : Z80::SPS,
@@ -676,7 +682,7 @@ SDValue Z80TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
       MemOpChains.push_back(DAG.getStore(
           Chain, DL, Arg, PtrOff,
           MachinePointerInfo::getStack(DAG.getMachineFunction(),
-                                       VA.getLocMemOffset()), false, false, 0));
+                                       VA.getLocMemOffset())));
     }
   }
 
@@ -692,14 +698,8 @@ SDValue Z80TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
                              RegsToPass[I].second, InFlag);
     InFlag = Chain.getValue(1);
   }
-
-  // If the callee is a GlobalAddress node (quite common, every direct call is)
-  // turn it into a TargetGlobalAddress node so that legalize doesn't hack it.
-  // Likewise ExternalSymbol -> TargetExternalSymbol.
-  if (GlobalAddressSDNode *GA = dyn_cast<GlobalAddressSDNode>(Callee))
-    Callee = DAG.getTargetGlobalAddress(GA->getGlobal(), DL, PtrVT);
-  else if (ExternalSymbolSDNode *ES = dyn_cast<ExternalSymbolSDNode>(Callee))
-    Callee = DAG.getTargetExternalSymbol(ES->getSymbol(), PtrVT);
+  if (IsTailCall)
+    InFlag = SDValue();
 
   // Returns a chain and a flag for retval copy to use.
   SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
@@ -712,6 +712,19 @@ SDValue Z80TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   for (unsigned I = 0, E = RegsToPass.size(); I != E; ++I)
     Ops.push_back(DAG.getRegister(RegsToPass[I].first,
                                   RegsToPass[I].second.getValueType()));
+
+  // Add a register mask operand representing the call-preserved registers.
+  const uint32_t *Mask = RegInfo->getCallPreservedMask(MF, CallConv);
+  assert(Mask && "Missing call preserved mask for calling convention");
+
+  Ops.push_back(DAG.getRegisterMask(Mask));
+  if (InFlag.getNode())
+    Ops.push_back(InFlag);
+
+  if (IsTailCall) {
+    MF.getFrameInfo().setHasTailCall();
+    return DAG.getNode(Z80ISD::TC_RETURN, DL, NodeTys, Ops);
+  }
 
   // Returns a chain and a flag for retval copy to use.
   Chain = DAG.getNode(Z80ISD::CALL, DL, NodeTys, Ops);
@@ -726,6 +739,90 @@ SDValue Z80TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   // return.
   return LowerCallResult(Chain, InFlag, CallConv, IsVarArg,
                          Ins, DL, DAG, InVals);
+}
+
+/// MatchingStackOffset - Return true if the given stack call argument is
+/// already available in the same position (relatively) of the caller's
+/// incoming argument stack.
+static bool MatchingStackOffset(SDValue Arg, unsigned Offset,
+                                ISD::ArgFlagsTy Flags, MachineFrameInfo &MFI,
+                                const MachineRegisterInfo *MRI,
+                                const TargetInstrInfo *TII) {
+  unsigned Bytes = Arg.getValueType().getSizeInBits() / 8;
+  int FI = INT_MAX;
+  if (Arg.getOpcode() == ISD::CopyFromReg) {
+    unsigned VR = cast<RegisterSDNode>(Arg.getOperand(1))->getReg();
+    if (!TargetRegisterInfo::isVirtualRegister(VR))
+      return false;
+    MachineInstr *Def = MRI->getVRegDef(VR);
+    if (!Def)
+      return false;
+    if (Flags.isByVal() || !TII->isLoadFromStackSlot(*Def, FI))
+      return false;
+  } else if (LoadSDNode *Ld = dyn_cast<LoadSDNode>(Arg)) {
+    if (Flags.isByVal())
+      return false;
+    SDValue Ptr = Ld->getBasePtr();
+    FrameIndexSDNode *FINode = dyn_cast<FrameIndexSDNode>(Ptr);
+    if (!FINode)
+      return false;
+    FI = FINode->getIndex();
+  } else if (Arg.getOpcode() == ISD::FrameIndex && Flags.isByVal()) {
+    FrameIndexSDNode *FINode = cast<FrameIndexSDNode>(Arg);
+    FI = FINode->getIndex();
+    Bytes = Flags.getByValSize();
+  } else
+    return false;
+
+  assert(FI != INT_MAX);
+  return MFI.isFixedObjectIndex(FI) && Offset == MFI.getObjectOffset(FI) &&
+    Bytes == MFI.getObjectSize(FI);
+}
+
+/// Check whether the call is eligible for tail call optimization. Targets
+/// that want to do tail call optimization should implement this function.
+bool Z80TargetLowering::IsEligibleForTailCallOptimization(
+    SDValue Callee, CallingConv::ID CalleeCC, bool isVarArg, Type *RetTy,
+    const SmallVectorImpl<ISD::OutputArg> &Outs,
+    const SmallVectorImpl<SDValue> &OutVals,
+    const SmallVectorImpl<ISD::InputArg> &Ins, SelectionDAG &DAG) const {
+  MachineFunction &MF = DAG.getMachineFunction();
+  const Function *CallerF = MF.getFunction();
+  CallingConv::ID CallerCC = CallerF->getCallingConv();
+  // TODO: Handle other calling conventions when they exist
+  if (CalleeCC != CallingConv::C || CallerCC != CallingConv::C)
+    return false;
+  LLVMContext &C = *DAG.getContext();
+  if (!CCState::resultsCompatible(CalleeCC, CallerCC, MF, C, Ins,
+                                  RetCC_Z80_C, RetCC_Z80_C))
+    return false;
+  // If the callee takes no arguments then go on to check the results of the
+  // call.
+  if (!Outs.empty()) {
+    // Check if stack adjustment is needed. For now, do not do this if any
+    // argument is passed on the stack.
+    SmallVector<CCValAssign, 16> ArgLocs;
+    CCState CCInfo(CalleeCC, isVarArg, MF, ArgLocs, C);
+    CCInfo.AnalyzeCallOperands(Outs, getCCAssignFn(CalleeCC));
+    if (CCInfo.getNextStackOffset()) {
+      // Check if the arguments are already laid out in the right way as
+      // the caller's fixed stack objects.
+      MachineFrameInfo &MFI = MF.getFrameInfo();
+      const MachineRegisterInfo *MRI = &MF.getRegInfo();
+      const TargetInstrInfo *TII = Subtarget.getInstrInfo();
+      for (unsigned i = 0, e = ArgLocs.size(); i != e; ++i) {
+        CCValAssign &VA = ArgLocs[i];
+        SDValue Arg = OutVals[i];
+        ISD::ArgFlagsTy Flags = Outs[i].Flags;
+        if (VA.getLocInfo() == CCValAssign::Indirect)
+          return false;
+        if (!VA.isRegLoc() && !MatchingStackOffset(Arg, VA.getLocMemOffset(),
+                                                   Flags, MFI, MRI, TII/*, VA*/))
+          return false;
+      }
+    }
+  }
+  return true;
 }
 
 SDValue Z80TargetLowering::LowerReturn(SDValue Chain,
@@ -798,7 +895,7 @@ SDValue Z80TargetLowering::LowerFormalArguments(
     const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
   MachineFunction &MF = DAG.getMachineFunction();
-  MachineFrameInfo *MFI = MF.getFrameInfo();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
   bool Is24Bit = Subtarget.is24Bit();
 
   assert(CallConv == CallingConv::C && "Unsupported calling convention");
@@ -813,13 +910,12 @@ SDValue Z80TargetLowering::LowerFormalArguments(
   for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
     CCValAssign &VA = ArgLocs[I];
     assert(VA.isMemLoc() && "Don't support register passed arguments yet");
-    int FI = MFI->CreateFixedObject(VA.getValVT().getSizeInBits()/8,
-                                    VA.getLocMemOffset(), false);
+    int FI = MFI.CreateFixedObject(VA.getValVT().getSizeInBits()/8,
+                                   VA.getLocMemOffset(), false);
     SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
     SDValue Val = DAG.getLoad(
         VA.getValVT(), DL, Chain, FIN,
-        MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FI), false,
-        false, false, 0);
+        MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FI));
     InVals.push_back(Val);
   }
 
@@ -829,9 +925,20 @@ SDValue Z80TargetLowering::LowerFormalArguments(
 const char *Z80TargetLowering::getTargetNodeName(unsigned Opcode) const {
   switch ((Z80ISD::NodeType)Opcode) {
   case Z80ISD::FIRST_NUMBER: break;
+  case Z80ISD::Wrapper:      return "Z80ISD::Wrapper";
+  case Z80ISD::INC:          return "Z80ISD::INC";
+  case Z80ISD::DEC:          return "Z80ISD::DEC";
+  case Z80ISD::ADD:          return "Z80ISD::ADD";
+  case Z80ISD::ADC:          return "Z80ISD::ADC";
+  case Z80ISD::SUB:          return "Z80ISD::SUB";
+  case Z80ISD::SBC:          return "Z80ISD::SBC";
+  case Z80ISD::AND:          return "Z80ISD::AND";
+  case Z80ISD::XOR:          return "Z80ISD::XOR";
+  case Z80ISD::OR:           return "Z80ISD::OR";
   case Z80ISD::MLT:          return "Z80ISD::MLT";
   case Z80ISD::CALL:         return "Z80ISD::CALL";
   case Z80ISD::RET_FLAG:     return "Z80ISD::RET_FLAG";
+  case Z80ISD::TC_RETURN:    return "Z80ISD::TC_RETURN";
   case Z80ISD::CMP:          return "Z80ISD::CMP";
   case Z80ISD::BRCOND:       return "Z80ISD::BRCOND";
   case Z80ISD::SELECT:       return "Z80ISD::SELECT";

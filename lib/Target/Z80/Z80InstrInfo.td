@@ -24,7 +24,23 @@ class SDTCisPtr<int OpNum> : SDTCisVT<OpNum, iPTR>;
 //===----------------------------------------------------------------------===//
 // Type Profiles.
 //===----------------------------------------------------------------------===//
+def SDTUnaryArithWithFlagsOut    : SDTypeProfile<2, 1, [SDTCisInt<0>,
+                                                        SDTCisVT<1, i8>,
+                                                        SDTCisSameAs<2, 0>]>;
+def SDTBinaryArithWithFlagsOut   : SDTypeProfile<2, 2, [SDTCisInt<0>,
+                                                        SDTCisVT<1, i8>,
+                                                        SDTCisSameAs<2, 0>,
+                                                        SDTCisSameAs<3, 0>]>;
+def SDTBinaryArithWithFlagsInOut : SDTypeProfile<2, 3, [SDTCisInt<0>,
+                                                        SDTCisVT<1, i8>,
+                                                        SDTCisSameAs<2, 0>,
+                                                        SDTCisSameAs<3, 0>,
+                                                        SDTCisVT<4, i8>]>;
+
+def SDTZ80Wrapper        : SDTypeProfile<1, 1, [SDTCisPtrTy<0>,
+                                                SDTCisSameAs<1, 0>]>;
 def SDT_Z80mlt           : SDTypeProfile<1, 1, [SDTCisI16<0>, SDTCisI16<1>]>;
+def SDT_Z80TCRet         : SDTypeProfile<0, 1, [SDTCisPtrTy<0>]>;
 def SDT_Z80Call          : SDTypeProfile<0, -1, [SDTCisPtr<0>]>;
 def SDT_Z80CallSeqStart  : SDCallSeqStart<[SDTCisI16<0>]>;
 def SDT_Z80CallSeqEnd    : SDCallSeqEnd<[SDTCisI16<0>, SDTCisI16<1>]>;
@@ -33,15 +49,31 @@ def SDT_Z80BrCond        : SDTypeProfile<0, 2, [SDTCisVT<0, OtherVT>,
                                                 SDTCisVT<1, i8>]>;
 def SDT_Z80Select        : SDTypeProfile<1, 3, [SDTCisInt<0>,
                                                 SDTCisVT<1, i8>,
-                                                SDTCisSameAs<0, 2>,
-                                                SDTCisSameAs<0, 3>]>;
+                                                SDTCisSameAs<2, 0>,
+                                                SDTCisSameAs<3, 0>]>;
 
 //===----------------------------------------------------------------------===//
 // Z80 specific DAG Nodes.
 //
 
+def Z80inc_flag      : SDNode<"Z80ISD::INC", SDTUnaryArithWithFlagsOut>;
+def Z80dec_flag      : SDNode<"Z80ISD::DEC", SDTUnaryArithWithFlagsOut>;
+def Z80add_flag      : SDNode<"Z80ISD::ADD", SDTBinaryArithWithFlagsOut,
+                              [SDNPCommutative]>;
+def Z80adc_flag      : SDNode<"Z80ISD::ADC", SDTBinaryArithWithFlagsInOut>;
+def Z80sub_flag      : SDNode<"Z80ISD::SUB", SDTBinaryArithWithFlagsOut>;
+def Z80sbc_flag      : SDNode<"Z80ISD::SBC", SDTBinaryArithWithFlagsInOut>;
+def Z80and_flag      : SDNode<"Z80ISD::AND", SDTBinaryArithWithFlagsOut,
+                              [SDNPCommutative]>;
+def Z80xor_flag      : SDNode<"Z80ISD::XOR", SDTBinaryArithWithFlagsOut,
+                              [SDNPCommutative]>;
+def Z80or_flag       : SDNode<"Z80ISD::OR", SDTBinaryArithWithFlagsOut,
+                              [SDNPCommutative]>;
+def Z80Wrapper       : SDNode<"Z80ISD::Wrapper", SDTZ80Wrapper>;
 def Z80mlt           : SDNode<"Z80ISD::MLT", SDT_Z80mlt>;
 def Z80retflag       : SDNode<"Z80ISD::RET_FLAG", SDTNone,
+                              [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+def Z80tcret         : SDNode<"Z80ISD::TC_RETURN", SDT_Z80TCRet,
                               [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 def Z80call          : SDNode<"Z80ISD::CALL", SDT_Z80Call,
                               [SDNPHasChain, SDNPOutGlue, SDNPOptInGlue,
@@ -128,7 +160,7 @@ def imm_top_XFORM : SDNodeXForm<imm, [{
 // Z80 Complex Pattern Definitions.
 //
 def mempat : ComplexPattern<iPTR, 1, "SelectMem",
-                            [globaladdr, externalsym]>;
+                            [imm, globaladdr, externalsym]>;
 def offpat : ComplexPattern<iPTR, 2, "SelectOff",
                             [add, sub, frameindex]>;
 
@@ -188,9 +220,25 @@ let AsmString = "call\t$dst", isCall = 1 in {
   let Uses = [SPL] in
   def CALL24i : I<0xCD, (outs), (ins i24imm:$dst), [(Z80call mempat:$dst)]>;
 }
+let isCall = 1, isPseudo = 1 in {
+  let Uses = [SPS] in
+  def CALL16r : P<(outs), (ins A16:$dst), [(Z80call A16:$dst)]>;
+  let Uses = [SPL] in
+  def CALL24r : P<(outs), (ins A24:$dst), [(Z80call A24:$dst)]>;
+}
 
 let AsmString = "ret", isTerminator = 1, isReturn = 1, isBarrier = 1 in {
   def RET : I<0xC9, (outs), (ins), [(Z80retflag)]>;
+}
+let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, isPseudo = 1 in {
+  let Uses = [SPS] in {
+    def TCRETURN16i : P<(outs), (ins i16imm:$dst), [(Z80tcret mempat:$dst)]>;
+    def TCRETURN16r : P<(outs), (ins A16:$dst), [(Z80tcret A16:$dst)]>;
+  }
+  let Uses = [SPL] in {
+    def TCRETURN24i : P<(outs), (ins i24imm:$dst), [(Z80tcret mempat:$dst)]>;
+    def TCRETURN24r : P<(outs), (ins A24:$dst), [(Z80tcret A24:$dst)]>;
+  }
 }
 
 let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
@@ -425,10 +473,21 @@ def MLT8rr : PI<ExtPrfx, 0x4C, (outs G16:$dst), (ins G16:$src),
 // Non-Instruction Patterns.
 //===----------------------------------------------------------------------===//
 
+// ConstantPool, GlobalAddress, ExternalSymbol, and JumpTable
+//def : Pat<(i16 (Z80Wrapper tglobaladdr:$src)), (LD16ri tglobaladdr:$src)>;
+//def : Pat<(i24 (Z80Wrapper tglobaladdr:$src)), (LD24ri tglobaladdr:$src)>;
+
+// calls
+//def : Pat<(Z80call (tglobaladdr :$target)), (CALL16im tglobaladdr :$target)>;
+//def : Pat<(Z80call (texternalsym:$target)), (CALL16im texternalsym:$target)>;
+//def : Pat<(Z80call (tglobaladdr :$target)), (CALL24im tglobaladdr :$target)>;
+//def : Pat<(Z80call (texternalsym:$target)), (CALL24im texternalsym:$target)>;
 
 //===----------------------------------------------------------------------===//
 // Subsystems.
 //===----------------------------------------------------------------------===//
+
+//def : Pat<(sub UHL, O24:$src),>;
 
 // mlt
 //def : Pat<(i8 (mul R8:$arg1, R8:$arg2)),

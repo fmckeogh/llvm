@@ -23,41 +23,51 @@ class Z80Subtarget;
 class Z80TargetMachine;
 
 namespace Z80ISD {
-  // Z80 Specific DAG Nodes
-  enum NodeType : unsigned {
-    // Start the numbering where the builtin ops leave off.
-    FIRST_NUMBER = ISD::BUILTIN_OP_END,
+// Z80 Specific DAG Nodes
+enum NodeType : unsigned {
+  // Start the numbering where the builtin ops leave off.
+  FIRST_NUMBER = ISD::BUILTIN_OP_END,
 
-    MLT,
+  /// A wrapper node for TargetConstantPool, TargetExternalSymbol, and
+  /// TargetGlobalAddress.
+  Wrapper,
 
-    /// This operation represents an abstract Z80 call instruction, which
-    /// includes a bunch of information.
-    CALL,
+  // Arithmetic operation with flags results.
+  INC, DEC, ADD, ADC, SUB, SBC, AND, XOR, OR,
 
-    /// Return with a flag operand. Operand 0 is the chain operand, operand
-    /// 1 is the number of bytes of stack to pop.
-    RET_FLAG,
+  MLT,
 
-    /// Z80 compare
-    CMP,
+  /// This operation represents an abstract Z80 call instruction, which
+  /// includes a bunch of information.
+  CALL,
 
-    /// BRCOND - Z80 conditional branch.  The first operand is the chain, the
-    /// second is the block to branch to if the condition is true, the third is
-    /// the condition, and the fourth is the flag operand.
-    BRCOND,
+  /// Return with a flag operand. Operand 0 is the chain operand, operand
+  /// 1 is the number of bytes of stack to pop.
+  RET_FLAG,
 
-    /// SELECT - Z80 select - This selects between a true value and a false
-    /// value (ops #1 and #2) based on the condition in op #0 and flag in op #3.
-    SELECT
-  };
-}
+  /// Tail call return.
+  TC_RETURN,
+
+  /// Z80 compare
+  CMP,
+
+  /// BRCOND - Z80 conditional branch.  The first operand is the chain, the
+  /// second is the block to branch to if the condition is true, the third is
+  /// the condition, and the fourth is the flag operand.
+  BRCOND,
+
+  /// SELECT - Z80 select - This selects between a true value and a false
+  /// value (ops #1 and #2) based on the condition in op #0 and flag in op #3.
+  SELECT
+};
+} // end Z80ISD namespace
 
 //===----------------------------------------------------------------------===//
 //  Z80 Implementation of the TargetLowering interface
 class Z80TargetLowering final : public TargetLowering {
-    /// Keep a reference to the Z80Subtarget around so that we can
-    /// make the right decision when generating code for different targets.
-    const Z80Subtarget &Subtarget;
+  /// Keep a reference to the Z80Subtarget around so that we can
+  /// make the right decision when generating code for different targets.
+  const Z80Subtarget &Subtarget;
 
 public:
   explicit Z80TargetLowering(const Z80TargetMachine &TM,
@@ -138,7 +148,7 @@ public:
                           SelectionDAG &DAG) const override;
 
   MachineBasicBlock *
-    EmitInstrWithCustomInserter(MachineInstr *MI,
+    EmitInstrWithCustomInserter(MachineInstr &MI,
                                 MachineBasicBlock *BB) const override;
 
  private:
@@ -169,12 +179,20 @@ public:
                       const SmallVectorImpl<SDValue> &OutVals,
                       const SDLoc &DL, SelectionDAG &DAG) const override;
 
+  /// Check whether the call is eligible for tail call optimization. Targets
+  /// that want to do tail call optimization should implement this function.
+  bool IsEligibleForTailCallOptimization(
+      SDValue Callee, CallingConv::ID CalleeCC, bool isVarArg, Type *RetTy,
+      const SmallVectorImpl<ISD::OutputArg> &Outs,
+      const SmallVectorImpl<SDValue> &OutVals,
+      const SmallVectorImpl<ISD::InputArg> &Ins, SelectionDAG &DAG) const;
+
   EVT getTypeForExtReturn(LLVMContext &Context, EVT VT,
                           ISD::NodeType ExtendKind) const override;
 
-  MachineBasicBlock *EmitLoweredCmp(MachineInstr *MI,
+  MachineBasicBlock *EmitLoweredCmp(MachineInstr &MI,
                                     MachineBasicBlock *BB) const;
-  MachineBasicBlock *EmitLoweredSelect(MachineInstr *MI,
+  MachineBasicBlock *EmitLoweredSelect(MachineInstr &MI,
                                        MachineBasicBlock *BB) const;
 };
 } // End llvm namespace

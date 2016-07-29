@@ -85,12 +85,21 @@ void Z80DAGToDAGISel::Select(SDNode *Node) {
 
 bool Z80DAGToDAGISel::SelectMem(SDValue N, SDValue &Mem) {
   switch (N.getOpcode()) {
-  case ISD::Constant:
+  default:
+    DEBUG(dbgs() << "SelectMem: " << N->getOperationName() << '\n');
+    return false;
+  case ISD::Constant: {
     uint64_t Val = cast<ConstantSDNode>(N)->getSExtValue();
-    Imm = CurDAG->getTargetConstant(Val, SDLoc(N), MVT::i24);
+    Mem = CurDAG->getTargetConstant(Val, SDLoc(N), MVT::i24);
     return true;
   }
-  return false;
+  case ISD::GlobalAddress:
+    GlobalAddressSDNode *G = cast<GlobalAddressSDNode>(N);
+    Mem = CurDAG->getTargetGlobalAddress(
+        G->getGlobal(), SDLoc(N), TLI->getPointerTy(CurDAG->getDataLayout()),
+        G->getOffset());
+    return true;
+  }
 }
 bool Z80DAGToDAGISel::SelectOff(SDValue N, SDValue &Reg, SDValue &Off) {
   switch (N.getOpcode()) {

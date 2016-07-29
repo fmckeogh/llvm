@@ -109,6 +109,7 @@ MCAsmInfo::MCAsmInfo() {
   //   architecture basis.
   //   - The target subclasses for AArch64, ARM, and X86 handle these cases
   UseIntegratedAssembler = false;
+  PreserveAsmComments = true;
 
   CompressDebugSections = DebugCompressionType::DCT_None;
 }

@@ -33,7 +33,6 @@ Z80RegisterInfo::Z80RegisterInfo(const Triple &TT)
 const TargetRegisterClass *
 Z80RegisterInfo::getPointerRegClass(const MachineFunction &MF,
                                     unsigned Kind) const {
-  const Z80Subtarget &Subtarget = MF.getSubtarget<Z80Subtarget>();
   switch (Kind) {
   default: llvm_unreachable("Unexpected Kind in getPointerRegClass!");
   case 0: return Is24Bit ? &Z80::G24RegClass : &Z80::G16RegClass;
@@ -51,6 +50,21 @@ Z80RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   case CallingConv::Z80_LibCall:
     return Is24Bit ? CSR_EZ80_LC_SaveList : CSR_Z80_LC_SaveList;
   }
+}
+
+const uint32_t *
+Z80RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
+                                      CallingConv::ID CC) const {
+  switch (CC) {
+  default: llvm_unreachable("Unsupported calling convention");
+  case CallingConv::C:
+    return Is24Bit ? CSR_EZ80_C_RegMask : CSR_Z80_C_RegMask;
+  case CallingConv::Z80_LibCall:
+    return Is24Bit ? CSR_EZ80_LC_RegMask : CSR_Z80_LC_RegMask;
+  }
+}
+const uint32_t *Z80RegisterInfo::getNoPreservedMask() const {
+  return CSR_NoRegs_RegMask;
 }
 
 BitVector Z80RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
@@ -82,8 +96,11 @@ void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   const Z80FrameLowering *TFI = getFrameLowering(MF);
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   unsigned BasePtr = getFrameRegister(MF);
+  MF.dump();
+  II->dump();
+  errs() << MF.getFunction()->arg_size() << '\n';
   assert(TFI->hasFP(MF) && "Stack slot use without fp unimplemented");
-  int Offset = MF.getFrameInfo()->getObjectOffset(FrameIndex);
+  int Offset = MF.getFrameInfo().getObjectOffset(FrameIndex);
   int SlotSize = Is24Bit ? 3 : 2;
   // Skip saved frame pointer if used
   if (TFI->hasFP(MF))

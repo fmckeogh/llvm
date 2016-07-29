@@ -49,7 +49,8 @@ def CC_Z80_LC : CallingConv<[
 // Callee-saved Registers.
 //===----------------------------------------------------------------------===//
 
-def CSR_Z80_C : CalleeSavedRegs<(add IX)>;
-def CSR_EZ80_C : CalleeSavedRegs<(add UIX)>;
-def CSR_Z80_LC : CalleeSavedRegs<(add A, L16)>;
+def CSR_NoRegs  : CalleeSavedRegs<(add)>;
+def CSR_Z80_C   : CalleeSavedRegs<(add IX)>;
+def CSR_EZ80_C  : CalleeSavedRegs<(add UIX)>;
+def CSR_Z80_LC  : CalleeSavedRegs<(add A, L16)>;
 def CSR_EZ80_LC : CalleeSavedRegs<(add A, L24)>;

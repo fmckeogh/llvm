@@ -30,10 +30,13 @@ Z80FrameLowering::Z80FrameLowering(const Z80Subtarget &STI)
 /// pointer register.  This is true if the function has variable sized allocas
 /// or if frame pointer elimination is disabled.
 bool Z80FrameLowering::hasFP(const MachineFunction &MF) const {
-  const MachineFrameInfo *MFI = MF.getFrameInfo();
+  return true;
+  const MachineFrameInfo &MFI = MF.getFrameInfo();
 
-  return !MF.getTarget().Options.DisableFramePointerElim(MF) &&
-    (MFI->hasVarSizedObjects() || MFI->isFrameAddressTaken());
+  return MF.getTarget().Options.DisableFramePointerElim(MF) ||
+    MFI.hasVarSizedObjects() || MFI.isFrameAddressTaken()
+    // TODO
+    || !MF.getFunction()->arg_empty();
 }
 
 void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
@@ -86,16 +89,16 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
   if (SmallCost <= LargeCost && SmallCost <= LEACost) {
     while (PopPushCount--)
       BuildMI(MBB, MI, DL, TII.get(Offset >= 0 ? (Is24Bit ? Z80::POP24r
-                                                            : Z80::POP16r)
-                                                 : (Is24Bit ? Z80::PUSH24r
-                                                            : Z80::PUSH16r)))
+                                                          : Z80::POP16r)
+                                               : (Is24Bit ? Z80::PUSH24r
+                                                          : Z80::PUSH16r)))
         .addReg(ScratchReg, getDefRegState(Offset >= 0));
     unsigned StackReg = Is24Bit ? Z80::SPL : Z80::SPS;
     while (IncDecCount--)
       BuildMI(MBB, MI, DL, TII.get(Offset >= 0 ? (Is24Bit ? Z80::INC24r
-                                                            : Z80::INC16r)
-                                                 : (Is24Bit ? Z80::DEC24r
-                                                            : Z80::DEC16r)),
+                                                          : Z80::INC16r)
+                                               : (Is24Bit ? Z80::DEC24r
+                                                          : Z80::DEC16r)),
               StackReg).addReg(StackReg);
     return;
   }
@@ -136,20 +139,19 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao),
             FrameReg).addReg(FrameReg).addReg(Is24Bit ? Z80::SPL : Z80::SPS);
   }
-  int32_t StackSize = (int32_t)MF.getFrameInfo()->getStackSize();
+  int32_t StackSize = (int32_t)MF.getFrameInfo().getStackSize();
   BuildStackAdjustment(MF, MBB, MI, DL, -StackSize, 0);
 }
 
 void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
                                     MachineBasicBlock &MBB) const {
   MachineBasicBlock::iterator MI = MBB.getFirstTerminator();
-  assert(MI->getOpcode() == Z80::RET && "Can only emit epilog if returning");
 
   DebugLoc DL;
   if (MI != MBB.end())
     DL = MI->getDebugLoc();
 
-  int32_t StackSize = (int32_t)MF.getFrameInfo()->getStackSize();
+  int32_t StackSize = (int32_t)MF.getFrameInfo().getStackSize();
   if (hasFP(MF)) {
     unsigned FrameReg = TRI->getFrameRegister(MF);
     if (StackSize)

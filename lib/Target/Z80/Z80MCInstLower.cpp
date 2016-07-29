@@ -86,6 +86,8 @@ Z80MCInstLower::LowerMachineOperand(const MachineInstr *MI,
     return LowerSymbolOperand(MO, GetGlobalAddressSymbol(MO));
   case MachineOperand::MO_ExternalSymbol:
     return LowerSymbolOperand(MO, GetExternalSymbolSymbol(MO));
+  case MachineOperand::MO_RegisterMask:
+    return None; // Ignore call clobbers.
   }
 }
 

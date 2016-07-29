@@ -17,6 +17,8 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/MC/MCExpr.h"
+#include "llvm/MC/MCInst.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "z80-instr-info"
@@ -52,7 +54,7 @@ bool Z80InstrInfo::isUnpredicatedTerminator(const MachineInstr &MI) const {
   return !isPredicated(MI);
 }
 
-bool Z80InstrInfo::AnalyzeBranch(MachineBasicBlock &MBB,
+bool Z80InstrInfo::analyzeBranch(MachineBasicBlock &MBB,
                                  MachineBasicBlock *&TBB,
                                  MachineBasicBlock *&FBB,
                                  SmallVectorImpl<MachineOperand> &Cond,
@@ -340,32 +342,57 @@ void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     .addFrameIndex(FI).addImm(0);
 }
 
-bool Z80InstrInfo::expandPostRAPseudo(MachineBasicBlock::iterator MI) const {
-  MachineInstrBuilder MIB(*MI->getParent()->getParent(), MI);
-  switch (MI->getOpcode()) {
+bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
+  MachineInstrBuilder MIB(*MI.getParent()->getParent(), MI);
+  switch (MI.getOpcode()) {
   default: return false;
   case Z80::RCF:
     MIB->setDesc(get(Z80::OR8ar));
     MIB.addReg(Z80::A, RegState::Undef);
     DEBUG(MIB->dump());
     return true;
+  case Z80::CALL16r:
+  case Z80::CALL24r: {
+    const char *symbol;
+    switch (MIB->getOperand(0).getReg()) {
+    default: llvm_unreachable("Unexpected indcall register");
+    case Z80::HL: case Z80::UHL: symbol = "_indcallhl"; break;
+    case Z80::IX: case Z80::UIX: symbol = "_indcallix"; break;
+    case Z80::IY: case Z80::UIY: symbol = "_indcalliy"; break;
+    }
+    MIB->setDesc(get(MI.getOpcode() == Z80::CALL24r ? Z80::CALL24i
+                                                    : Z80::CALL16i));
+    MIB->getOperand(0).ChangeToES(symbol);
+    DEBUG(MIB->dump());
+    return true;
+  }
+  case Z80::TCRETURN16i:
+  case Z80::TCRETURN24i:
+    MIB->setDesc(get(Z80::JQ));
+    DEBUG(MIB->dump());
+    return true;
+  case Z80::TCRETURN16r:
+  case Z80::TCRETURN24r:
+    MIB->setDesc(get(Z80::JPr));
+    DEBUG(MIB->dump());
+    return true;
   }
 }
 
-bool Z80InstrInfo::analyzeCompare(const MachineInstr *MI,
+bool Z80InstrInfo::analyzeCompare(const MachineInstr &MI,
                                   unsigned &SrcReg, unsigned &SrcReg2,
                                   int &CmpMask, int &CmpValue) const {
-  switch (MI->getOpcode()) {
+  switch (MI.getOpcode()) {
   default: return false;
   case Z80::CP8ai:
     SrcReg = Z80::A;
     SrcReg2 = 0;
     CmpMask = ~0;
-    CmpValue = MI->getOperand(0).getImm();
+    CmpValue = MI.getOperand(0).getImm();
     return true;
   case Z80::CP8ar:
     SrcReg = Z80::A;
-    SrcReg2 = MI->getOperand(0).getReg();
+    SrcReg2 = MI.getOperand(0).getReg();
     CmpMask = ~0;
     CmpValue = 0;
     return true;
@@ -379,7 +406,7 @@ bool Z80InstrInfo::analyzeCompare(const MachineInstr *MI,
   }
 }
 
-bool Z80InstrInfo::optimizeCompareInstr(MachineInstr *CmpInstr,
+bool Z80InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr,
                                         unsigned SrcReg, unsigned SrcReg2,
                                         int CmpMask, int CmpValue,
                                         const MachineRegisterInfo *MRI) const {
@@ -393,7 +420,7 @@ bool Z80InstrInfo::optimizeCompareInstr(MachineInstr *CmpInstr,
   // If we are comparing against zero, check whether we can use MI to update F.
   // If MI is not in the same BB as CmpInstr, do not optimize.
   bool IsCmpZero = (SrcReg2 == 0 && CmpValue == 0);
-  if (IsCmpZero && MI->getParent() != CmpInstr->getParent())
+  if (IsCmpZero && MI->getParent() != CmpInstr.getParent())
     return false;
 
   llvm_unreachable("Unimplemented!");
