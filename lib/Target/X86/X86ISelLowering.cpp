@@ -27726,12 +27726,11 @@ static SDValue combineShiftRightAlgebraic(SDNode *N, SelectionDAG &DAG) {
   if (SarConst.isNegative())
     return SDValue();
 
-  for (MVT SVT : MVT::integer_valuetypes()) {
-    unsigned ShiftSize = SVT.getSizeInBits();
-    // skipping types without corresponding sext/zext and
-    // ShlConst that is not one of [56,48,32,24,16]
-    if (ShiftSize < 8 || ShiftSize == 24 || ShiftSize > 64 ||
-        ShlConst != Size - ShiftSize)
+  // skipping types without corresponding sext/zext and
+  // ShlConst that is not one of [56,48,32,24,16]
+  for (auto SVT : { MVT::i8, MVT::i16, MVT::i32, MVT::i64 }) {
+    unsigned ShiftSize = MVT(SVT).getSizeInBits();
+    if (ShlConst != Size - ShiftSize)
       continue;
     SDLoc DL(N);
     SDValue NN =

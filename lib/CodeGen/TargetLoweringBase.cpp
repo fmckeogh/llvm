@@ -843,8 +843,9 @@ void TargetLoweringBase::initActions() {
   // All operations default to being supported.
   memset(OpActions, 0, sizeof(OpActions));
   // except i24
-  std::fill(std::begin(OpActions[MVT::i24]), std::end(OpActions[MVT::i24]),
-            Expand);
+  if (TM.getPointerSize() != 3)
+    std::fill(std::begin(OpActions[MVT::i24]), std::end(OpActions[MVT::i24]),
+              Expand);
   memset(LoadExtActions, 0, sizeof(LoadExtActions));
   memset(TruncStoreActions, 0, sizeof(TruncStoreActions));
   memset(IndexedModeActions, 0, sizeof(IndexedModeActions));
