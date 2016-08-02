@@ -93,12 +93,19 @@ bool Z80DAGToDAGISel::SelectMem(SDValue N, SDValue &Mem) {
     Mem = CurDAG->getTargetConstant(Val, SDLoc(N), MVT::i24);
     return true;
   }
-  case ISD::GlobalAddress:
+  case ISD::GlobalAddress: {
     GlobalAddressSDNode *G = cast<GlobalAddressSDNode>(N);
     Mem = CurDAG->getTargetGlobalAddress(
         G->getGlobal(), SDLoc(N), TLI->getPointerTy(CurDAG->getDataLayout()),
         G->getOffset());
     return true;
+  }
+  case ISD::ExternalSymbol: {
+    ExternalSymbolSDNode *S = cast<ExternalSymbolSDNode>(N);
+    Mem = CurDAG->getTargetExternalSymbol(
+        S->getSymbol(), TLI->getPointerTy(CurDAG->getDataLayout()));
+    return true;
+  }
   }
 }
 bool Z80DAGToDAGISel::SelectOff(SDValue N, SDValue &Reg, SDValue &Off) {
