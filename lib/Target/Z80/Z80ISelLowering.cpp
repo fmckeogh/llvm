@@ -302,6 +302,32 @@ SDValue Z80TargetLowering::EmitCMP(SDValue &LHS, SDValue &RHS, SDValue &TargetCC
     if (LHS.getOpcode() == ISD::Constant)
       std::swap(LHS, RHS);
     break;
+  case ISD::SETULE:
+    std::swap(LHS, RHS);        // FALLTHROUGH
+  case ISD::SETUGE:
+    // Turn lhs u>= rhs with lhs constant into rhs u< lhs+1, this allows us to
+    // fold constant into instruction.
+    if (const ConstantSDNode *C = dyn_cast<ConstantSDNode>(LHS)) {
+      LHS = RHS;
+      RHS = DAG.getConstant(C->getSExtValue() + 1, DL, C->getValueType(0));
+      TCC = Z80::COND_C;
+      break;
+    }
+    TCC = Z80::COND_NC;
+    break;
+  case ISD::SETUGT:
+    std::swap(LHS, RHS);        // FALLTHROUGH
+  case ISD::SETULT:
+    // Turn lhs u< rhs with lhs constant into rhs u>= lhs+1, this allows us to
+    // fold constant into instruction.
+    if (const ConstantSDNode * C = dyn_cast<ConstantSDNode>(LHS)) {
+      LHS = RHS;
+      RHS = DAG.getConstant(C->getSExtValue() + 1, DL, C->getValueType(0));
+      TCC = Z80::COND_NC;
+      break;
+    }
+    TCC = Z80::COND_C;
+    break;
   }
 
   TargetCC = DAG.getConstant(TCC, DL, MVT::i8);
@@ -503,6 +529,9 @@ Z80TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                MachineBasicBlock *BB) const {
   switch (MI.getOpcode()) {
   default: llvm_unreachable("Unexpected instr type to insert");
+  case Z80::Sub16:
+  case Z80::Sub24:
+    return EmitLoweredSub(MI, BB);
   case Z80::Cmp16:
   case Z80::Cmp24:
     return EmitLoweredCmp(MI, BB);
@@ -511,6 +540,22 @@ Z80TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
   case Z80::Select24:
     return EmitLoweredSelect(MI, BB);
   }
+}
+
+MachineBasicBlock *
+Z80TargetLowering::EmitLoweredSub(MachineInstr &MI,
+                                  MachineBasicBlock *BB) const {
+  bool Is24Bit = MI.getOpcode() == Z80::Sub24;
+  const TargetInstrInfo *TII = Subtarget.getInstrInfo();
+  DebugLoc DL = MI.getDebugLoc();
+  MachineRegisterInfo &MRI = BB->getParent()->getRegInfo();
+  DEBUG(BB->dump());
+  BuildMI(*BB, MI, DL, TII->get(Z80::RCF));
+  BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ar : Z80::SBC16ar))
+          .addReg(MI.getOperand(0).getReg());
+  MI.eraseFromParent();
+  DEBUG(BB->dump());
+  return BB;
 }
 
 MachineBasicBlock *
@@ -523,7 +568,10 @@ Z80TargetLowering::EmitLoweredCmp(MachineInstr &MI,
   DEBUG(BB->dump());
   BuildMI(*BB, MI, DL, TII->get(Z80::RCF));
   BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ar : Z80::SBC16ar))
-          .addReg(MI.getOperand(0).getReg());
+    .addReg(MI.getOperand(0).getReg());
+  BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao),
+          Is24Bit ? Z80::UHL : Z80::HL).addReg(Is24Bit ? Z80::UHL : Z80::HL)
+    .addReg(MI.getOperand(0).getReg());
   MI.eraseFromParent();
   DEBUG(BB->dump());
   return BB;
@@ -565,7 +613,7 @@ Z80TargetLowering::EmitLoweredSelect(MachineInstr &MI,
   BB->addSuccessor(copy1MBB);
 
   BuildMI(BB, DL, TII->get(Z80::JQCC)).addMBB(copy1MBB)
-    .addImm(MI.getOperand(1).getImm());
+    .addImm(MI.getOperand(3).getImm());
 
   //  copy0MBB:
   //   %TrueVal = ...
@@ -581,8 +629,8 @@ Z80TargetLowering::EmitLoweredSelect(MachineInstr &MI,
   BB = copy1MBB;
   BuildMI(*BB, BB->begin(), DL, TII->get(Z80::PHI),
           MI.getOperand(0).getReg())
-    .addReg(MI.getOperand(2).getReg()).addMBB(thisMBB)
-    .addReg(MI.getOperand(3).getReg()).addMBB(copy0MBB);
+    .addReg(MI.getOperand(1).getReg()).addMBB(thisMBB)
+    .addReg(MI.getOperand(2).getReg()).addMBB(copy0MBB);
 
   MI.eraseFromParent();   // The pseudo instruction is gone now.
   DEBUG(F->dump());

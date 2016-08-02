@@ -190,6 +190,8 @@ public:
   EVT getTypeForExtReturn(LLVMContext &Context, EVT VT,
                           ISD::NodeType ExtendKind) const override;
 
+  MachineBasicBlock *EmitLoweredSub(MachineInstr &MI,
+                                    MachineBasicBlock *BB) const;
   MachineBasicBlock *EmitLoweredCmp(MachineInstr &MI,
                                     MachineBasicBlock *BB) const;
   MachineBasicBlock *EmitLoweredSelect(MachineInstr &MI,

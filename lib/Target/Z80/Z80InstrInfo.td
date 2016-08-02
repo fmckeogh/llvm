@@ -48,9 +48,9 @@ def SDT_Z80Cmp           : SDTypeProfile<0, 2, [SDTCisSameAs<0, 1>]>;
 def SDT_Z80BrCond        : SDTypeProfile<0, 2, [SDTCisVT<0, OtherVT>,
                                                 SDTCisVT<1, i8>]>;
 def SDT_Z80Select        : SDTypeProfile<1, 3, [SDTCisInt<0>,
-                                                SDTCisVT<1, i8>,
+                                                SDTCisSameAs<1, 0>,
                                                 SDTCisSameAs<2, 0>,
-                                                SDTCisSameAs<3, 0>]>;
+                                                SDTCisVT<3, i8>]>;
 
 //===----------------------------------------------------------------------===//
 // Z80 specific DAG Nodes.
@@ -193,15 +193,25 @@ def ADJCALLSTACKUP24   : P<(outs), (ins i16imm:$amt1, i16imm:$amt2),
                          Requires<[In24BitMode]>;
 }
 
-let usesCustomInserter = 1, Defs = [F] in {
-  def Cmp16 : P<(outs), (ins O16:$src), [(Z80cmp  HL, O16:$src), (implicit F)]>;
-  def Cmp24 : P<(outs), (ins O24:$src), [(Z80cmp UHL, O24:$src), (implicit F)]>;
-  def Select8  : P<(outs  R8:$dst), (ins i8imm:$cc,  R8:$true,  R8:$false),
-                   [(set  R8:$dst, (Z80select imm:$cc,  R8:$true,  R8:$false))]>;
-  def Select16 : P<(outs R16:$dst), (ins i8imm:$cc, R16:$true, R16:$false),
-                   [(set R16:$dst, (Z80select imm:$cc, R16:$true, R16:$false))]>;
-  def Select24 : P<(outs R24:$dst), (ins i8imm:$cc, R24:$true, R24:$false),
-                   [(set R24:$dst, (Z80select imm:$cc, R24:$true, R24:$false))]>;
+let usesCustomInserter = 1 in {
+  let Defs = [HL, F] in
+  def Sub16 : P<(outs), (ins O16:$src), [(set  HL, (sub  HL, O16:$src)),
+                                         (implicit F)]>;
+  let Defs = [UHL, F] in
+  def Sub24 : P<(outs), (ins O24:$src), [(set UHL, (sub UHL, O24:$src)),
+                                         (implicit F)]>;
+  let Defs = [F] in {
+    def Cmp16 : P<(outs), (ins O16:$src), [(Z80cmp  HL, O16:$src),
+                                           (implicit F)]>;
+    def Cmp24 : P<(outs), (ins O24:$src), [(Z80cmp UHL, O24:$src),
+                                           (implicit F)]>;
+  }
+  def Select8  : P<(outs  R8:$dst), (ins  R8:$true,  R8:$false, i8imm:$cc),
+                   [(set  R8:$dst, (Z80select  R8:$true,  R8:$false, imm:$cc))]>;
+  def Select16 : P<(outs R16:$dst), (ins R16:$true, R16:$false, i8imm:$cc),
+                   [(set R16:$dst, (Z80select R16:$true, R16:$false, imm:$cc))]>;
+  def Select24 : P<(outs R24:$dst), (ins R24:$true, R24:$false, i8imm:$cc),
+                   [(set R24:$dst, (Z80select R24:$true, R24:$false, imm:$cc))]>;
 }
 
 let AsmString = "nop", hasSideEffects = 0 in
