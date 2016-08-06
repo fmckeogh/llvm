@@ -14,7 +14,7 @@ using namespace llvm;
 Target llvm::TheZ80Target, llvm::TheEZ80Target;
 
 extern "C" void LLVMInitializeZ80TargetInfo() {
-  RegisterTarget<Triple::z80, /*HasJIT=*/false> X(TheZ80Target, "z80", "Z80");
-  RegisterTarget<Triple::ez80, /*HasJIT=*/false> Y(TheEZ80Target, "ez80", "EZ80");
+  RegisterTarget<Triple::z80, /*HasJIT=*/false> X(TheZ80Target, "z80", "Z80 [experimental]");
+  RegisterTarget<Triple::ez80, /*HasJIT=*/false> Y(TheEZ80Target, "ez80", "EZ80 [experimental]");
 }
 
