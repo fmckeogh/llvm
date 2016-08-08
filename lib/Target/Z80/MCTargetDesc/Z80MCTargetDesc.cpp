@@ -101,4 +101,7 @@ extern "C" void LLVMInitializeZ80TargetMC() {
     // Register the MCInstPrinter.
     TargetRegistry::RegisterMCInstPrinter(*T, createZ80MCInstPrinter);
   }
+
+  TargetRegistry::RegisterMCAsmBackend(TheZ80Target, createZ80AsmBackend);
+  TargetRegistry::RegisterMCAsmBackend(TheEZ80Target, createEZ80AsmBackend);
 }
