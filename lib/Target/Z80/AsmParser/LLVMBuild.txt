@@ -1,4 +1,4 @@
-;===- ./lib/Target/Z80/LLVMBuild.txt ---------------------------*- Conf -*--===;
+;===- ./lib/Target/Z80/AsmParser/LLVMBuild.txt -----------------*- Conf -*--===;
 ;
 ;                     The LLVM Compiler Infrastructure
 ;
@@ -15,19 +15,9 @@
 ;
 ;===------------------------------------------------------------------------===;
 
-[common]
-subdirectories = AsmParser InstPrinter MCTargetDesc TargetInfo
-
 [component_0]
-type = TargetGroup
-name = Z80
-parent = Target
-has_asmparser = 1
-has_asmprinter = 1
-
-[component_1]
 type = Library
-name = Z80CodeGen
+name = Z80AsmParser
 parent = Z80
-required_libraries = AsmPrinter CodeGen Core MC SelectionDAG Support Target Z80AsmPrinter Z80Desc Z80Info
+required_libraries = MC MCParser Support Z80Desc Z80Info
 add_to_library_groups = Z80

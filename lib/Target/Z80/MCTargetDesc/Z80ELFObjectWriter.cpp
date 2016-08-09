@@ -30,6 +30,12 @@ Z80ELFObjectWriter::Z80ELFObjectWriter(uint8_t OSABI)
 
 Z80ELFObjectWriter::~Z80ELFObjectWriter() {}
 
+unsigned
+Z80ELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
+                                 const MCFixup &Fixup, bool IsPCRel) const {
+  llvm_unreachable("Unimplemented");
+}
+
 MCObjectWriter *llvm::createZ80ELFObjectWriter(raw_pwrite_stream &OS,
                                                uint8_t OSABI) {
   MCELFObjectTargetWriter *MOTW = new Z80ELFObjectWriter(OSABI);

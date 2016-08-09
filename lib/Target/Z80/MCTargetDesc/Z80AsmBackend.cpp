@@ -54,6 +54,28 @@ public:
 
 } // end anonymous namespace
 
+void Z80AsmBackend::applyFixup(const MCFixup &Fixup, char *Data,
+                               unsigned DataSize, uint64_t Value,
+                               bool IsPCRel) const {
+  llvm_unreachable("Unimplemented");
+}
+
+bool Z80AsmBackend::mayNeedRelaxation(const MCInst &Inst) const {
+  llvm_unreachable("Unimplemented");
+}
+
+bool Z80AsmBackend::fixupNeedsRelaxation(const MCFixup &Fixup, uint64_t Value,
+                                         const MCRelaxableFragment *DF,
+                                         const MCAsmLayout &Layout) const {
+  llvm_unreachable("Unimplemented");
+}
+
+void Z80AsmBackend::relaxInstruction(const MCInst &Inst,
+                                     const MCSubtargetInfo &STI,
+                                     MCInst &Res) const {
+  llvm_unreachable("Unimplemented");
+}
+
 /* *** */
 
 namespace {

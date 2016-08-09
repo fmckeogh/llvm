@@ -42,6 +42,12 @@ public:
 
 } // end anonymous namespace
 
+void Z80MCCodeEmitter::encodeInstruction(const MCInst &MC, raw_ostream &OS,
+                                         SmallVectorImpl<MCFixup> &Fixups,
+                                         const MCSubtargetInfo &STI) const {
+  llvm_unreachable("Unimplemented");
+}
+
 MCCodeEmitter *llvm::createZ80MCCodeEmitter(const MCInstrInfo &MII,
                                             const MCRegisterInfo &MRI,
                                             MCContext &Ctx) {
