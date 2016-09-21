@@ -303,7 +303,8 @@ SDValue Z80TargetLowering::EmitCMP(SDValue &LHS, SDValue &RHS, SDValue &TargetCC
       std::swap(LHS, RHS);
     break;
   case ISD::SETULE:
-    std::swap(LHS, RHS);        // FALLTHROUGH
+    std::swap(LHS, RHS);
+    LLVM_FALLTHROUGH;
   case ISD::SETUGE:
     // Turn lhs u>= rhs with lhs constant into rhs u< lhs+1, this allows us to
     // fold constant into instruction.
@@ -316,7 +317,8 @@ SDValue Z80TargetLowering::EmitCMP(SDValue &LHS, SDValue &RHS, SDValue &TargetCC
     TCC = Z80::COND_NC;
     break;
   case ISD::SETUGT:
-    std::swap(LHS, RHS);        // FALLTHROUGH
+    std::swap(LHS, RHS);
+    LLVM_FALLTHROUGH;
   case ISD::SETULT:
     // Turn lhs u< rhs with lhs constant into rhs u>= lhs+1, this allows us to
     // fold constant into instruction.
@@ -382,7 +384,7 @@ SDValue Z80TargetLowering::LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const {
 
 SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
-  case ISD::ADD:  case ISD::SUB:
+  case ISD::ADD: case ISD::SUB:
   case ISD::ADDC: case ISD::SUBC:
   case ISD::ADDE: case ISD::SUBE: return LowerADDSUB(Op, DAG);
   case ISD::SHL: return LowerSHL(Op, DAG);
@@ -396,7 +398,7 @@ SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   if (Op.getValueSizeInBits() == 16) {
     switch (Op.getOpcode()) {
       default: llvm_unreachable("Should not custom lower this!");
-      case ISD::AND: // Fallthrough
+      case ISD::AND:
       case ISD::XOR:
       case ISD:: OR: return NarrowOperation(Op, DAG);
     }
