@@ -165,7 +165,9 @@ bool Z80InstrInfo::analyzeBranch(MachineBasicBlock &MBB,
   return false;
 }
 
-unsigned Z80InstrInfo::RemoveBranch(MachineBasicBlock &MBB) const {
+unsigned Z80InstrInfo::removeBranch(MachineBasicBlock &MBB,
+                                    int *BytesRemoved) const {
+  assert(!BytesRemoved && "code size not handled");
   MachineBasicBlock::iterator I = MBB.end();
   unsigned Count = 0;
 
@@ -186,15 +188,17 @@ unsigned Z80InstrInfo::RemoveBranch(MachineBasicBlock &MBB) const {
   return Count;
 }
 
-unsigned Z80InstrInfo::InsertBranch(MachineBasicBlock &MBB,
+unsigned Z80InstrInfo::insertBranch(MachineBasicBlock &MBB,
                                     MachineBasicBlock *TBB,
                                     MachineBasicBlock *FBB,
                                     ArrayRef<MachineOperand> Cond,
-                                    const DebugLoc &DL) const {
+                                    const DebugLoc &DL,
+                                    int *BytesAdded) const {
   // Shouldn't be a fall through.
   assert(TBB && "InsertBranch must not be told to insert a fallthrough");
   assert((Cond.size() == 1 || Cond.size() == 0) &&
          "Z80 branch conditions have one component!");
+  assert(!BytesAdded && "code size not handled");
 
   if (Cond.empty()) {
     // Unconditional branch?

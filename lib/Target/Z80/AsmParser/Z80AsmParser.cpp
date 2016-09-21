@@ -70,7 +70,7 @@ bool Z80AsmParser::ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
 bool Z80AsmParser::ParseDirective(AsmToken DirectiveID) {
   llvm_unreachable("Unimplemented");
 }
-                                           
+
 // Force static initialization.
 extern "C" void LLVMInitializeZ80AsmParser() {
   RegisterMCAsmParser<Z80AsmParser> X(TheZ80Target);
