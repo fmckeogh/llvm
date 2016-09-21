@@ -21,6 +21,8 @@
 #include "llvm/Target/TargetFrameLowering.h"
 using namespace llvm;
 
+#define DEBUG_TYPE "z80reginfo"
+
 #define GET_REGINFO_TARGET_DESC
 #include "Z80GenRegisterInfo.inc"
 
@@ -96,9 +98,7 @@ void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   const Z80FrameLowering *TFI = getFrameLowering(MF);
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   unsigned BasePtr = getFrameRegister(MF);
-  MF.dump();
-  II->dump();
-  errs() << MF.getFunction()->arg_size() << '\n';
+  DEBUG(MF.dump(); II->dump(); dbgs() << MF.getFunction()->arg_size() << '\n');
   assert(TFI->hasFP(MF) && "Stack slot use without fp unimplemented");
   int Offset = MF.getFrameInfo().getObjectOffset(FrameIndex);
   int SlotSize = Is24Bit ? 3 : 2;

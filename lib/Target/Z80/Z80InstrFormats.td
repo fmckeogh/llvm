@@ -29,11 +29,13 @@ class Z80Inst<Prefix prfx, bits<8> opcod, dag outs, dag ins, list<dag> pattern,
 
   bits<8> Opcode = opcod;
 
-  dag OutOperandList = outs;
-  dag InOperandList = ins;
+  let OutOperandList = outs;
+  let InOperandList = ins;
   let Pattern = pattern;
   let AsmString = asm;
   let Constraints = con;
+
+  let isCodeGenOnly = 1;
 }
 
 class BI<Prefix p, bits<8> o, string op, string args, string con,

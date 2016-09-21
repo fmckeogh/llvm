@@ -13,8 +13,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-class Z80Reg<string n, bits<16> Enc = -1>
-  : Register<n> {
+class Z80Reg<string n, bits<16> Enc = -1> : Register<n> {
   let Namespace = "Z80";
   let HWEncoding = Enc;
 }
@@ -85,62 +84,62 @@ def PC  : Z80Reg<"pc">;
 let SubRegIndices = [sub_top, sub_long], CoveredBySubRegs = 1 in {
 // 32-bit pseudo registers
 // 
-def   AUBC : Z80RegWithSubRegs<  "abc", [  A,UBC]>;
-def   AUDE : Z80RegWithSubRegs<  "ade", [  A,UDE]>;
-def   AUHL : Z80RegWithSubRegs<  "ahl", [  A,UHL]>;
-def   AUIX : Z80RegWithSubRegs<  "aix", [  A,UIX]>;
-def   AUIY : Z80RegWithSubRegs<  "aiy", [  A,UIY]>;
-def   ASPL : Z80RegWithSubRegs<  "asp", [  A,SPL]>;
-def   BUDE : Z80RegWithSubRegs<  "bde", [  B,UDE]>;
-def   BUHL : Z80RegWithSubRegs<  "bhl", [  B,UHL]>;
-def   BUIX : Z80RegWithSubRegs<  "bix", [  B,UIX]>;
-def   BUIY : Z80RegWithSubRegs<  "biy", [  B,UIY]>;
-def   BSPL : Z80RegWithSubRegs<  "bsp", [  B,SPL]>;
-def   CUDE : Z80RegWithSubRegs<  "cde", [  C,UDE]>;
-def   CUHL : Z80RegWithSubRegs<  "chl", [  C,UHL]>;
-def   CUIX : Z80RegWithSubRegs<  "cix", [  C,UIX]>;
-def   CUIY : Z80RegWithSubRegs<  "ciy", [  C,UIY]>;
-def   CSPL : Z80RegWithSubRegs<  "csp", [  C,SPL]>;
-def   DUBC : Z80RegWithSubRegs<  "dbc", [  D,UBC]>;
-def   DUHL : Z80RegWithSubRegs<  "dhl", [  D,UHL]>;
-def   DUIX : Z80RegWithSubRegs<  "dix", [  D,UIX]>;
-def   DUIY : Z80RegWithSubRegs<  "diy", [  D,UIY]>;
-def   DSPL : Z80RegWithSubRegs<  "dsp", [  D,SPL]>;
-def   EUBC : Z80RegWithSubRegs<  "ebc", [  E,UBC]>;
-def   EUHL : Z80RegWithSubRegs<  "ehl", [  E,UHL]>;
-def   EUIX : Z80RegWithSubRegs<  "eix", [  E,UIX]>;
-def   EUIY : Z80RegWithSubRegs<  "eiy", [  E,UIY]>;
-def   ESPL : Z80RegWithSubRegs<  "esp", [  E,SPL]>;
-def   HUBC : Z80RegWithSubRegs<  "hbc", [  H,UBC]>;
-def   HUDE : Z80RegWithSubRegs<  "hde", [  H,UDE]>;
-def   HUIX : Z80RegWithSubRegs<  "hix", [  H,UIX]>;
-def   HUIY : Z80RegWithSubRegs<  "hiy", [  H,UIY]>;
-def   HSPL : Z80RegWithSubRegs<  "hsp", [  H,SPL]>;
-def   LUBC : Z80RegWithSubRegs<  "lbc", [  L,UBC]>;
-def   LUDE : Z80RegWithSubRegs<  "lde", [  L,UDE]>;
-def   LUIX : Z80RegWithSubRegs<  "lix", [  L,UIX]>;
-def   LUIY : Z80RegWithSubRegs<  "liy", [  L,UIY]>;
-def   LSPL : Z80RegWithSubRegs<  "lsp", [  L,SPL]>;
-def IXHUBC : Z80RegWithSubRegs<"ixhbc", [IXH,UBC]>;
-def IXHUDE : Z80RegWithSubRegs<"ixhde", [IXH,UDE]>;
-def IXHUHL : Z80RegWithSubRegs<"ixhhl", [IXH,UHL]>;
-def IXHUIY : Z80RegWithSubRegs<"ixhiy", [IXH,UIY]>;
-def IXHSPL : Z80RegWithSubRegs<"ixhsp", [IXH,SPL]>;
-def IXLUBC : Z80RegWithSubRegs<"ixlbc", [IXL,UBC]>;
-def IXLUDE : Z80RegWithSubRegs<"ixlde", [IXL,UDE]>;
-def IXLUHL : Z80RegWithSubRegs<"ixlhl", [IXL,UHL]>;
-def IXLUIY : Z80RegWithSubRegs<"ixliy", [IXL,UIY]>;
-def IXLSPL : Z80RegWithSubRegs<"ixlsp", [IXL,SPL]>;
-def IYHUBC : Z80RegWithSubRegs<"iyhbc", [IYH,UBC]>;
-def IYHUDE : Z80RegWithSubRegs<"iyhde", [IYH,UDE]>;
-def IYHUHL : Z80RegWithSubRegs<"iyhhl", [IYH,UHL]>;
-def IYHUIX : Z80RegWithSubRegs<"iyhix", [IYH,UIX]>;
-def IYHSPL : Z80RegWithSubRegs<"iyhsp", [IYH,SPL]>;
-def IYLUBC : Z80RegWithSubRegs<"iylbc", [IYL,UBC]>;
-def IYLUDE : Z80RegWithSubRegs<"iylde", [IYL,UDE]>;
-def IYLUHL : Z80RegWithSubRegs<"iylhl", [IYL,UHL]>;
-def IYLUIX : Z80RegWithSubRegs<"iylix", [IYL,UIX]>;
-def IYLSPL : Z80RegWithSubRegs<"iylsp", [IYL,SPL]>;
+def   AUBC : Z80RegWithSubRegs<"", [  A,UBC]>;
+def   AUDE : Z80RegWithSubRegs<"", [  A,UDE]>;
+def   AUHL : Z80RegWithSubRegs<"", [  A,UHL]>;
+def   AUIX : Z80RegWithSubRegs<"", [  A,UIX]>;
+def   AUIY : Z80RegWithSubRegs<"", [  A,UIY]>;
+def   ASPL : Z80RegWithSubRegs<"", [  A,SPL]>;
+def   BUDE : Z80RegWithSubRegs<"", [  B,UDE]>;
+def   BUHL : Z80RegWithSubRegs<"", [  B,UHL]>;
+def   BUIX : Z80RegWithSubRegs<"", [  B,UIX]>;
+def   BUIY : Z80RegWithSubRegs<"", [  B,UIY]>;
+def   BSPL : Z80RegWithSubRegs<"", [  B,SPL]>;
+def   CUDE : Z80RegWithSubRegs<"", [  C,UDE]>;
+def   CUHL : Z80RegWithSubRegs<"", [  C,UHL]>;
+def   CUIX : Z80RegWithSubRegs<"", [  C,UIX]>;
+def   CUIY : Z80RegWithSubRegs<"", [  C,UIY]>;
+def   CSPL : Z80RegWithSubRegs<"", [  C,SPL]>;
+def   DUBC : Z80RegWithSubRegs<"", [  D,UBC]>;
+def   DUHL : Z80RegWithSubRegs<"", [  D,UHL]>;
+def   DUIX : Z80RegWithSubRegs<"", [  D,UIX]>;
+def   DUIY : Z80RegWithSubRegs<"", [  D,UIY]>;
+def   DSPL : Z80RegWithSubRegs<"", [  D,SPL]>;
+def   EUBC : Z80RegWithSubRegs<"", [  E,UBC]>;
+def   EUHL : Z80RegWithSubRegs<"", [  E,UHL]>;
+def   EUIX : Z80RegWithSubRegs<"", [  E,UIX]>;
+def   EUIY : Z80RegWithSubRegs<"", [  E,UIY]>;
+def   ESPL : Z80RegWithSubRegs<"", [  E,SPL]>;
+def   HUBC : Z80RegWithSubRegs<"", [  H,UBC]>;
+def   HUDE : Z80RegWithSubRegs<"", [  H,UDE]>;
+def   HUIX : Z80RegWithSubRegs<"", [  H,UIX]>;
+def   HUIY : Z80RegWithSubRegs<"", [  H,UIY]>;
+def   HSPL : Z80RegWithSubRegs<"", [  H,SPL]>;
+def   LUBC : Z80RegWithSubRegs<"", [  L,UBC]>;
+def   LUDE : Z80RegWithSubRegs<"", [  L,UDE]>;
+def   LUIX : Z80RegWithSubRegs<"", [  L,UIX]>;
+def   LUIY : Z80RegWithSubRegs<"", [  L,UIY]>;
+def   LSPL : Z80RegWithSubRegs<"", [  L,SPL]>;
+def IXHUBC : Z80RegWithSubRegs<"", [IXH,UBC]>;
+def IXHUDE : Z80RegWithSubRegs<"", [IXH,UDE]>;
+def IXHUHL : Z80RegWithSubRegs<"", [IXH,UHL]>;
+def IXHUIY : Z80RegWithSubRegs<"", [IXH,UIY]>;
+def IXHSPL : Z80RegWithSubRegs<"", [IXH,SPL]>;
+def IXLUBC : Z80RegWithSubRegs<"", [IXL,UBC]>;
+def IXLUDE : Z80RegWithSubRegs<"", [IXL,UDE]>;
+def IXLUHL : Z80RegWithSubRegs<"", [IXL,UHL]>;
+def IXLUIY : Z80RegWithSubRegs<"", [IXL,UIY]>;
+def IXLSPL : Z80RegWithSubRegs<"", [IXL,SPL]>;
+def IYHUBC : Z80RegWithSubRegs<"", [IYH,UBC]>;
+def IYHUDE : Z80RegWithSubRegs<"", [IYH,UDE]>;
+def IYHUHL : Z80RegWithSubRegs<"", [IYH,UHL]>;
+def IYHUIX : Z80RegWithSubRegs<"", [IYH,UIX]>;
+def IYHSPL : Z80RegWithSubRegs<"", [IYH,SPL]>;
+def IYLUBC : Z80RegWithSubRegs<"", [IYL,UBC]>;
+def IYLUDE : Z80RegWithSubRegs<"", [IYL,UDE]>;
+def IYLUHL : Z80RegWithSubRegs<"", [IYL,UHL]>;
+def IYLUIX : Z80RegWithSubRegs<"", [IYL,UIX]>;
+def IYLSPL : Z80RegWithSubRegs<"", [IYL,SPL]>;
 }
 
 //===----------------------------------------------------------------------===//

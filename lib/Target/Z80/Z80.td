@@ -73,14 +73,19 @@ include "Z80CallingConv.td"
 // Assembly writer
 //===----------------------------------------------------------------------===//
 
+let ShouldEmitMatchRegisterName = 0 in {
+  def Z80AsmParser : AsmParser;
+  def EZ80AsmParser : AsmParser;
+}
 def Z80AsmWriter : AsmWriter;
 def EZ80AsmWriter : AsmWriter {
-  string AsmWriterClassName = "EInstPrinter";
-  let Variant = 1;
+    string AsmWriterClassName = "EInstPrinter";
+    let Variant = 1;
 }
 
 def Z80 : Target {
   // Information about the instructions...
   let InstructionSet = Z80InstrInfo;
+  let AssemblyParsers = [Z80AsmParser, EZ80AsmParser];
   let AssemblyWriters = [Z80AsmWriter, EZ80AsmWriter];
 }

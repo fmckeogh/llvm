@@ -56,6 +56,10 @@ namespace {
 
     bool SelectMem(SDValue N, SDValue &Mem);
     bool SelectOff(SDValue N, SDValue &Reg, SDValue &Off);
+
+    /// Implement addressing mode selection for inline asm expressions.
+    bool SelectInlineAsmMemoryOperand(const SDValue &Op, unsigned ConstraintID,
+                                      std::vector<SDValue> &OutOps) override;
   };
 }
 
@@ -131,6 +135,12 @@ bool Z80DAGToDAGISel::SelectOff(SDValue N, SDValue &Reg, SDValue &Off) {
     Off = CurDAG->getTargetConstant(0, SDLoc(N), MVT::i8);
     return true;
   }
+}
+
+bool Z80DAGToDAGISel::
+SelectInlineAsmMemoryOperand(const SDValue &Op, unsigned ConstraintID,
+                             std::vector<SDValue> &OutOps) {
+  llvm_unreachable("Unimplemented");
 }
 
 /// This pass converts a legalized DAG into Z80-specific DAG,
