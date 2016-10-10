@@ -59,6 +59,8 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   if (Subtarget.hasEZ80Ops())
     setOperationAction(ISD::MUL, MVT::i8, Custom);
 
+  setOperationAction(ISD::LOAD, MVT::i32, Custom);
+  setOperationAction(ISD::STORE, MVT::i32, Custom);
   for (MVT ValVT : MVT::integer_valuetypes()) {
     for (MVT MemVT : MVT::integer_valuetypes()) {
       setLoadExtAction(ISD:: EXTLOAD, ValVT, MemVT, Expand);
@@ -382,6 +384,40 @@ SDValue Z80TargetLowering::LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const {
                      TargetCC, Flag);
 }
 
+SDValue Z80TargetLowering::LowerLOAD(LoadSDNode *Node, SelectionDAG &DAG) const {
+  assert(Node->getValueType(0) == MVT::i32 && "Can only lower i32 loads");
+  SDLoc DL(Node);
+  SDValue Ch = Node->getChain();
+  SDValue Ptr = Node->getBasePtr();
+  SDValue Lo = DAG.getLoad(MVT::i24, DL, Ch, Ptr, Node->getMemOperand());
+  Ptr = DAG.getNode(ISD::ADD, DL, Ptr.getValueType(), Ptr,
+                    DAG.getConstant(3, DL, Ptr.getValueType()));
+  SDValue Hi = DAG.getLoad(MVT::i8, DL, Ch, Ptr, Node->getMemOperand());
+  Ch = DAG.getNode(ISD::TokenFactor, DL, MVT::Other,
+                   Lo.getValue(1), Hi.getValue(1));
+  const SDValue Ops[] = { DAG.getTargetConstant(Z80::R32RegClassID, DL, MVT::i32),
+                          Lo, DAG.getTargetConstant(Z80::sub_long, DL, MVT::i32),
+                          Hi, DAG.getTargetConstant(Z80::sub_top, DL, MVT::i32) };
+  SDNode *Res = DAG.getMachineNode(TargetOpcode::REG_SEQUENCE, DL, MVT::i32, Ops);
+  return DAG.getMergeValues({ SDValue(Res, 0), Ch }, DL);
+}
+SDValue Z80TargetLowering::LowerSTORE(StoreSDNode *Node, SelectionDAG &DAG) const {
+  assert(Node->getValueType(0) == MVT::i32 && "Can only lower i32 stores");
+  SDLoc DL(Node);
+  SDValue Ch = Node->getChain();
+  SDValue Ptr = Node->getBasePtr();
+  SDValue Val = Node->getValue();
+  SDValue Lo = DAG.getTargetExtractSubreg(Z80::sub_long, DL, MVT::i24, Val);
+  Lo = DAG.getStore(Ch, DL, Lo, Ptr, Node->getMemOperand());
+  Ptr = DAG.getNode(ISD::ADD, DL, Ptr.getValueType(), Ptr,
+                    DAG.getConstant(3, DL, Ptr.getValueType()));
+  SDValue Hi = DAG.getTargetExtractSubreg(Z80::sub_top, DL, MVT::i24, Val);
+  Hi = DAG.getStore(Ch, DL, Hi, Ptr, Node->getMemOperand());
+  Ch = DAG.getNode(ISD::TokenFactor, DL, MVT::Other,
+                   Lo.getValue(0), Hi.getValue(0));
+  return Ch;
+}
+
 SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
   case ISD::ADD: case ISD::SUB:
@@ -394,8 +430,10 @@ SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::BR_CC: return LowerBR_CC(Op, DAG);
   case ISD::SETCC: return LowerSETCC(Op, DAG);
   case ISD::SELECT_CC: return LowerSELECT_CC(Op, DAG);
+  case ISD::LOAD: return LowerLOAD(cast<LoadSDNode>(Op), DAG);
+  case ISD::STORE: return LowerSTORE(cast<StoreSDNode>(Op), DAG);
   }
-  if (Op.getValueSizeInBits() == 16) {
+  if (Op.getValueType() == MVT::i16) {
     switch (Op.getOpcode()) {
       default: llvm_unreachable("Should not custom lower this!");
       case ISD::AND:
@@ -413,8 +451,7 @@ SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
 }
 
 SDValue Z80TargetLowering::NarrowOperation(SDValue Op, SelectionDAG &DAG) const {
-  assert(Op.getSimpleValueType() == MVT::i16 &&
-         "Can only narrow i16 operations");
+  assert(Op.getValueType() == MVT::i16 && "Can only narrow i16 operations");
   SDLoc DL(Op);
   SDValue L = Op.getOperand(0);
   SDValue R = Op.getOperand(1);

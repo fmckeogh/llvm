@@ -159,6 +159,9 @@ public:
   SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
 
+  SDValue LowerLOAD(LoadSDNode *Node, SelectionDAG &DAG) const;
+  SDValue LowerSTORE(StoreSDNode *Node, SelectionDAG &DAG) const;
+
   CCAssignFn *getCCAssignFn(CallingConv::ID CallConv) const;
 
   SDValue LowerFormalArguments(SDValue Chain,

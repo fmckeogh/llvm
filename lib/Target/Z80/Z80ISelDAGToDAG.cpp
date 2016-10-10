@@ -119,6 +119,10 @@ bool Z80DAGToDAGISel::SelectOff(SDValue N, SDValue &Reg, SDValue &Off) {
     for (int I = 0; I != 2; ++I) {
       if (SelectMem(N.getOperand(I ^ 1), Off)) {
         Reg = N.getOperand(I);
+        if (Reg.getOpcode() == ISD::FrameIndex)
+          Reg = CurDAG->getTargetFrameIndex(
+              cast<FrameIndexSDNode>(Reg)->getIndex(),
+              TLI->getPointerTy(CurDAG->getDataLayout()));
         DEBUG(dbgs() << "Selected ADD:\n";
               N.dumpr();
               dbgs() << "becomes\n";

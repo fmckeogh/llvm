@@ -231,12 +231,18 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator MI,
                                const DebugLoc &DL, unsigned DstReg,
                                unsigned SrcReg, bool KillSrc) const {
+  DEBUG(dbgs() << RI.getName(DstReg) << " = "
+               << RI.getName(SrcReg) << '\n');
   for (auto Regs : {std::make_pair(DstReg, &SrcReg),
                     std::make_pair(SrcReg, &DstReg)}) {
     if (Z80::R8RegClass.contains(Regs.first) &&
         (Z80::R16RegClass.contains(*Regs.second) ||
-         Z80::R24RegClass.contains(*Regs.second)))
+         Z80::R24RegClass.contains(*Regs.second) ||
+         Z80::R32RegClass.contains(*Regs.second)))
       *Regs.second = RI.getSubReg(*Regs.second, Z80::sub_low);
+    else if (Z80::R24RegClass.contains(Regs.first) &&
+             Z80::R32RegClass.contains(*Regs.second))
+      *Regs.second = RI.getSubReg(*Regs.second, Z80::sub_long);
   }
   if (DstReg == SrcReg)
     return;
@@ -298,17 +304,23 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     BuildMI(MBB, MI, DL, get(Z80::POP24r), DstReg);
     return;
   }
-  unsigned DstHiReg = RI.getSubReg(DstReg, Z80::sub_high);
-  unsigned SrcHiReg = RI.getSubReg(SrcReg, Z80::sub_high);
-  unsigned DstLoReg = RI.getSubReg(DstReg, Z80::sub_low);
-  unsigned SrcLoReg = RI.getSubReg(SrcReg, Z80::sub_low);
+  unsigned SubLo, SubHi;
+  if (Z80::R32RegClass.contains(DstReg, SrcReg)) {
+    SubLo = Z80::sub_long;
+    SubHi = Z80::sub_top;
+  } else {
+    SubLo = Z80::sub_low;
+    SubHi = Z80::sub_high;
+  }
+  unsigned DstLoReg = RI.getSubReg(DstReg, SubLo);
+  unsigned SrcLoReg = RI.getSubReg(SrcReg, SubLo);
+  unsigned DstHiReg = RI.getSubReg(DstReg, SubHi);
+  unsigned SrcHiReg = RI.getSubReg(SrcReg, SubHi);
   if (DstHiReg && SrcHiReg && DstLoReg && SrcLoReg) {
-    copyPhysReg(MBB, MI, DL, DstHiReg, SrcHiReg, KillSrc);
     copyPhysReg(MBB, MI, DL, DstLoReg, SrcLoReg, KillSrc);
+    copyPhysReg(MBB, MI, DL, DstHiReg, SrcHiReg, KillSrc);
     return;
   }
-  DEBUG(dbgs() << RI.getName(DstReg) << " = "
-               << RI.getName(SrcReg) << '\n');
   llvm_unreachable("Unimplemented reg copy");
 }
 

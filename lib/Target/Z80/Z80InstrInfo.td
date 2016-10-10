@@ -521,31 +521,31 @@ def : Pat<(i32 (anyext R16:$src)),
 def : Pat<(i32 (anyext R24:$src)),
           (INSERT_SUBREG (IMPLICIT_DEF), R24:$src, sub_long)>;
 
-//   zexts
-def : Pat<(i16 (  zext R8 :$src)),
+// zexts
+def : Pat<(i16 (zext R8 :$src)),
           (REG_SEQUENCE R16, R8 :$src, sub_low, (LD8ri 0), sub_high)>;
-def : Pat<(i24 (  zext R8 :$src)),
+def : Pat<(i24 (zext R8 :$src)),
           (INSERT_SUBREG (LD24ri 0), R8 :$src, sub_low)>;
-def : Pat<(i24 (  zext R16:$src)),
+def : Pat<(i24 (zext R16:$src)),
           (INSERT_SUBREG (LD24ri 0), R16:$src, sub_short)>;
-def : Pat<(i32 (  zext R8 :$src)),
-          (REG_SEQUENCE R32, (LD8ri (i8 0)), sub_top,
-                        (INSERT_SUBREG (LD24ri (i24 0)), R8 :$src, sub_low),
-                        sub_long/*, (LD8ri (i8 0)), sub_top*/)>;
-def : Pat<(i32 (  zext R16:$src)),
-          (REG_SEQUENCE R32, (LD8ri (i8 0)), sub_top,
-                        (INSERT_SUBREG (LD24ri (i24 0)), R16:$src, sub_short),
-                        sub_long/*, (LD8ri (i8 0)), sub_top*/)>;
-/*def : Pat<(i24 (  zext R8 :$src)),
-          (INSERT_SUBREG (i24 (SBC24aa (i24 (IMPLICIT_DEF)),
-                                       (i24 (IMPLICIT_DEF)),
-                                       (i8 (OR8rr A, A)))),
-                         R8 :$src, sub_low)>;*/
+def : Pat<(i32 (zext R8:$src)),
+          (REG_SEQUENCE R32, (INSERT_SUBREG (LD24ri 0), R8:$src,
+                                            sub_low), sub_long,
+                             (LD8ri 0), sub_top)>;
+def : Pat<(i32 (zext R16:$src)),
+          (REG_SEQUENCE R32, (INSERT_SUBREG (LD24ri 0), R16:$src,
+                                            sub_short), sub_long,
+                             (LD8ri 0), sub_top)>;
+def : Pat<(i32 (zext R24:$src)),
+          (REG_SEQUENCE R32, R24:$src, sub_long, (LD8ri 0), sub_top)>;
 
 // truncs
 def : Pat<(i8  (trunc R16:$src)), (EXTRACT_SUBREG R16:$src, sub_low)>;
 def : Pat<(i8  (trunc R24:$src)), (EXTRACT_SUBREG R24:$src, sub_low)>;
 def : Pat<(i16 (trunc R24:$src)), (EXTRACT_SUBREG R24:$src, sub_short)>;
+def : Pat<(i8  (trunc R32:$src)), (EXTRACT_SUBREG R32:$src, sub_low)>;
+def : Pat<(i16 (trunc R32:$src)), (EXTRACT_SUBREG R32:$src, sub_short)>;
+def : Pat<(i24 (trunc R32:$src)), (EXTRACT_SUBREG R32:$src, sub_long)>;
 
 /*
 // Any instruction that defines a 16-bit result leaves the high half of the

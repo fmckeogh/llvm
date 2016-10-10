@@ -513,8 +513,9 @@ void SelectionDAGLegalize::LegalizeStoreOps(SDNode *Node) {
             DAG.getTruncStore(Chain, dl, Value, Ptr, ST->getPointerInfo(), NVT,
                               Alignment, MMOFlags, AAInfo);
         ReplaceNode(SDValue(Node, 0), Result);
-      } else if (StWidth & (StWidth - 1)) {
-        // If not storing a power-of-2 number of bits, expand as two stores.
+      } else if ((StWidth & (StWidth - 1)) && !TLI.isTypeLegal(StVT)) {
+        // If not storing a legal power-of-two number of bits, expand as two
+        // stores.
         assert(!StVT.isVector() && "Unsupported truncstore!");
         unsigned RoundWidth = 1 << Log2_32(StWidth);
         assert(RoundWidth < StWidth);
@@ -716,8 +717,8 @@ void SelectionDAGLegalize::LegalizeLoadOps(SDNode *Node) {
 
     Value = Result;
     Chain = Ch;
-  } else if (SrcWidth & (SrcWidth - 1)) {
-    // If not loading a power-of-2 number of bits, expand as two loads.
+  } else if ((SrcWidth & (SrcWidth - 1)) && !TLI.isTypeLegal(SrcVT)) {
+    // If not loading a legal power-of-two number of bits, expand as two loads.
     assert(!SrcVT.isVector() && "Unsupported extload!");
     unsigned RoundWidth = 1 << Log2_32(SrcWidth);
     assert(RoundWidth < SrcWidth);
