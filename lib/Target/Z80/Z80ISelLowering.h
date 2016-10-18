@@ -143,7 +143,7 @@ public:
                                          Type *Ty) const override;
 
   /// Replace the results of node with an illegal result type with new values
-  /// buildt out of custom code.
+  /// built out of custom code.
   void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;
 

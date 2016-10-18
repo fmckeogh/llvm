@@ -59,8 +59,14 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   if (Subtarget.hasEZ80Ops())
     setOperationAction(ISD::MUL, MVT::i8, Custom);
 
-  setOperationAction(ISD::LOAD, MVT::i32, Custom);
-  setOperationAction(ISD::STORE, MVT::i32, Custom);
+  if (!Subtarget.hasEZ80Ops()) {
+    setOperationAction(ISD::LOAD, MVT::i16, Custom);
+    setOperationAction(ISD::STORE, MVT::i16, Custom);
+  }
+  if (Subtarget.is24Bit()) {
+    setOperationAction(ISD::LOAD, MVT::i32, Custom);
+    setOperationAction(ISD::STORE, MVT::i32, Custom);
+  }
   for (MVT ValVT : MVT::integer_valuetypes()) {
     for (MVT MemVT : MVT::integer_valuetypes()) {
       setLoadExtAction(ISD:: EXTLOAD, ValVT, MemVT, Expand);
@@ -385,34 +391,55 @@ SDValue Z80TargetLowering::LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const {
 }
 
 SDValue Z80TargetLowering::LowerLOAD(LoadSDNode *Node, SelectionDAG &DAG) const {
-  assert(Node->getValueType(0) == MVT::i32 && "Can only lower i32 loads");
   SDLoc DL(Node);
   SDValue Ch = Node->getChain();
   SDValue Ptr = Node->getBasePtr();
-  SDValue Lo = DAG.getLoad(MVT::i24, DL, Ch, Ptr, Node->getMemOperand());
+  const MachinePointerInfo &MPI = Node->getPointerInfo();
+  unsigned Alignment = Node->getAlignment();
+  MachineMemOperand *MMO = Node->getMemOperand();
+  AAMDNodes AAInfo = Node->getAAInfo();
+  unsigned RC, LoTy, LoIdx, HiTy, HiIdx, HiOff;
+  bool Split = Z80::splitReg(MMO->getSize(), MVT::i8, MVT::i16, MVT::i24,
+                             RC, LoTy, LoIdx, HiTy, HiIdx, HiOff, Subtarget);
+  assert(Split && "Can only custom lower splittable loads");
+  SDValue Lo = DAG.getLoad(MVT::SimpleValueType(LoTy), DL, Ch, Ptr, MPI,
+                           Alignment, MMO->getFlags(), AAInfo);
   Ptr = DAG.getNode(ISD::ADD, DL, Ptr.getValueType(), Ptr,
-                    DAG.getConstant(3, DL, Ptr.getValueType()));
-  SDValue Hi = DAG.getLoad(MVT::i8, DL, Ch, Ptr, Node->getMemOperand());
+                    DAG.getConstant(HiOff, DL, Ptr.getValueType()));
+  SDValue Hi = DAG.getLoad(MVT::SimpleValueType(HiTy), DL, Ch, Ptr,
+                           MPI.getWithOffset(HiOff), MinAlign(Alignment, HiOff),
+                           MMO->getFlags(), AAInfo);
   Ch = DAG.getNode(ISD::TokenFactor, DL, MVT::Other,
                    Lo.getValue(1), Hi.getValue(1));
-  const SDValue Ops[] = { DAG.getTargetConstant(Z80::R32RegClassID, DL, MVT::i32),
-                          Lo, DAG.getTargetConstant(Z80::sub_long, DL, MVT::i32),
-                          Hi, DAG.getTargetConstant(Z80::sub_top, DL, MVT::i32) };
-  SDNode *Res = DAG.getMachineNode(TargetOpcode::REG_SEQUENCE, DL, MVT::i32, Ops);
+  const SDValue Ops[] = { DAG.getTargetConstant(RC, DL, MVT::i32),
+                          Lo, DAG.getTargetConstant(LoIdx, DL, MVT::i32),
+                          Hi, DAG.getTargetConstant(HiIdx, DL, MVT::i32) };
+  SDNode *Res = DAG.getMachineNode(TargetOpcode::REG_SEQUENCE, DL,
+                                   Node->getValueType(0), Ops);
   return DAG.getMergeValues({ SDValue(Res, 0), Ch }, DL);
 }
 SDValue Z80TargetLowering::LowerSTORE(StoreSDNode *Node, SelectionDAG &DAG) const {
-  assert(Node->getValueType(0) == MVT::i32 && "Can only lower i32 stores");
   SDLoc DL(Node);
   SDValue Ch = Node->getChain();
   SDValue Ptr = Node->getBasePtr();
   SDValue Val = Node->getValue();
-  SDValue Lo = DAG.getTargetExtractSubreg(Z80::sub_long, DL, MVT::i24, Val);
-  Lo = DAG.getStore(Ch, DL, Lo, Ptr, Node->getMemOperand());
+  const MachinePointerInfo &MPI = Node->getPointerInfo();
+  unsigned Alignment = Node->getAlignment();
+  MachineMemOperand *MMO = Node->getMemOperand();
+  AAMDNodes AAInfo = Node->getAAInfo();
+  unsigned RC, LoTy, LoIdx, HiTy, HiIdx, HiOff;
+  bool Split = Z80::splitReg(MMO->getSize(), MVT::i8, MVT::i16, MVT::i24,
+                             RC, LoTy, LoIdx, HiTy, HiIdx, HiOff, Subtarget);
+  assert(Split && "Can only custom lower splittable stores");
+  SDValue Lo = DAG.getTargetExtractSubreg(Z80::sub_long, DL,
+                                          MVT::SimpleValueType(LoTy), Val);
+  Lo = DAG.getStore(Ch, DL, Lo, Ptr, MPI, Alignment, MMO->getFlags(), AAInfo);
   Ptr = DAG.getNode(ISD::ADD, DL, Ptr.getValueType(), Ptr,
-                    DAG.getConstant(3, DL, Ptr.getValueType()));
-  SDValue Hi = DAG.getTargetExtractSubreg(Z80::sub_top, DL, MVT::i24, Val);
-  Hi = DAG.getStore(Ch, DL, Hi, Ptr, Node->getMemOperand());
+                    DAG.getConstant(HiOff, DL, Ptr.getValueType()));
+  SDValue Hi = DAG.getTargetExtractSubreg(Z80::sub_top, DL,
+                                          MVT::SimpleValueType(HiTy), Val);
+  Hi = DAG.getStore(Ch, DL, Hi, Ptr, MPI.getWithOffset(HiOff),
+                    MinAlign(Alignment, HiOff), MMO->getFlags(), AAInfo);
   Ch = DAG.getNode(ISD::TokenFactor, DL, MVT::Other,
                    Lo.getValue(0), Hi.getValue(0));
   return Ch;
@@ -557,9 +584,9 @@ void Z80TargetLowering::ReplaceNodeResults(SDNode *N,
   switch (N->getOpcode()) {
   default:
     llvm_unreachable("Don't know how to custom type legalize this operation!");
-  case ISD::AND:
-  case ISD::XOR:
-  case ISD:: OR: return;
+  //case ISD::AND:
+  //case ISD::XOR:
+  //case ISD:: OR: return;
   }
 }
 

@@ -171,6 +171,8 @@ def In16BitMode : Predicate<"Subtarget->is16Bit()">,
                   AssemblerPredicate<"Mode16Bit", "16-bit mode">;
 def In24BitMode : Predicate<"Subtarget->is24Bit()">,
                   AssemblerPredicate<"Mode24Bit", "24-bit mode">;
+def HasEZ80Ops  : Predicate<"Subtarget->hasEZ80Ops()">,
+                  AssemblerPredicate<"FeatureEZ80", "eZ80 ops">;
 
 //===----------------------------------------------------------------------===//
 // Instruction list.
@@ -226,15 +228,19 @@ def NOP : I<0x00, (outs), (ins), []>;
 // potentially appearing dead.  Uses for argument registers are added manually.
 let AsmString = "call\t$dst", isCall = 1 in {
   let Uses = [SPS] in
-  def CALL16i : I<0xCD, (outs), (ins i16imm:$dst), [(Z80call mempat:$dst)]>;
+  def CALL16i : I<0xCD, (outs), (ins i16imm:$dst), [(Z80call mempat:$dst)]>,
+                Requires<[In16BitMode]>;
   let Uses = [SPL] in
-  def CALL24i : I<0xCD, (outs), (ins i24imm:$dst), [(Z80call mempat:$dst)]>;
+  def CALL24i : I<0xCD, (outs), (ins i24imm:$dst), [(Z80call mempat:$dst)]>,
+                Requires<[In24BitMode]>;
 }
 let isCall = 1, isPseudo = 1 in {
   let Uses = [SPS] in
-  def CALL16r : P<(outs), (ins A16:$dst), [(Z80call A16:$dst)]>;
+  def CALL16r : P<(outs), (ins A16:$dst), [(Z80call A16:$dst)]>,
+                Requires<[In16BitMode]>;
   let Uses = [SPL] in
-  def CALL24r : P<(outs), (ins A24:$dst), [(Z80call A24:$dst)]>;
+  def CALL24r : P<(outs), (ins A24:$dst), [(Z80call A24:$dst)]>,
+                Requires<[In24BitMode]>;
 }
 
 let AsmString = "ret", isTerminator = 1, isReturn = 1, isBarrier = 1 in {
@@ -242,12 +248,16 @@ let AsmString = "ret", isTerminator = 1, isReturn = 1, isBarrier = 1 in {
 }
 let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, isPseudo = 1 in {
   let Uses = [SPS] in {
-    def TCRETURN16i : P<(outs), (ins i16imm:$dst), [(Z80tcret mempat:$dst)]>;
-    def TCRETURN16r : P<(outs), (ins A16:$dst), [(Z80tcret A16:$dst)]>;
+    def TCRETURN16i : P<(outs), (ins i16imm:$dst), [(Z80tcret mempat:$dst)]>,
+                      Requires<[In16BitMode]>;
+    def TCRETURN16r : P<(outs), (ins A16:$dst), [(Z80tcret A16:$dst)]>,
+                      Requires<[In16BitMode]>;
   }
   let Uses = [SPL] in {
-    def TCRETURN24i : P<(outs), (ins i24imm:$dst), [(Z80tcret mempat:$dst)]>;
-    def TCRETURN24r : P<(outs), (ins A24:$dst), [(Z80tcret A24:$dst)]>;
+    def TCRETURN24i : P<(outs), (ins i24imm:$dst), [(Z80tcret mempat:$dst)]>,
+                      Requires<[In24BitMode]>;
+    def TCRETURN24r : P<(outs), (ins A24:$dst), [(Z80tcret A24:$dst)]>,
+                      Requires<[In24BitMode]>;
   }
 }
 
@@ -286,82 +296,105 @@ def  LD8ri : I<0x06, (outs  R8:$dst), (ins  i8imm:$src),
 def LD16ri : I<0x01, (outs R16:$dst), (ins i16imm:$src),
                [(set R16:$dst, mempat:$src)]>;
 def LD24ri : I<0x01, (outs R24:$dst), (ins i24imm:$src),
-               [(set R24:$dst, mempat:$src)]>;
+               [(set R24:$dst, mempat:$src)]>,
+             Requires<[HasEZ80Ops]>;
 
 let mayLoad = 1 in {
 def LD16rm : I<0x2A, (outs R16:$dst), (ins mem:$src),
-              [(set R16:$dst, (i16 (load mempat:$src)))]>;
+               [(set R16:$dst, (i16 (load mempat:$src)))]>;
 def LD24rm : I<0x2A, (outs R24:$dst), (ins mem:$src),
-              [(set R24:$dst, (i24 (load mempat:$src)))]>;
+               [(set R24:$dst, (i24 (load mempat:$src)))]>,
+             Requires<[HasEZ80Ops]>;
 
 def  LD8rp : I<0x46, (outs  R8:$dst), (ins ptr:$src),
-              [(set  R8:$dst, (i8  (load iPTR:$src)))]>;
+               [(set  R8:$dst, (i8  (load iPTR:$src)))]>;
 def LD16rp : I<0x46, (outs R16:$dst), (ins ptr:$src),
-              [(set R16:$dst, (i16 (load iPTR:$src)))]>;
+               [(set R16:$dst, (i16 (load iPTR:$src)))]>,
+             Requires<[HasEZ80Ops]>;
 def LD24rp : I<0x46, (outs R24:$dst), (ins ptr:$src),
-              [(set R24:$dst, (i24 (load iPTR:$src)))]>;
+               [(set R24:$dst, (i24 (load iPTR:$src)))]>,
+             Requires<[HasEZ80Ops]>;
 
 def  LD8ro : I<0x46, (outs  R8:$dst), (ins off:$src),
-              [(set  R8:$dst, (i8  (load offpat:$src)))]>;
+               [(set  R8:$dst, (i8  (load offpat:$src)))]>;
 def LD16ro : I<0x46, (outs R16:$dst), (ins off:$src),
-              [(set R16:$dst, (i16 (load offpat:$src)))]>;
+               [(set R16:$dst, (i16 (load offpat:$src)))]>,
+             Requires<[HasEZ80Ops]>;
 def LD24ro : I<0x46, (outs R24:$dst), (ins off:$src),
-              [(set R24:$dst, (i24 (load offpat:$src)))]>;
+               [(set R24:$dst, (i24 (load offpat:$src)))]>,
+             Requires<[HasEZ80Ops]>;
 }
 
 let mayStore = 1 in {
 def LD16mr : I<0x22, (outs), (ins mem:$dst, R16:$src),
-              [(store R16:$src, mempat:$dst)]>;
+               [(store R16:$src, mempat:$dst)]>;
 def LD24mr : I<0x22, (outs), (ins mem:$dst, R24:$src),
-              [(store R24:$src, mempat:$dst)]>;
+               [(store R24:$src, mempat:$dst)]>,
+             Requires<[HasEZ80Ops]>;
 
 def  LD8pr : I<0x32, (outs), (ins ptr:$dst,  R8:$src),
-              [(store  R8:$src, iPTR:$dst)]>;
+               [(store  R8:$src, iPTR:$dst)]>;
 def LD16pr : I<0x22, (outs), (ins ptr:$dst, R16:$src),
-              [(store R16:$src, iPTR:$dst)]>;
+               [(store R16:$src, iPTR:$dst)]>,
+             Requires<[HasEZ80Ops]>;
 def LD24pr : I<0x22, (outs), (ins ptr:$dst, R24:$src),
-              [(store R24:$src, iPTR:$dst)]>;
+               [(store R24:$src, iPTR:$dst)]>,
+             Requires<[HasEZ80Ops]>;
 
 def  LD8or : I<0x32, (outs), (ins off:$dst,  R8:$src),
-              [(store  R8:$src, offpat:$dst)]>;
+               [(store  R8:$src, offpat:$dst)]>;
 def LD16or : I<0x22, (outs), (ins off:$dst, R16:$src),
-              [(store R16:$src, offpat:$dst)]>;
+               [(store R16:$src, offpat:$dst)]>,
+             Requires<[HasEZ80Ops]>;
 def LD24or : I<0x22, (outs), (ins off:$dst, R24:$src),
-              [(store R24:$src, offpat:$dst)]>;
+               [(store R24:$src, offpat:$dst)]>,
+             Requires<[HasEZ80Ops]>;
 
 def  LD8pi : I<0x36, (outs), (ins ptr:$dst,  i8imm:$src),
-              [(store (i8 imm:$src), iPTR:$dst)]>;
+               [(store (i8 imm:$src), iPTR:$dst)]>;
 def  LD8oi : I<0x36, (outs), (ins off:$dst,  i8imm:$src),
-              [(store (i8 imm:$src), offpat:$dst)]>;
+               [(store (i8 imm:$src), offpat:$dst)]>;
 }
 }
 
 let AsmString = "ld\ta, $src", Defs = [A], mayLoad = 1 in
 def  LD8am : I<0x3A, (outs), (ins mem:$src),
-              [(set  A, (i8  (load mempat:$src)))]>;
+               [(set  A, (i8  (load mempat:$src)))]>;
 let AsmString = "ld\t$dst, a", Uses = [A], mayStore = 1 in
 def  LD8ma : I<0x32, (outs), (ins mem:$dst),
-              [(store  A, mempat:$dst)]>;
+               [(store  A, mempat:$dst)]>;
 
 let AsmString = "ld\tsp, $reg" in {
 let Defs = [SPS] in
 def LD16SP : I<0xF9, (outs), (ins A16:$reg)>;
 let Defs = [SPL] in
-def LD24SP : I<0xF9, (outs), (ins A24:$reg)>;
+def LD24SP : I<0xF9, (outs), (ins A24:$reg)>,
+             Requires<[HasEZ80Ops]>;
 }
 
 let Defs = [DE, HL], Uses = [DE, HL] in
 def EX16DE : SI<NoPrfx, 0xEB, "ex", "de, hl", "", (outs), (ins)>;
 let Defs = [UDE, UHL], Uses = [UDE, UHL] in
-def EX24DE : LI<NoPrfx, 0xEB, "ex", "de, hl", "", (outs), (ins)>;
+def EX24DE : LI<NoPrfx, 0xEB, "ex", "de, hl", "", (outs), (ins)>,
+             Requires<[HasEZ80Ops]>;
+
+let Defs = [HL], Uses = [HL, SPS] in
+def EX16SP : SI<NoPrfx, 0xE3, "ex", "(sp), hl", "", (outs), (ins)>;
+let Defs = [UHL], Uses = [UHL, SPL] in
+def EX24SP : LI<NoPrfx, 0xE3, "ex", "(sp), hl", "", (outs), (ins)>,
+             Requires<[HasEZ80Ops]>;
 
 let AsmString = "pop\t$reg" in {
+let Uses = [SPS] in
 def  POP16r : I<0xC1, (outs S16:$reg), (ins)>;
+let Uses = [SPL] in
 def  POP24r : I<0xC1, (outs S24:$reg), (ins)>;
 }
 
 let AsmString = "push\t$reg" in {
+let Uses = [SPS] in
 def PUSH16r : I<0xC5, (outs), (ins S16:$reg)>;
+let Uses = [SPL] in
 def PUSH24r : I<0xC5, (outs), (ins S24:$reg)>;
 }
 

@@ -227,13 +227,72 @@ void Z80InstrInfo::getUnconditionalBranch(MCInst &Branch,
   Branch.addOperand(MCOperand::createExpr(Target));
 }
 
+bool Z80::splitReg(
+    unsigned ByteSize, unsigned Opc8, unsigned Opc16, unsigned Opc24,
+    unsigned &RC, unsigned &LoOpc, unsigned &LoIdx,
+    unsigned &HiOpc, unsigned &HiIdx, unsigned &HiOff,
+    const Z80Subtarget &Subtarget) {
+  switch (ByteSize) {
+  default: llvm_unreachable("Unknown Size!");
+  case 1:
+    RC = Z80::R8RegClassID;
+    HiOpc = Opc8;
+    HiIdx = Z80::sub_low;
+    HiOff = 0;
+    return false;
+  case 2:
+    RC = Z80::R16RegClassID;
+    if (Subtarget.hasEZ80Ops()) {
+      HiOpc = Opc16;
+      HiIdx = Z80::sub_short;
+      HiOff = 0;
+      return false;
+    }
+    LoOpc = Opc8;
+    LoIdx = Z80::sub_low;
+    HiOpc = Opc8;
+    HiIdx = Z80::sub_high;
+    HiOff = 1;
+    return true;
+  case 3:
+    // Legalization should have taken care of this if we don't have eZ80 ops
+    assert(Subtarget.hasEZ80Ops() && "Need eZ80 word load/store");
+    RC = Z80::R24RegClassID;
+    HiOpc = Opc24;
+    HiIdx = Z80::sub_long;
+    HiOff = 0;
+    return false;
+  case 4:
+    // Legalization should have taken care of this if we don't have eZ80 ops
+    assert(Subtarget.hasEZ80Ops() && "Need eZ80 word load/store");
+    RC = Z80::R32RegClassID;
+    LoOpc = Opc24;
+    LoIdx = Z80::sub_long;
+    HiOpc = Opc8;
+    HiIdx = Z80::sub_top;
+    HiOff = 3;
+    return true;
+  }
+}
+
+bool Z80InstrInfo::canExchange(unsigned RegA, unsigned RegB) const {
+  // The only regs that can be directly exchanged are DE and HL, in any order.
+  bool DE = false, HL = false;
+  for (unsigned Reg : {RegA, RegB}) {
+    if (RI.isSubRegisterEq(Z80::UDE, Reg))
+      DE = true;
+    else if (RI.isSubRegisterEq(Z80::UHL, Reg))
+      HL = true;
+  }
+  return DE && HL;
+}
+
 void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                                MachineBasicBlock::iterator MI,
                                const DebugLoc &DL, unsigned DstReg,
                                unsigned SrcReg, bool KillSrc) const {
-  DEBUG(dbgs() << RI.getName(DstReg) << " = "
-               << RI.getName(SrcReg) << '\n');
-  for (auto Regs : {std::make_pair(DstReg, &SrcReg),
+  DEBUG(dbgs() << RI.getName(DstReg) << " = " << RI.getName(SrcReg) << '\n');
+  /*for (auto Regs : {std::make_pair(DstReg, &SrcReg),
                     std::make_pair(SrcReg, &DstReg)}) {
     if (Z80::R8RegClass.contains(Regs.first) &&
         (Z80::R16RegClass.contains(*Regs.second) ||
@@ -243,119 +302,196 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     else if (Z80::R24RegClass.contains(Regs.first) &&
              Z80::R32RegClass.contains(*Regs.second))
       *Regs.second = RI.getSubReg(*Regs.second, Z80::sub_long);
-  }
+  }*/
+  // Identity copy.
   if (DstReg == SrcReg)
     return;
-  if (Z80::G8RegClass.contains(DstReg, SrcReg)) {
-    BuildMI(MBB, MI, DL, get(Z80::LD8rr), DstReg)
-      .addReg(SrcReg, getKillRegState(KillSrc));
-    return;
-  } else if (Z80::X8RegClass.contains(DstReg, SrcReg)) {
-    BuildMI(MBB, MI, DL, get(Z80::LD8xx), DstReg)
-      .addReg(SrcReg, getKillRegState(KillSrc));
-    return;
-  } else if (Z80::Y8RegClass.contains(DstReg, SrcReg)) {
-    BuildMI(MBB, MI, DL, get(Z80::LD8yy), DstReg)
-      .addReg(SrcReg, getKillRegState(KillSrc));
-    return;
-  } else if (Z80::R8RegClass.contains(DstReg, SrcReg)) {
-    for (auto Reg : {&DstReg, &SrcReg}) {
-      switch (*Reg) {
-        case Z80::H: *Reg = Z80::D; break;
-        case Z80::L: *Reg = Z80::E; break;
+  if (Z80::R8RegClass.contains(DstReg, SrcReg)) {
+    // Byte copy.
+    if (Z80::G8RegClass.contains(DstReg, SrcReg)) {
+      // Neither are index registers.
+      BuildMI(MBB, MI, DL, get(Z80::LD8rr), DstReg)
+        .addReg(SrcReg, getKillRegState(KillSrc));
+    } else if (Z80::I8RegClass.contains(DstReg, SrcReg)) {
+      // Both are index registers.
+      if (Z80::X8RegClass.contains(DstReg, SrcReg)) {
+        BuildMI(MBB, MI, DL, get(Z80::LD8xx), DstReg)
+          .addReg(SrcReg, getKillRegState(KillSrc));
+      } else if (Z80::Y8RegClass.contains(DstReg, SrcReg)) {
+        BuildMI(MBB, MI, DL, get(Z80::LD8yy), DstReg)
+          .addReg(SrcReg, getKillRegState(KillSrc));
+      } else {
+        // We are copying between different index registers, so we need to use
+        // an intermediate register.
+        BuildMI(MBB, MI, DL, get(Subtarget.is24Bit() ? Z80::PUSH24r
+                                                     : Z80::PUSH16r))
+          .addReg(Z80::AF);
+        BuildMI(MBB, MI, DL, get(Z80::X8RegClass.contains(SrcReg) ? Z80::LD8xx
+                                                                  : Z80::LD8yy),
+                Z80::A).addReg(SrcReg, getKillRegState(KillSrc));
+        BuildMI(MBB, MI, DL, get(Z80::X8RegClass.contains(DstReg) ? Z80::LD8xx
+                                                                  : Z80::LD8yy),
+                DstReg).addReg(Z80::A);
+        BuildMI(MBB, MI, DL, get(Subtarget.is24Bit() ? Z80::POP24r
+                                                     : Z80::POP16r), Z80::AF);
       }
+    } else {
+      // Only one is an index register, which isn't directly possible if one of
+      // them is from HL.  If so, surround with EX DE,HL and use DE instead.
+      bool NeedEX = false;
+      for (unsigned *Reg : {&DstReg, &SrcReg}) {
+        switch (*Reg) {
+        case Z80::H: *Reg = Z80::D; NeedEX = true; break;
+        case Z80::L: *Reg = Z80::E; NeedEX = true; break;
+        }
+      }
+      auto EX = get(Subtarget.is24Bit() ? Z80::EX24DE : Z80::EX16DE);
+      if (NeedEX)
+        BuildMI(MBB, MI, DL, EX);
+      BuildMI(MBB, MI, DL, get(Z80::X8RegClass.contains(DstReg) ||
+                               Z80::X8RegClass.contains(SrcReg) ? Z80::LD8xx
+                                                                : Z80::LD8yy),
+              DstReg).addReg(SrcReg, getKillRegState(KillSrc));
+      if (NeedEX)
+        BuildMI(MBB, MI, DL, EX);
     }
-    unsigned EX = Subtarget.is24Bit() ? Z80::EX24DE : Z80::EX16DE;
-    BuildMI(MBB, MI, DL, get(EX));
-    BuildMI(MBB, MI, DL, get(Z80::LD8rr), DstReg)
-      .addReg(SrcReg, getKillRegState(KillSrc));
-    BuildMI(MBB, MI, DL, get(EX));
     return;
   }
+  // Specialized word copy.
   bool Is24Bit = Z80::R24RegClass.contains(DstReg, SrcReg);
-  if (KillSrc && (Is24Bit == Subtarget.is24Bit())) {
-    bool DE = false, HL = false;
-    for (auto Reg : {DstReg, SrcReg}) {
-      switch (Reg) {
-        case Z80::DE: case Z80::UDE: DE = true; break;
-        case Z80::HL: case Z80::UHL: HL = true; break;
-      }
-    }
-    if (DE && HL) {
+  // Special case DE/HL = HL/DE<kill> as EX DE,HL.
+  if (KillSrc && Is24Bit == Subtarget.is24Bit() &&
+      canExchange(DstReg, SrcReg)) {
+    BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::EX24DE : Z80::EX16DE))
+      .addReg(DstReg, RegState::ImplicitDefine)
+      .addReg(SrcReg, RegState::ImplicitKill);
+    return;
+  }
+  // Copies to SP.
+  if ((DstReg == Z80::SPS || DstReg == Z80::SPL) &&
+      (Z80::A16RegClass.contains(SrcReg) || SrcReg == Z80::DE ||
+       Z80::A24RegClass.contains(SrcReg) || SrcReg == Z80::UDE)) {
+    if (SrcReg == Z80::DE || SrcReg == Z80::UDE)
       BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::EX24DE : Z80::EX16DE))
         .addReg(DstReg, RegState::ImplicitDefine)
         .addReg(SrcReg, RegState::ImplicitKill);
-      return;
-    }
-  }
-  if ((SrcReg == Z80::SPS || SrcReg == Z80::SPL) &&
-      (Z80::A16RegClass.contains(DstReg) ||
-       Z80::A24RegClass.contains(DstReg))) {
-    BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::LD24ri : Z80::LD16ri), DstReg)
-      .addImm(0);
-    BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao), DstReg)
-      .addReg(DstReg).addReg(SrcReg, getKillRegState(KillSrc));
+    BuildMI(MBB, MI, DL, get(DstReg == Z80::SPL ? Z80::LD24SP : Z80::LD16SP))
+      .addReg(SrcReg, getKillRegState(KillSrc));
+    if (SrcReg == Z80::DE || SrcReg == Z80::UDE)
+      BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::EX24DE : Z80::EX16DE))
+        .addReg(DstReg, RegState::ImplicitDefine)
+        .addReg(SrcReg, RegState::ImplicitKill);
     return;
   }
+  // Copies from SP.
+  if ((SrcReg == Z80::SPS || SrcReg == Z80::SPL) &&
+      (Z80::A16RegClass.contains(DstReg) || DstReg == Z80::DE ||
+       Z80::A24RegClass.contains(DstReg) || DstReg == Z80::UDE)) {
+    if (DstReg == Z80::DE || DstReg == Z80::UDE)
+      BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::EX24DE : Z80::EX16DE))
+        .addReg(DstReg, RegState::ImplicitDefine)
+        .addReg(SrcReg, RegState::ImplicitKill);
+    BuildMI(MBB, MI, DL, get(Subtarget.is24Bit() ? Z80::LD24ri : Z80::LD16ri),
+            DstReg).addImm(0);
+    BuildMI(MBB, MI, DL, get(SrcReg == Z80::SPL ? Z80::ADD24ao : Z80::ADD16ao),
+            DstReg).addReg(DstReg).addReg(SrcReg, getKillRegState(KillSrc));
+    if (DstReg == Z80::DE || DstReg == Z80::UDE)
+      BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::EX24DE : Z80::EX16DE))
+        .addReg(DstReg, RegState::ImplicitDefine)
+        .addReg(SrcReg, RegState::ImplicitKill);
+    return;
+  }
+  // If both are 24-bit then the upper byte needs to be preserved.
   if (Is24Bit) {
-    // Both are 24 bits so preserve upper byte
     BuildMI(MBB, MI, DL, get(Z80::PUSH24r))
       .addReg(SrcReg, getKillRegState(KillSrc));
     BuildMI(MBB, MI, DL, get(Z80::POP24r), DstReg);
     return;
   }
-  unsigned SubLo, SubHi;
-  if (Z80::R32RegClass.contains(DstReg, SrcReg)) {
-    SubLo = Z80::sub_long;
-    SubHi = Z80::sub_top;
-  } else {
-    SubLo = Z80::sub_low;
-    SubHi = Z80::sub_high;
-  }
+  // Otherwise, implement as two copies. A 16-bit copy should copy high and low
+  // 8 bits separately. A 32-bit copy should copy high 8 bits and low 24 bits.
+  bool Is32Bit = Z80::R32RegClass.contains(DstReg, SrcReg);
+  assert((Is32Bit || Z80::R16RegClass.contains(DstReg, SrcReg)) &&
+         "Unknown copy width");
+  unsigned SubLo = Is32Bit ? Z80::sub_long : Z80::sub_low;
+  unsigned SubHi = Is32Bit ? Z80::sub_top : Z80::sub_high;
   unsigned DstLoReg = RI.getSubReg(DstReg, SubLo);
   unsigned SrcLoReg = RI.getSubReg(SrcReg, SubLo);
   unsigned DstHiReg = RI.getSubReg(DstReg, SubHi);
   unsigned SrcHiReg = RI.getSubReg(SrcReg, SubHi);
-  if (DstHiReg && SrcHiReg && DstLoReg && SrcLoReg) {
+  bool DstLoSrcHiOverlap = RI.regsOverlap(DstLoReg, SrcHiReg);
+  bool SrcLoDstHiOverlap = RI.regsOverlap(SrcLoReg, DstHiReg);
+  if (DstLoSrcHiOverlap && SrcLoDstHiOverlap) {
+    assert(KillSrc &&
+           "Both parts of SrcReg and DstReg overlap but not killing source!");
+    // e.g. EUHL = LUDE so just swap the operands
+    unsigned OtherReg;
+    if (canExchange(DstLoReg, SrcLoReg)) {
+      BuildMI(MBB, MI, DL, get(Subtarget.is24Bit() ? Z80::EX24DE : Z80::EX16DE))
+        .addReg(DstReg, RegState::ImplicitDefine)
+        .addReg(SrcReg, RegState::ImplicitKill);
+    } else if ((OtherReg = DstLoReg, RI.isSubRegisterEq(Z80::UHL, SrcLoReg)) ||
+               (OtherReg = SrcLoReg, RI.isSubRegisterEq(Z80::UHL, DstLoReg))) {
+      BuildMI(MBB, MI, DL, get(Subtarget.is24Bit() ? Z80::PUSH24r : Z80::PUSH16r))
+        .addReg(OtherReg, RegState::Kill);
+      BuildMI(MBB, MI, DL, get(Subtarget.is24Bit() ? Z80::EX24SP : Z80::EX16SP));
+      BuildMI(MBB, MI, DL, get(Subtarget.is24Bit() ? Z80::POP24r : Z80::POP16r),
+              OtherReg);
+    } else {
+      BuildMI(MBB, MI, DL, get(Subtarget.is24Bit() ? Z80::PUSH24r : Z80::PUSH16r))
+        .addReg(SrcLoReg, RegState::Kill);
+      BuildMI(MBB, MI, DL, get(Subtarget.is24Bit() ? Z80::PUSH24r : Z80::PUSH16r))
+        .addReg(DstLoReg, RegState::Kill);
+      BuildMI(MBB, MI, DL, get(Subtarget.is24Bit() ? Z80::POP24r : Z80::POP16r),
+              SrcLoReg);
+      BuildMI(MBB, MI, DL, get(Subtarget.is24Bit() ? Z80::POP24r : Z80::POP16r),
+              DstLoReg);
+    }
+    // Check if top needs to be moved (e.g. EUHL = HUDE).
+    unsigned DstHiIdx = RI.getSubRegIndex(SrcLoReg, DstHiReg);
+    unsigned SrcHiIdx = RI.getSubRegIndex(DstLoReg, SrcHiReg);
+    if (DstHiIdx != SrcHiIdx)
+      copyPhysReg(MBB, MI, DL, DstHiReg,
+                  RI.getSubReg(DstLoReg, SrcHiIdx), KillSrc);
+  } else if (DstLoSrcHiOverlap) {
+    // Copy out SrcHi before SrcLo overwrites it.
+    copyPhysReg(MBB, MI, DL, DstHiReg, SrcHiReg, KillSrc);
+    copyPhysReg(MBB, MI, DL, DstLoReg, SrcLoReg, KillSrc);
+  } else {
+    // If SrcLoDstHiOverlap then copy out SrcLo before SrcHi overwrites it,
+    // otherwise the order doesn't matter.
     copyPhysReg(MBB, MI, DL, DstLoReg, SrcLoReg, KillSrc);
     copyPhysReg(MBB, MI, DL, DstHiReg, SrcHiReg, KillSrc);
-    return;
   }
-  llvm_unreachable("Unimplemented reg copy");
 }
 
 void Z80InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                        MachineBasicBlock::iterator MI,
-                                       unsigned SrcReg, bool isKill, int FI,
-                                       const TargetRegisterClass *RC,
+                                       unsigned SrcReg, bool IsKill, int FI,
+                                       const TargetRegisterClass *TRC,
                                        const TargetRegisterInfo *TRI) const {
-  const MachineFunction &MF = *MBB.getParent();
-  unsigned Opc;
-  switch (RC->getSize()) {
-  default: llvm_unreachable("Cannot store this register to stack slot!");
-  case 1: Opc = Z80::LD8or;  break;
-  case 2: Opc = Z80::LD16or; break;
-  case 3: Opc = Z80::LD24or; break;
-  }
-  BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Opc))
-    .addFrameIndex(FI).addImm(0).addReg(SrcReg, getKillRegState(isKill));
+  unsigned RC, LoOpc, LoIdx, HiOpc, HiIdx, HiOff;
+  if (Z80::splitReg(TRC->getSize(), Z80::LD8or, Z80::LD16or, Z80::LD24or,
+                    RC, LoOpc, LoIdx, HiOpc, HiIdx, HiOff, Subtarget))
+    BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(LoOpc))
+      .addFrameIndex(FI).addImm(0)
+      .addReg(TRI->getSubReg(SrcReg, LoIdx), getKillRegState(IsKill));
+  BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(HiOpc))
+    .addFrameIndex(FI).addImm(HiOff)
+    .addReg(TRI->getSubReg(SrcReg, HiIdx), getKillRegState(IsKill));
 }
-
 void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MI,
                                         unsigned DstReg, int FI,
-                                        const TargetRegisterClass *RC,
+                                        const TargetRegisterClass *TRC,
                                         const TargetRegisterInfo *TRI) const {
-  const MachineFunction &MF = *MBB.getParent();
-  unsigned Opc;
-  switch (RC->getSize()) {
-  default: llvm_unreachable("Cannot load this register from stack slot!");
-  case 1: Opc = Z80::LD8ro;  break;
-  case 2: Opc = Z80::LD16ro; break;
-  case 3: Opc = Z80::LD24ro; break;
-  }
-  BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Opc), DstReg)
-    .addFrameIndex(FI).addImm(0);
+  unsigned RC, LoOpc, LoIdx, HiOpc, HiIdx, HiOff;
+  if (Z80::splitReg(TRC->getSize(), Z80::LD8ro, Z80::LD16ro, Z80::LD24ro,
+                    RC, LoOpc, LoIdx, HiOpc, HiIdx, HiOff, Subtarget))
+    BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(LoOpc),
+            TRI->getSubReg(DstReg, LoIdx)).addFrameIndex(FI).addImm(0);
+  BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(HiOpc),
+          TRI->getSubReg(DstReg, HiIdx)).addFrameIndex(FI).addImm(HiOff);
 }
 
 bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {

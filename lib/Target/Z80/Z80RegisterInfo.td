@@ -183,14 +183,14 @@ def S24 : Z80RC24<(add L24, AF)>;
 def A24 : Z80RC24<(add UHL, I24)>;
 
 def A32 : Z80RC32<(add AUHL, AUIX, AUIY)>;
-def R32 : Z80RC32<(add AUBC, AUDE, AUHL, AUIX, AUIY, ASPL,
-                       BUDE, BUHL, BUIX, BUIY, BSPL,
-                       CUDE, CUHL, CUIX, CUIY, CSPL,
-                       DUBC, DUHL, DUIX, DUIY, DSPL,
-                       EUBC, EUHL, EUIX, EUIY, ESPL,
-                       HUBC, HUDE, HUIX, HUIY, HSPL,
-                       LUBC, LUDE, LUIX, LUIY, LSPL,
-                       IXHUBC, IXHUDE, IXHUHL, IXHUIY, IXHSPL,
-                       IXLUBC, IXLUDE, IXLUHL, IXLUIY, IXLSPL,
-                       IYHUBC, IYHUDE, IYHUHL, IYHUIX, IYHSPL,
-                       IYLUBC, IYLUDE, IYLUHL, IYLUIX, IYLSPL)>;
+def R32 : Z80RC32<(add AUHL, CUHL, BUHL, EUHL, DUHL,
+                       AUDE, CUDE, BUDE, LUDE, HUDE,
+                       AUBC, EUBC, DUBC, LUBC, HUBC,
+                       AUIY, CUIY, BUIY, EUIY, DUIY, LUIY, HUIY,
+                       AUIX, CUIX, BUIX, EUIX, DUIX, LUIX, HUIX,
+                       IYLUHL, IYHUHL, IXLUHL, IXHUHL,
+                       IYLUDE, IYHUDE, IXLUDE, IXHUDE,
+                       IYLUBC, IYHUBC, IXLUBC, IXHUBC,
+                       IYLUIX, IYHUIX, IXLUIY, IXHUIY,
+                       ASPL, CSPL, BSPL, ESPL, DSPL, LSPL, HSPL,
+                       IYLSPL, IYHSPL, IXLSPL, IXHSPL)>;

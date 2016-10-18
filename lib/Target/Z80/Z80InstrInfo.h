@@ -45,6 +45,11 @@ enum CondCode {
 /// GetOppositeBranchCondition - Return the inverse of the specified cond,
 /// e.g. turning COND_Z to COND_NZ.
 CondCode GetOppositeBranchCondition(CondCode CC);
+
+bool splitReg(unsigned ByteSize, unsigned Opc8, unsigned Opc16, unsigned Opc24,
+              unsigned &Idx, unsigned &LoOpc, unsigned &LoReg,
+              unsigned &HiOpc, unsigned &HiReg, unsigned &HiOff,
+              const Z80Subtarget &Subtarget);
 } // end namespace Z80;
 
 class Z80InstrInfo final : public Z80GenInstrInfo {
@@ -107,6 +112,13 @@ public:
   bool optimizeCompareInstr(MachineInstr &CmpInstr, unsigned SrcReg,
                             unsigned SrcReg2, int CmpMask, int CmpValue,
                             const MachineRegisterInfo *MRI) const override;
+
+private:
+  /// canExchange - This returns whether the two instructions can be directly
+  /// exchanged with one EX instruction. Since the only register exchange
+  /// instruction is EX DE,HL, simply returns whether the two arguments are
+  /// super-registers of E and L, in any order.
+  bool canExchange(unsigned RegA, unsigned RegB) const;
 };
 
 } // End llvm namespace
