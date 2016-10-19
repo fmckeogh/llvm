@@ -227,7 +227,7 @@ static SDValue LowerADDSUB(SDValue Op, SelectionDAG &DAG) {
     case ISD::SUB:
     }
     }*/
-  assert(Op.getSimpleValueType() == MVT::i32 &&
+  assert(Op.getValueType() == MVT::i32 &&
          "Can only handle 32-bit operations");
   unsigned OpC, OpE;
   switch (Op.getOpcode()) {
@@ -431,13 +431,13 @@ SDValue Z80TargetLowering::LowerSTORE(StoreSDNode *Node, SelectionDAG &DAG) cons
   bool Split = Z80::splitReg(MMO->getSize(), MVT::i8, MVT::i16, MVT::i24,
                              RC, LoTy, LoIdx, HiTy, HiIdx, HiOff, Subtarget);
   assert(Split && "Can only custom lower splittable stores");
-  SDValue Lo = DAG.getTargetExtractSubreg(Z80::sub_long, DL,
-                                          MVT::SimpleValueType(LoTy), Val);
+  SDValue Lo = DAG.getTargetExtractSubreg(LoIdx, DL, MVT::SimpleValueType(LoTy),
+                                          Val);
   Lo = DAG.getStore(Ch, DL, Lo, Ptr, MPI, Alignment, MMO->getFlags(), AAInfo);
   Ptr = DAG.getNode(ISD::ADD, DL, Ptr.getValueType(), Ptr,
                     DAG.getConstant(HiOff, DL, Ptr.getValueType()));
-  SDValue Hi = DAG.getTargetExtractSubreg(Z80::sub_top, DL,
-                                          MVT::SimpleValueType(HiTy), Val);
+  SDValue Hi = DAG.getTargetExtractSubreg(HiIdx, DL, MVT::SimpleValueType(HiTy),
+                                          Val);
   Hi = DAG.getStore(Ch, DL, Hi, Ptr, MPI.getWithOffset(HiOff),
                     MinAlign(Alignment, HiOff), MMO->getFlags(), AAInfo);
   Ch = DAG.getNode(ISD::TokenFactor, DL, MVT::Other,
