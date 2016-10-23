@@ -860,6 +860,18 @@ void TargetLoweringBase::initActions() {
       setIndexedStoreAction(IM, VT, Expand);
     }
 
+    // Most backends don't support i24
+    if (VT.isInteger()) {
+      setLoadExtAction(ISD::EXTLOAD, MVT::i24, VT, Expand);
+      setLoadExtAction(ISD::EXTLOAD, VT, MVT::i24, Expand);
+      setLoadExtAction(ISD::ZEXTLOAD, MVT::i24, VT, Expand);
+      setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i24, Expand);
+      setLoadExtAction(ISD::SEXTLOAD, MVT::i24, VT, Expand);
+      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i24, Expand);
+      setTruncStoreAction(MVT::i24, VT, Expand);
+      setTruncStoreAction(VT, MVT::i24, Expand);
+    }
+
     // Most backends expect to see the node which just returns the value loaded.
     setOperationAction(ISD::ATOMIC_CMP_SWAP_WITH_SUCCESS, VT, Expand);
 

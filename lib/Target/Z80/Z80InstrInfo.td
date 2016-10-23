@@ -234,7 +234,7 @@ let AsmString = "call\t$dst", isCall = 1 in {
   def CALL24i : I<0xCD, (outs), (ins i24imm:$dst), [(Z80call mempat:$dst)]>,
                 Requires<[In24BitMode]>;
 }
-let isCall = 1, isPseudo = 1 in {
+let isCall = 1 in {
   let Uses = [SPS] in
   def CALL16r : P<(outs), (ins A16:$dst), [(Z80call A16:$dst)]>,
                 Requires<[In16BitMode]>;
@@ -246,7 +246,7 @@ let isCall = 1, isPseudo = 1 in {
 let AsmString = "ret", isTerminator = 1, isReturn = 1, isBarrier = 1 in {
   def RET : I<0xC9, (outs), (ins), [(Z80retflag)]>;
 }
-let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1, isPseudo = 1 in {
+let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1 in {
   let Uses = [SPS] in {
     def TCRETURN16i : P<(outs), (ins i16imm:$dst), [(Z80tcret mempat:$dst)]>,
                       Requires<[In16BitMode]>;
@@ -287,10 +287,6 @@ let isBranch = 1, isTerminator = 1, Uses = [F] in {
 //
 
 let AsmString = "ld\t$dst, $src" in {
-def  LD8rr :  I<        0x40, (outs R8:$dst), (ins R8:$src)>;
-def  LD8xx : PI<IXPrfx, 0x40, (outs X8:$dst), (ins X8:$src)>;
-def  LD8yy : PI<IYPrfx, 0x40, (outs Y8:$dst), (ins Y8:$src)>;
-
 def  LD8ri : I<0x06, (outs  R8:$dst), (ins  i8imm:$src),
                [(set  R8:$dst, imm:$src)]>;
 def LD16ri : I<0x01, (outs R16:$dst), (ins i16imm:$src),
@@ -298,6 +294,15 @@ def LD16ri : I<0x01, (outs R16:$dst), (ins i16imm:$src),
 def LD24ri : I<0x01, (outs R24:$dst), (ins i24imm:$src),
                [(set R24:$dst, mempat:$src)]>,
              Requires<[HasEZ80Ops]>;
+
+def  LD8rr :  I<        0x40, (outs  R8:$dst), (ins  R8:$src)>;
+def  LD8xx : PI<IXPrfx, 0x40, (outs  X8:$dst), (ins  X8:$src)>;
+def  LD8yy : PI<IYPrfx, 0x40, (outs  Y8:$dst), (ins  Y8:$src)>;
+let usesCustomInserter = 1 in {
+def LD16rr :  P<              (outs R16:$dst), (ins R16:$src)>;
+def LD24rr :  P<              (outs R24:$dst), (ins R24:$src)>;
+def LD32rr :  P<              (outs R32:$dst), (ins R32:$src)>;
+}
 
 let mayLoad = 1 in {
 def LD16rm : I<0x2A, (outs R16:$dst), (ins mem:$src),
@@ -399,7 +404,6 @@ def PUSH24r : I<0xC5, (outs), (ins S24:$reg)>;
 }
 
 let Defs = [F] in {
-  let isPseudo = 1 in
   def RCF : P;
   let AsmString = "scf" in
   def SCF : I<0x37>;

@@ -236,21 +236,20 @@ bool Z80::splitReg(
   default: llvm_unreachable("Unknown Size!");
   case 1:
     RC = Z80::R8RegClassID;
-    HiOpc = Opc8;
-    HiIdx = Z80::sub_low;
+    LoOpc = HiOpc = Opc8;
+    LoIdx = HiIdx = Z80::NoSubRegister;
     HiOff = 0;
     return false;
   case 2:
     RC = Z80::R16RegClassID;
     if (Subtarget.hasEZ80Ops()) {
-      HiOpc = Opc16;
-      HiIdx = Z80::sub_short;
+      LoOpc = HiOpc = Opc16;
+      LoIdx = HiIdx = Z80::NoSubRegister;
       HiOff = 0;
       return false;
     }
-    LoOpc = Opc8;
+    LoOpc = HiOpc = Opc8;
     LoIdx = Z80::sub_low;
-    HiOpc = Opc8;
     HiIdx = Z80::sub_high;
     HiOff = 1;
     return true;
@@ -258,8 +257,8 @@ bool Z80::splitReg(
     // Legalization should have taken care of this if we don't have eZ80 ops
     assert(Subtarget.hasEZ80Ops() && "Need eZ80 word load/store");
     RC = Z80::R24RegClassID;
-    HiOpc = Opc24;
-    HiIdx = Z80::sub_long;
+    LoOpc = HiOpc = Opc24;
+    LoIdx = HiIdx = Z80::NoSubRegister;
     HiOff = 0;
     return false;
   case 4:
@@ -267,8 +266,8 @@ bool Z80::splitReg(
     assert(Subtarget.hasEZ80Ops() && "Need eZ80 word load/store");
     RC = Z80::R32RegClassID;
     LoOpc = Opc24;
-    LoIdx = Z80::sub_long;
     HiOpc = Opc8;
+    LoIdx = Z80::sub_long;
     HiIdx = Z80::sub_top;
     HiOff = 3;
     return true;
@@ -368,9 +367,10 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
   // Copies to SP.
-  if ((DstReg == Z80::SPS || DstReg == Z80::SPL) &&
-      (Z80::A16RegClass.contains(SrcReg) || SrcReg == Z80::DE ||
-       Z80::A24RegClass.contains(SrcReg) || SrcReg == Z80::UDE)) {
+  if (DstReg == Z80::SPS || DstReg == Z80::SPL) {
+    assert((Z80::A16RegClass.contains(SrcReg) || SrcReg == Z80::DE ||
+            Z80::A24RegClass.contains(SrcReg) || SrcReg == Z80::UDE) &&
+           "Unimplemented");
     if (SrcReg == Z80::DE || SrcReg == Z80::UDE)
       BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::EX24DE : Z80::EX16DE))
         .addReg(DstReg, RegState::ImplicitDefine)
@@ -384,9 +384,10 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
   // Copies from SP.
-  if ((SrcReg == Z80::SPS || SrcReg == Z80::SPL) &&
-      (Z80::A16RegClass.contains(DstReg) || DstReg == Z80::DE ||
-       Z80::A24RegClass.contains(DstReg) || DstReg == Z80::UDE)) {
+  if (SrcReg == Z80::SPS || SrcReg == Z80::SPL) {
+    assert((Z80::A16RegClass.contains(DstReg) || DstReg == Z80::DE ||
+            Z80::A24RegClass.contains(DstReg) || DstReg == Z80::UDE) &&
+           "Unimplemented");
     if (DstReg == Z80::DE || DstReg == Z80::UDE)
       BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::EX24DE : Z80::EX16DE))
         .addReg(DstReg, RegState::ImplicitDefine)
@@ -463,6 +464,10 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     copyPhysReg(MBB, MI, DL, DstLoReg, SrcLoReg, KillSrc);
     copyPhysReg(MBB, MI, DL, DstHiReg, SrcHiReg, KillSrc);
   }
+  --MI;
+  MI->addRegisterDefined(DstReg, &RI);
+  if (KillSrc)
+    MI->addRegisterKilled(SrcReg, &RI, true);
 }
 
 void Z80InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
@@ -475,10 +480,12 @@ void Z80InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                     RC, LoOpc, LoIdx, HiOpc, HiIdx, HiOff, Subtarget))
     BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(LoOpc))
       .addFrameIndex(FI).addImm(0)
-      .addReg(TRI->getSubReg(SrcReg, LoIdx), getKillRegState(IsKill));
-  BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(HiOpc))
+      .addReg(SrcReg, getKillRegState(IsKill), LoIdx);
+  MachineInstrBuilder MIB = BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(HiOpc))
     .addFrameIndex(FI).addImm(HiOff)
-    .addReg(TRI->getSubReg(SrcReg, HiIdx), getKillRegState(IsKill));
+    .addReg(SrcReg, getKillRegState(IsKill), HiIdx);
+  if (IsKill)
+    MIB->addRegisterKilled(SrcReg, TRI, true);
 }
 void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                         MachineBasicBlock::iterator MI,
@@ -488,10 +495,10 @@ void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   unsigned RC, LoOpc, LoIdx, HiOpc, HiIdx, HiOff;
   if (Z80::splitReg(TRC->getSize(), Z80::LD8ro, Z80::LD16ro, Z80::LD24ro,
                     RC, LoOpc, LoIdx, HiOpc, HiIdx, HiOff, Subtarget))
-    BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(LoOpc),
-            TRI->getSubReg(DstReg, LoIdx)).addFrameIndex(FI).addImm(0);
-  BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(HiOpc),
-          TRI->getSubReg(DstReg, HiIdx)).addFrameIndex(FI).addImm(HiOff);
+    BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(LoOpc)).addDef(DstReg, 0, LoIdx)
+      .addFrameIndex(FI).addImm(0);
+  BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(HiOpc)).addDef(DstReg, 0, HiIdx)
+    .addFrameIndex(FI).addImm(HiOff)->addRegisterDefined(DstReg, TRI);
 }
 
 bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
