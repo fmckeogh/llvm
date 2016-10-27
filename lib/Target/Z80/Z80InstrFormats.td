@@ -46,7 +46,8 @@ class SI<Prefix p, bits<8> o, string op, string args, string con,
   : Z80Inst<p, o, outs, ins, pattern, !strconcat(op, "{|.sis}\t", args), con>;
 class LI<Prefix p, bits<8> o, string op, string args, string con,
          dag outs, dag ins, list<dag> pattern = []>
-  : Z80Inst<p, o, outs, ins, pattern, !strconcat(op, "{.lil|}\t", args), con>;
+  : Z80Inst<p, o, outs, ins, pattern, !strconcat(op, "{.lil|}\t", args), con>,
+    Requires<[HaveEZ80Ops]>;
 
 class P<dag outs = (outs), dag ins = (ins), list<dag> pattern = []>
   : Z80Inst<?, ?, outs, ins, pattern> {

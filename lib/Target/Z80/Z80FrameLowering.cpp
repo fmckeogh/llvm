@@ -92,7 +92,7 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
                                                           : Z80::POP16r)
                                                : (Is24Bit ? Z80::PUSH24r
                                                           : Z80::PUSH16r)))
-        .addReg(ScratchReg, getDefRegState(Offset >= 0));
+        .addReg(ScratchReg, getDefRegState(Offset >= 0) | RegState::Undef);
     unsigned StackReg = Is24Bit ? Z80::SPL : Z80::SPS;
     while (IncDecCount--)
       BuildMI(MBB, MI, DL, TII.get(Offset >= 0 ? (Is24Bit ? Z80::INC24r
@@ -134,10 +134,10 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
     unsigned FrameReg = TRI->getFrameRegister(MF);
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
       .addReg(FrameReg);
-    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri))
-      .addReg(FrameReg).addImm(0);
-    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao),
-            FrameReg).addReg(FrameReg).addReg(Is24Bit ? Z80::SPL : Z80::SPS);
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri), FrameReg)
+      .addImm(0);
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::ADD24SP : Z80::ADD16SP),
+            FrameReg).addReg(FrameReg);
   }
   int32_t StackSize = (int32_t)MF.getFrameInfo().getStackSize();
   BuildStackAdjustment(MF, MBB, MI, DL, -StackSize, 0);

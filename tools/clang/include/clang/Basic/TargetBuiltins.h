@@ -196,16 +196,6 @@ namespace clang {
     };
   }
 
-  /// \brief Z80 builtins
-  namespace Z80 {
-    enum {
-        LastTIBuiltin = clang::Builtin::FirstTSBuiltin-1,
-#define BUILTIN(ID, TYPE, ATTRS) BI##ID,
-#include "clang/Basic/BuiltinsZ80.def"
-        LastTSBuiltin
-    };
-  }
-
 } // end namespace clang.
 
 #endif

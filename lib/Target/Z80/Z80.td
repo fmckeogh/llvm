@@ -20,12 +20,14 @@ include "llvm/Target/Target.td"
 // Z80 Subtarget features
 //===----------------------------------------------------------------------===//
 
-def FeatureUndoc : SubtargetFeature<"undoc", "HasUndocOps", "true",
-                                    "Enable undocumented z80 instructions">;
-def FeatureZ180  : SubtargetFeature<"z180", "HasZ180Ops", "true",
-                                    "Support z180 instructions">;
-def FeatureEZ80  : SubtargetFeature<"ez80", "HasEZ80Ops", "true",
-                                    "Support ez80 instructions">;
+def FeatureUndoc   : SubtargetFeature<"undoc", "HasUndocOps", "true",
+                                      "Enable undocumented z80 instructions">;
+def FeatureZ180    : SubtargetFeature<"z180", "HasZ180Ops", "true",
+                                      "Support z180 instructions">;
+def FeatureEZ80    : SubtargetFeature<"ez80", "HasEZ80Ops", "true",
+                                      "Support ez80 instructions">;
+def FeatureIdxHalf : SubtargetFeature<"idxhalf", "HasIdxHalfRegs", "true",
+                                      "Support index half registers">;
 
 //===----------------------------------------------------------------------===//
 // Z80 Subtarget state
@@ -43,11 +45,10 @@ def Mode16Bit : SubtargetFeature<"16bit-mode", "In16BitMode", "true",
 let CompleteModel = 0 in def GenericModel : SchedMachineModel;
 class Proc<string Name, list<SubtargetFeature> Features>
   : ProcessorModel<Name, GenericModel, Features>;
-def : Proc<"z80",        []>;
-def : Proc<"z80-undoc",  [FeatureUndoc]>;
-def : Proc<"z180",       [FeatureZ180]>;
-def : Proc<"z180-undoc", [FeatureUndoc, FeatureZ180]>;
-def : Proc<"ez80",       [FeatureZ180, FeatureEZ80]>;
+def : Proc<"z80-generic", []>;
+def : Proc<"z80",         [FeatureUndoc, FeatureIdxHalf]>;
+def : Proc<"z180",        [FeatureZ180]>;
+def : Proc<"ez80",        [FeatureZ180, FeatureEZ80, FeatureIdxHalf]>;
 
 //===----------------------------------------------------------------------===//
 // Register File Description

@@ -26,10 +26,30 @@ extern "C" void LLVMInitializeZ80Target() {
 }
 
 static std::string computeDataLayout(const Triple &TT) {
-  if (TT.isArch16Bit())
-    return "e-m:o-p:16:8-p1:8:8-i16:8-i32:8-a:8-n8:16";
+  // Z80 is little endian and mangling is closest to MachO.
+  std::string Ret = "e-m:o";
+  if (TT.isArch16Bit() || TT.getEnvironment() == Triple::CODE16)
+    Ret += "-p:16:8";
   else
-    return "e-m:o-p:24:8-p1:16:8-p2:16:8-i16:8-i24:8-i32:8-a:8-n8:16:24";
+    Ret += "-p:24:8";
+  if (TT.getArch() == Triple::ez80) {
+    Ret += "-p1:16:8";
+    if (TT.getEnvironment() == Triple::CODE16)
+      Ret += "-p2:24:8";
+    else
+      Ret += "-p2:16:8";
+  } else {
+    Ret += "-p1:8:8";
+  }
+  Ret += "-i16:8";
+  if (!(TT.isArch16Bit() || TT.getEnvironment() == Triple::CODE16))
+    Ret += "-i24:8";
+  Ret += "-i32:8-a:8";
+  if (TT.isArch16Bit() || TT.getEnvironment() == Triple::CODE16)
+    Ret += "-n8:16";
+  else
+    Ret += "-n8:16:24";
+  return Ret;
 }
 
 static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
@@ -47,13 +67,39 @@ Z80TargetMachine::Z80TargetMachine(const Target &T, const Triple &TT,
                                    CodeModel::Model CM, CodeGenOpt::Level OL)
   : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
                       getEffectiveRelocModel(RM), CM, OL),
-      TLOF(make_unique<TargetLoweringObjectFileELF>()),
-      Subtarget(TT, CPU, FS, *this) {
+    TLOF(make_unique<TargetLoweringObjectFileELF>()) {
   initAsmInfo();
 }
 
 Z80TargetMachine::~Z80TargetMachine() {}
 
+const Z80Subtarget *
+Z80TargetMachine::getSubtargetImpl(const Function &F) const {
+  Attribute CPUAttr = F.getFnAttribute("target-cpu");
+  Attribute FSAttr = F.getFnAttribute("target-features");
+
+  StringRef CPU = !CPUAttr.hasAttribute(Attribute::None)
+                      ? CPUAttr.getValueAsString()
+                      : (StringRef)TargetCPU;
+  StringRef FS = !FSAttr.hasAttribute(Attribute::None)
+                     ? FSAttr.getValueAsString()
+                     : (StringRef)TargetFS;
+
+  SmallString<512> Key;
+  Key.reserve(CPU.size() + FS.size());
+  Key += CPU;
+  Key += FS;
+
+  auto &I = SubtargetMap[Key];
+  if (!I) {
+    // This needs to be done before we create a new subtarget since any
+    // creation will depend on the TM and the code generation flags on the
+    // function that reside in TargetOptions.
+    resetTargetOptions(F);
+    I = llvm::make_unique<Z80Subtarget>(TargetTriple, CPU, FS, *this);
+  }
+  return I.get();
+}
 
 //===----------------------------------------------------------------------===//
 // Pass Pipeline Configuration
@@ -86,6 +132,6 @@ bool Z80PassConfig::addInstSelector() {
 }
 
 void Z80PassConfig::addMachineLateOptimization() {
-  addPass(createZ80MachineLateOptimization());
   TargetPassConfig::addMachineLateOptimization();
+  addPass(createZ80MachineLateOptimization());
 }

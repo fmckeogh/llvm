@@ -162,23 +162,23 @@ def Y8  : Z80RC8 <(add O8, IYL, IYH)>;
 def I8  : Z80RC8 <(add IXL, IYL, IXH, IYH)>;
 def R8  : Z80RC8 <(add G8, I8)>;
 
-def O16 : Z80RC16<(add DE, BC, SPS)>;
+def O16 : Z80RC16<(add DE, BC)>;
 def G16 : Z80RC16<(add HL, O16)>;
 def X16 : Z80RC16<(add IX, O16)>;
 def Y16 : Z80RC16<(add IY, O16)>;
 def I16 : Z80RC16<(add IX, IY)>;
-def R16 : Z80RC16<(add G16, I16)>;
-def L16 : Z80RC16<(sub R16, SPS)>;
+def L16 : Z80RC16<(add G16, I16)>;
+def R16 : Z80RC16<(add L16, SPS)>;
 def S16 : Z80RC16<(add L16, AF)>;
 def A16 : Z80RC16<(add HL, I16)>;
 
-def O24 : Z80RC24<(add UDE, UBC, SPL)>;
+def O24 : Z80RC24<(add UDE, UBC)>;
 def G24 : Z80RC24<(add UHL, O24)>;
 def X24 : Z80RC24<(add UIX, O24)>;
 def Y24 : Z80RC24<(add UIY, O24)>;
 def I24 : Z80RC24<(add UIX, UIY)>;
-def R24 : Z80RC24<(add G24, I24)>;
-def L24 : Z80RC24<(sub R24, SPL)>;
+def L24 : Z80RC24<(add G24, I24)>;
+def R24 : Z80RC24<(add L24, SPL)>;
 def S24 : Z80RC24<(add L24, AF)>;
 def A24 : Z80RC24<(add UHL, I24)>;
 

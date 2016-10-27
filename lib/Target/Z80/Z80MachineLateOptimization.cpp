@@ -26,8 +26,13 @@ namespace {
 class Z80MachineLateOptimization : public MachineFunctionPass {
 public:
   Z80MachineLateOptimization() : MachineFunctionPass(ID) {}
-
+protected:
   bool runOnMachineFunction(MachineFunction &MF) override;
+
+  MachineFunctionProperties getRequiredProperties() const override {
+    return MachineFunctionProperties()
+      .set(MachineFunctionProperties::Property::TracksLiveness);
+  }
 private:
   static char ID;
 };

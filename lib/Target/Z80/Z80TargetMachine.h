@@ -21,7 +21,7 @@ namespace llvm {
 
 class Z80TargetMachine : public LLVMTargetMachine {
   std::unique_ptr<TargetLoweringObjectFile> TLOF;
-  Z80Subtarget Subtarget;
+  mutable StringMap<std::unique_ptr<Z80Subtarget>> SubtargetMap;
 
 public:
   Z80TargetMachine(const Target &T, const Triple &TT, StringRef CPU,
@@ -29,9 +29,7 @@ public:
                    Optional<Reloc::Model> RM, CodeModel::Model CM,
                    CodeGenOpt::Level OL);
   ~Z80TargetMachine() override;
-  const Z80Subtarget *getSubtargetImpl(const Function &F) const override {
-    return &Subtarget;
-  }
+  const Z80Subtarget *getSubtargetImpl(const Function &F) const override;
 
   // Set up the pass pipeline.
   TargetPassConfig *createPassConfig(PassManagerBase &PM) override;

@@ -844,15 +844,19 @@ SDValue Z80TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   Chain = DAG.getNode(Z80ISD::CALL, DL, NodeTys, Ops);
   InFlag = Chain.getValue(1);
 
+  // Handle result values, copying them out of physregs into vregs that we
+  // return.  This is done before CALLSEQ_END because that may clobber the
+  // result registers.
+  Chain = LowerCallResult(Chain, InFlag, CallConv, IsVarArg,
+                          Ins, DL, DAG, InVals);
+  InFlag = Chain.getValue(2);
+
   // Create the CALLSEQ_END node.
   Chain = DAG.getCALLSEQ_END(Chain, DAG.getIntPtrConstant(NumBytes, DL, true),
                              DAG.getIntPtrConstant(0, DL, true), InFlag, DL);
   InFlag = Chain.getValue(1);
 
-  // Handle result values, copying them out of physregs into vregs that we
-  // return.
-  return LowerCallResult(Chain, InFlag, CallConv, IsVarArg,
-                         Ins, DL, DAG, InVals);
+  return Chain;
 }
 
 /// MatchingStackOffset - Return true if the given stack call argument is

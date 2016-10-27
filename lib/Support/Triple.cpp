@@ -66,8 +66,8 @@ const char *Triple::getArchTypeName(ArchType Kind) {
   case wasm64:         return "wasm64";
   case renderscript32: return "renderscript32";
   case renderscript64: return "renderscript64";
-  case z80:         return "z80";
-  case ez80:        return "ez80";
+  case z80:            return "z80";
+  case ez80:           return "ez80";
   }
 
   llvm_unreachable("Invalid ArchType!");
@@ -402,7 +402,7 @@ static Triple::ArchType parseArch(StringRef ArchName) {
     .Case("shave", Triple::shave)
     .Case("wasm32", Triple::wasm32)
     .Case("wasm64", Triple::wasm64)
-    .Case("z80", Triple::z80)
+    .Cases("z80", "z180", Triple::z80)
     .Case("ez80", Triple::ez80)
     .Case("renderscript32", Triple::renderscript32)
     .Case("renderscript64", Triple::renderscript64)

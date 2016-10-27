@@ -38,11 +38,14 @@ class Z80Subtarget final : public Z80GenSubtargetInfo {
   /// True if target has undocumented z80 instructions.
   bool HasUndocOps;
 
-  /// True if target has ez80 instructions.
+  /// True if target has z180 instructions.
   bool HasZ180Ops;
 
   /// True if target has ez80 instructions.
   bool HasEZ80Ops;
+
+  /// True if target has index half registers (HasUndocOps || HasEZ80Ops).
+  bool HasIdxHalfRegs;
 
   // Ordering here is important. Z80InstrInfo initializes Z80RegisterInfo which
   // Z80TargetLowering needs.
@@ -77,13 +80,12 @@ private:
 public:
   const Triple &getTargetTriple() const { return TargetTriple; }
   /// Is this ez80 (disregarding specific ABI / programming model)
-  bool is24Bit() const { return In24BitMode; }
-  bool is16Bit() const { return In16BitMode; }
-  bool hasUndocOps() const { return HasUndocOps; }
-  bool hasZ180Ops()  const { return HasZ180Ops;  }
-  bool hasEZ80Ops()  const { return HasEZ80Ops;  }
-  bool has24BitEZ80Ops()  const { return In24BitMode && HasEZ80Ops; }
-  bool has16BitEZ80Ops()  const { return In16BitMode && HasEZ80Ops; }
+  bool is24Bit()          const { return In24BitMode; }
+  bool is16Bit()          const { return In16BitMode; }
+  bool hasUndocOps()      const { return HasUndocOps; }
+  bool hasZ180Ops()       const { return HasZ180Ops;  }
+  bool hasEZ80Ops()       const { return HasEZ80Ops;  }
+  bool hasIndexHalfRegs() const { return HasIdxHalfRegs; }
 };
 } // End llvm namespace
 

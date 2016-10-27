@@ -8152,13 +8152,10 @@ public:
 };
 
 class Z80TargetInfoBase : public TargetInfo {
-  static const Builtin::Info BuiltinInfo[];
 public:
   Z80TargetInfoBase(const llvm::Triple &Triple) : TargetInfo(Triple) {
-    BigEndian = false;
     TLSSupported = false;
-    NoAsmVariants = true;
-    PointerAlign = BoolAlign = IntAlign = HalfAlign = FloatAlign =
+    PointerAlign = BoolAlign = ShortAlign = IntAlign = HalfAlign = FloatAlign =
         DoubleAlign = LongDoubleAlign = LongAlign = LongLongAlign =
         SuitableAlign = MinGlobalAlign = 8;
     DefaultAlignForAttributeAligned = 32;
@@ -8167,10 +8164,7 @@ public:
     Char32Type = UnsignedLong;
     UseBitFieldTypeAlignment = false;
   }
-  ArrayRef<Builtin::Info> getTargetBuiltins() const final {
-    return llvm::makeArrayRef(BuiltinInfo,
-                              clang::Z80::LastTSBuiltin - Builtin::FirstTSBuiltin);
-  }
+  ArrayRef<Builtin::Info> getTargetBuiltins() const final { return None; }
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::VoidPtrBuiltinVaList;
   }
@@ -8184,18 +8178,9 @@ public:
     return None;
   }
 
-protected:
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {
   }
-};
-
-const Builtin::Info Z80TargetInfoBase::BuiltinInfo[] = {
-#define BUILTIN(ID, TYPE, ATTRS) \
-  { #ID, TYPE, ATTRS, nullptr, ALL_LANGUAGES, nullptr },
-#define LIBBUILTIN(ID, TYPE, ATTRS, HEADER) \
-  { #ID, TYPE, ATTRS, HEADER, ALL_LANGUAGES, nullptr },
-#include "clang/Basic/BuiltinsZ80.def"
 };
 
 class Z80TargetInfo : public Z80TargetInfoBase {
@@ -8205,26 +8190,60 @@ public:
     resetDataLayout("e-m:o-p:16:8-p1:8:8-i16:8-i32:8-a:8-n8:16");
   }
 
-protected:
+private:
+  bool setCPU(const std::string &Name) override {
+    return llvm::StringSwitch<bool>(Name)
+              .Case("generic", true)
+              .Case("z80",     true)
+              .Case("z180",    true)
+              .Default(false);
+  }
+
+  bool
+  initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
+                 StringRef CPU,
+                 const std::vector<std::string> &FeaturesVec) const override {
+    if (CPU == "z80")
+      Features["undoc"] = true;
+    if (CPU == "z180")
+      Features["z180"] = true;
+    return TargetInfo::initFeatureMap(Features, Diags, CPU, FeaturesVec);
+  }
+
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {
     Z80TargetInfoBase::getTargetDefines(Opts, Builder);
-    defineCPUMacros(Builder, "z80", /*Tuning=*/false);
+    defineCPUMacros(Builder, "Z80", /*Tuning=*/false);
+    if (getTargetOpts().CPU == "undoc")
+      defineCPUMacros(Builder, "Z80_UNDOC", /*Tuning=*/false);
+    else if (getTargetOpts().CPU == "z180")
+      defineCPUMacros(Builder, "Z180", /*Tuning=*/false);
   }
 };
 
 class EZ80TargetInfo : public Z80TargetInfoBase {
 public:
   explicit EZ80TargetInfo(const llvm::Triple &T) : Z80TargetInfoBase(T) {
-    PointerWidth = IntWidth = 24;
-    resetDataLayout("e-m:o-p:24:8-p1:16:8-p2:16:8-i16:8-i24:8-i32:8-a:8-n8:16:24");
+    if (T.getEnvironment() == llvm::Triple::CODE16) {
+      PointerWidth = IntWidth = 16;
+      resetDataLayout("e-m:o-p:16:8-p1:16:8-p2:24:8-i16:8-i32:8-a:8-n8:16");
+    } else {
+      PointerWidth = IntWidth = 24;
+      resetDataLayout("e-m:o-p:24:8-p1:16:8-p2:16:8-i16:8-i24:8-i32:8-a:8-n8:16:24");
+    }
+  }
+private:
+  bool setCPU(const std::string &Name) override {
+    return llvm::StringSwitch<bool>(Name)
+              .Case("generic", true)
+              .Case("ez80",    true)
+              .Default(false);
   }
 
-protected:
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {
     Z80TargetInfoBase::getTargetDefines(Opts, Builder);
-    defineCPUMacros(Builder, "ez80", /*Tuning=*/false);
+    defineCPUMacros(Builder, "EZ80", /*Tuning=*/false);
   }
 };
 
@@ -8697,14 +8716,9 @@ static TargetInfo *AllocateTarget(const llvm::Triple &Triple,
       return nullptr;
     return new WebAssemblyOSTargetInfo<WebAssembly64TargetInfo>(Triple, Opts);
   case llvm::Triple::z80:
-    if (!(Triple == llvm::Triple("z80-unknown-unknown")))
-      return nullptr;
     return new Z80TargetInfo(Triple);
   case llvm::Triple::ez80:
-    if (!(Triple == llvm::Triple("ez80-unknown-unknown")))
-      return nullptr;
     return new EZ80TargetInfo(Triple);
-
   case llvm::Triple::renderscript32:
     return new LinuxTargetInfo<RenderScript32TargetInfo>(Triple, Opts);
   case llvm::Triple::renderscript64:

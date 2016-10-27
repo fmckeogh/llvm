@@ -30,6 +30,13 @@ class Z80RegisterInfo final : public Z80GenRegisterInfo {
 public:
   Z80RegisterInfo(const Triple &TT);
 
+  /// Code Generation virtual methods...
+  ///
+  bool trackLivenessAfterRegAlloc(const MachineFunction &MF) const override {
+    // Z80MachineLateOptimization requires liveness.
+    return true;
+  }
+
   /// getPointerRegClass - Returns a TargetRegisterClass used for pointer
   /// values.
   const TargetRegisterClass *
