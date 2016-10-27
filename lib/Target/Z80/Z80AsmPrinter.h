@@ -23,7 +23,7 @@ public:
                          std::unique_ptr<MCStreamer> Streamer)
     : AsmPrinter(TM, std::move(Streamer)) {}
 
-  const char *getPassName() const override {
+  StringRef getPassName() const override {
     return "Z80 Assembly / Object Emitter";
   }
 

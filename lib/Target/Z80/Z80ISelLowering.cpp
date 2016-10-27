@@ -81,7 +81,6 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
 
   setBooleanContents(ZeroOrOneBooleanContent);
   setJumpIsExpensive();
-  setSelectIsExpensive();
 
   setLibcallName(RTLIB::ZEXT_I16_I24, "_stoiu");
   setLibcallCallingConv(RTLIB::ZEXT_I16_I24, CallingConv::Z80_LibCall);

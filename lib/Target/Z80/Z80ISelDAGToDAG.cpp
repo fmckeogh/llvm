@@ -38,7 +38,7 @@ namespace {
     explicit Z80DAGToDAGISel(Z80TargetMachine &TM, CodeGenOpt::Level OptLevel)
       : SelectionDAGISel(TM, OptLevel), OptForSize(false) {}
 
-    const char *getPassName() const override {
+    StringRef getPassName() const override {
       return "Z80 DAG->DAG Instruction Selection";
     }
 

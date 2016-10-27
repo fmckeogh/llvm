@@ -193,9 +193,12 @@ namespace CallingConv {
     /// Calling convention for AMDGPU code object kernels.
     AMDGPU_KERNEL = 91,
 
+    /// Register calling convention used for parameters transfer optimization
+    X86_RegCall = 92,
+
     /// Calling convention used for special Z80 rtlib functions
     /// which pass in registers and saves all registers.
-    Z80_LibCall = 92,
+    Z80_LibCall = 93,
 
     /// The highest possible calling convention ID. Must be some 2^k - 1.
     MaxID = 1023

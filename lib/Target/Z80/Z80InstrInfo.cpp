@@ -196,8 +196,7 @@ unsigned Z80InstrInfo::insertBranch(MachineBasicBlock &MBB,
                                     int *BytesAdded) const {
   // Shouldn't be a fall through.
   assert(TBB && "InsertBranch must not be told to insert a fallthrough");
-  assert((Cond.size() == 1 || Cond.size() == 0) &&
-         "Z80 branch conditions have one component!");
+  assert(Cond.size() <= 1 && "Z80 branch conditions have one component!");
   assert(!BytesAdded && "code size not handled");
 
   if (Cond.empty()) {
@@ -219,12 +218,6 @@ unsigned Z80InstrInfo::insertBranch(MachineBasicBlock &MBB,
     ++Count;
   }
   return Count;
-}
-
-void Z80InstrInfo::getUnconditionalBranch(MCInst &Branch,
-                                          const MCSymbolRefExpr *Target) const {
-  Branch.setOpcode(Z80::JQ);
-  Branch.addOperand(MCOperand::createExpr(Target));
 }
 
 bool Z80::splitReg(
