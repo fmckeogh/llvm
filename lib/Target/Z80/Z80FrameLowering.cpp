@@ -42,19 +42,18 @@ bool Z80FrameLowering::hasFP(const MachineFunction &MF) const {
 void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
                                             MachineBasicBlock &MBB,
                                             MachineBasicBlock::iterator MI,
-                                            DebugLoc DL, int32_t Offset,
-                                            int32_t FPOffsetFromSP) const {
+                                            DebugLoc DL, unsigned ScratchReg,
+                                            int Offset, int FPOffset) const {
   if (!Offset)
     return;
 
   bool OptSize = MF.getFunction()->getAttributes()
     .hasAttribute(AttributeSet::FunctionIndex, Attribute::OptimizeForSize);
-  unsigned ScratchReg = Is24Bit ? Z80::UHL : Z80::HL;
   uint32_t WordSize = Is24Bit ? 3 : 2;
 
   // Optimal if we are trying to set SP = FP
   //   LD SP, FP
-  if (FPOffsetFromSP >= 0 && FPOffsetFromSP + Offset == 0) {
+  if (FPOffset >= 0 && FPOffset + Offset == 0) {
     assert(hasFP(MF) && "This function doesn't have a frame pointer");
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24SP : Z80::LD16SP))
       .addReg(TRI->getFrameRegister(MF));
@@ -81,8 +80,8 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
   // Optimal for large offsets when possible
   //   LEA HL, FP + SPOffsetFromFP + Offset
   //   LD SP, HL
-  bool CanUseLEA = STI.hasEZ80Ops() && FPOffsetFromSP >= 0 &&
-    isInt<8>(FPOffsetFromSP + Offset) && hasFP(MF);
+  bool CanUseLEA = STI.hasEZ80Ops() && FPOffset >= 0 &&
+    isInt<8>(FPOffset + Offset) && hasFP(MF);
   unsigned LEACost = CanUseLEA ? 4 : LargeCost;
 
   // Prefer smaller version
@@ -113,7 +112,7 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
     assert(CanUseLEA && hasFP(MF) && "Can't use lea");
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LEA24ro : Z80::LEA16ro),
             ScratchReg).addReg(TRI->getFrameRegister(MF))
-      .addImm(FPOffsetFromSP + Offset);
+      .addImm(FPOffset + Offset);
   }
   BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24SP : Z80::LD16SP))
     .addReg(ScratchReg);
@@ -139,8 +138,9 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::ADD24SP : Z80::ADD16SP),
             FrameReg).addReg(FrameReg);
   }
-  int32_t StackSize = (int32_t)MF.getFrameInfo().getStackSize();
-  BuildStackAdjustment(MF, MBB, MI, DL, -StackSize, 0);
+  int StackSize = (int)MF.getFrameInfo().getStackSize();
+  unsigned ScratchReg = Is24Bit ? Z80::UHL : Z80::HL;
+  BuildStackAdjustment(MF, MBB, MI, DL, ScratchReg, -StackSize, 0);
 }
 
 void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
@@ -160,7 +160,8 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::POP24r : Z80::POP16r),
             FrameReg);
   } else {
-    BuildStackAdjustment(MF, MBB, MI, DL, StackSize, -StackSize);
+    unsigned ScratchReg = Is24Bit ? Z80::UIY : Z80::IY;
+    BuildStackAdjustment(MF, MBB, MI, DL, ScratchReg, StackSize, -StackSize);
   }
 }
 
@@ -168,17 +169,19 @@ MachineBasicBlock::iterator Z80FrameLowering::
 eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
                               MachineBasicBlock::iterator I) const {
   if (!hasReservedCallFrame(MF)) {
-    // We need to keep the stack aligned properly.  To do this, we round the
-    // amount of space needed for the outgoing arguments up to the next
-    // alignment boundary.
-    uint64_t Amount = alignTo(I->getOperand(0).getImm(), getStackAlignment());
+    unsigned Amount = I->getOperand(0).getImm();
+    unsigned ScratchReg;
     if (I->getOpcode() == TII.getCallFrameSetupOpcode()) {
       Amount = -Amount;
+      ScratchReg = I->getOperand(1).getReg();
     } else {
       assert(I->getOpcode() == TII.getCallFrameDestroyOpcode());
       Amount -= I->getOperand(1).getImm();
+      ScratchReg = I->getOperand(2).getReg();
     }
-    BuildStackAdjustment(MF, MBB, I, I->getDebugLoc(), Amount);
+    assert(TargetRegisterInfo::isPhysicalRegister(ScratchReg) &&
+           "Reg alloc should have already happened.");
+    BuildStackAdjustment(MF, MBB, I, I->getDebugLoc(), ScratchReg, Amount);
   }
 
   return MBB.erase(I);

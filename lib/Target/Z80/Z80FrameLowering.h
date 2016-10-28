@@ -55,7 +55,8 @@ public:
 private:
   void BuildStackAdjustment(MachineFunction &MF, MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MBBI, DebugLoc DL,
-                            int32_t Offset, int32_t FPOffsetFromSP = -1) const;
+                            unsigned ScratchReg, int Offset,
+                            int FPOffset = -1) const;
 };
 } // End llvm namespace
 

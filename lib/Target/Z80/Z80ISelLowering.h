@@ -193,6 +193,8 @@ public:
   EVT getTypeForExtReturn(LLVMContext &Context, EVT VT,
                           ISD::NodeType ExtendKind) const override;
 
+  MachineBasicBlock *EmitAdjCallStack(MachineInstr &MI,
+                                      MachineBasicBlock *BB) const;
   MachineBasicBlock *EmitLoweredSub(MachineInstr &MI,
                                     MachineBasicBlock *BB) const;
   MachineBasicBlock *EmitLoweredCmp(MachineInstr &MI,

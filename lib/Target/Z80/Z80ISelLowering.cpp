@@ -594,6 +594,11 @@ Z80TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                MachineBasicBlock *BB) const {
   switch (MI.getOpcode()) {
   default: llvm_unreachable("Unexpected instr type to insert");
+  case Z80::ADJCALLSTACKUP16:
+  case Z80::ADJCALLSTACKUP24:
+  case Z80::ADJCALLSTACKDOWN16:
+  case Z80::ADJCALLSTACKDOWN24:
+    return EmitAdjCallStack(MI, BB);
   case Z80::Sub16:
   case Z80::Sub24:
     return EmitLoweredSub(MI, BB);
@@ -608,12 +613,28 @@ Z80TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
 }
 
 MachineBasicBlock *
+Z80TargetLowering::EmitAdjCallStack(MachineInstr &MI,
+                                    MachineBasicBlock *BB) const {
+  bool Is24Bit = MI.getOpcode() == Z80::ADJCALLSTACKUP24 ||
+                 MI.getOpcode() == Z80::ADJCALLSTACKDOWN24;
+  const TargetRegisterInfo *TRI = Subtarget.getRegisterInfo();
+  MachineRegisterInfo &MRI = BB->getParent()->getRegInfo();
+  unsigned Reg = MRI.createVirtualRegister(Is24Bit ? &Z80::A24RegClass
+                                                   : &Z80::A16RegClass);
+  MI.addOperand(MachineOperand::CreateReg(Reg, true  /*IsDef*/,
+                                               true  /*IsImp*/,
+                                               false /*IsKill*/,
+                                               true  /*IsDead*/));
+  DEBUG(MI.dump());
+  return BB;
+}
+
+MachineBasicBlock *
 Z80TargetLowering::EmitLoweredSub(MachineInstr &MI,
                                   MachineBasicBlock *BB) const {
   bool Is24Bit = MI.getOpcode() == Z80::Sub24;
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
   DebugLoc DL = MI.getDebugLoc();
-  MachineRegisterInfo &MRI = BB->getParent()->getRegInfo();
   DEBUG(BB->dump());
   BuildMI(*BB, MI, DL, TII->get(Z80::RCF));
   BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ar : Z80::SBC16ar))
@@ -629,7 +650,6 @@ Z80TargetLowering::EmitLoweredCmp(MachineInstr &MI,
   bool Is24Bit = MI.getOpcode() == Z80::Cmp24;
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
   DebugLoc DL = MI.getDebugLoc();
-  MachineRegisterInfo &MRI = BB->getParent()->getRegInfo();
   DEBUG(BB->dump());
   BuildMI(*BB, MI, DL, TII->get(Z80::RCF));
   BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ar : Z80::SBC16ar))
