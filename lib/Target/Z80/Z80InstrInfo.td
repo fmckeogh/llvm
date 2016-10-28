@@ -24,18 +24,34 @@ class SDTCisPtr<int OpNum> : SDTCisVT<OpNum, iPTR>;
 //===----------------------------------------------------------------------===//
 // Type Profiles.
 //===----------------------------------------------------------------------===//
-def SDTUnaryArithWithFlagsOut    : SDTypeProfile<2, 1, [SDTCisInt<0>,
-                                                        SDTCisVT<1, i8>,
-                                                        SDTCisSameAs<2, 0>]>;
-def SDTBinaryArithWithFlagsOut   : SDTypeProfile<2, 2, [SDTCisInt<0>,
-                                                        SDTCisVT<1, i8>,
-                                                        SDTCisSameAs<2, 0>,
-                                                        SDTCisSameAs<3, 0>]>;
-def SDTBinaryArithWithFlagsInOut : SDTypeProfile<2, 3, [SDTCisInt<0>,
-                                                        SDTCisVT<1, i8>,
-                                                        SDTCisSameAs<2, 0>,
-                                                        SDTCisSameAs<3, 0>,
-                                                        SDTCisVT<4, i8>]>;
+def SDTUnaryByteArithWithFlagsOut   : SDTypeProfile<2, 1, [SDTCisI8<0>,
+                                                           SDTCisI8<1>,
+                                                           SDTCisI8<2>]>;
+def SDTUnaryByteArithWithFlagsInOut : SDTypeProfile<2, 2, [SDTCisI8<0>,
+                                                           SDTCisI8<1>,
+                                                           SDTCisI8<2>,
+                                                           SDTCisI8<3>]>;
+def SDTUnaryArith                   : SDTypeProfile<1, 1, [SDTCisInt<0>,
+                                                           SDTCisSameAs<1, 0>]>;
+def SDTUnaryArithWithFlagsOut       : SDTypeProfile<2, 1, [SDTCisInt<0>,
+                                                           SDTCisI8<1>,
+                                                           SDTCisSameAs<2, 0>]>;
+def SDTUnaryArithWithFlagsInOut     : SDTypeProfile<2, 2, [SDTCisInt<0>,
+                                                           SDTCisI8<1>,
+                                                           SDTCisSameAs<2, 0>,
+                                                           SDTCisI8<3>]>;
+def SDTBinaryArith                  : SDTypeProfile<1, 2, [SDTCisInt<0>,
+                                                           SDTCisSameAs<1, 0>,
+                                                           SDTCisSameAs<2, 0>]>;
+def SDTBinaryArithWithFlagsOut      : SDTypeProfile<2, 2, [SDTCisInt<0>,
+                                                           SDTCisI8<1>,
+                                                           SDTCisSameAs<2, 0>,
+                                                           SDTCisSameAs<3, 0>]>;
+def SDTBinaryArithWithFlagsInOut    : SDTypeProfile<2, 3, [SDTCisInt<0>,
+                                                           SDTCisI8<1>,
+                                                           SDTCisSameAs<2, 0>,
+                                                           SDTCisSameAs<3, 0>,
+                                                           SDTCisI8<4>]>;
 
 def SDTZ80Wrapper        : SDTypeProfile<1, 1, [SDTCisPtrTy<0>,
                                                 SDTCisSameAs<1, 0>]>;
@@ -44,33 +60,47 @@ def SDT_Z80TCRet         : SDTypeProfile<0, 1, [SDTCisPtrTy<0>]>;
 def SDT_Z80Call          : SDTypeProfile<0, -1, [SDTCisPtr<0>]>;
 def SDT_Z80CallSeqStart  : SDCallSeqStart<[SDTCisPtr<0>]>;
 def SDT_Z80CallSeqEnd    : SDCallSeqEnd<[SDTCisPtr<0>, SDTCisPtr<1>]>;
-def SDT_Z80Cmp           : SDTypeProfile<0, 2, [SDTCisSameAs<0, 1>]>;
-def SDT_Z80BrCond        : SDTypeProfile<0, 2, [SDTCisVT<0, OtherVT>,
-                                                SDTCisVT<1, i8>]>;
-def SDT_Z80Select        : SDTypeProfile<1, 3, [SDTCisInt<0>,
+def SDT_Z80Cmp           : SDTypeProfile<1, 2, [SDTCisI8<0>,
+                                                SDTCisInt<1>,
+                                                SDTCisSameAs<2, 1>]>;
+def SDT_Z80BrCond        : SDTypeProfile<0, 3, [SDTCisVT<0, OtherVT>,
+                                                SDTCisI8<1>,
+                                                SDTCisI8<2>]>;
+def SDT_Z80Select        : SDTypeProfile<1, 4, [SDTCisInt<0>,
                                                 SDTCisSameAs<1, 0>,
                                                 SDTCisSameAs<2, 0>,
-                                                SDTCisVT<3, i8>]>;
+                                                SDTCisI8<3>,
+                                                SDTCisI8<4>]>;
 
 //===----------------------------------------------------------------------===//
 // Z80 specific DAG Nodes.
 //
 
-def Z80inc_flag      : SDNode<"Z80ISD::INC", SDTUnaryArithWithFlagsOut>;
-def Z80dec_flag      : SDNode<"Z80ISD::DEC", SDTUnaryArithWithFlagsOut>;
-def Z80add_flag      : SDNode<"Z80ISD::ADD", SDTBinaryArithWithFlagsOut,
-                              [SDNPCommutative]>;
-def Z80adc_flag      : SDNode<"Z80ISD::ADC", SDTBinaryArithWithFlagsInOut>;
-def Z80sub_flag      : SDNode<"Z80ISD::SUB", SDTBinaryArithWithFlagsOut>;
-def Z80sbc_flag      : SDNode<"Z80ISD::SBC", SDTBinaryArithWithFlagsInOut>;
-def Z80and_flag      : SDNode<"Z80ISD::AND", SDTBinaryArithWithFlagsOut,
-                              [SDNPCommutative]>;
-def Z80xor_flag      : SDNode<"Z80ISD::XOR", SDTBinaryArithWithFlagsOut,
-                              [SDNPCommutative]>;
-def Z80or_flag       : SDNode<"Z80ISD::OR", SDTBinaryArithWithFlagsOut,
-                              [SDNPCommutative]>;
 def Z80Wrapper       : SDNode<"Z80ISD::Wrapper", SDTZ80Wrapper>;
-def Z80mlt           : SDNode<"Z80ISD::MLT", SDT_Z80mlt>;
+def Z80rlc1          : SDNode<"Z80ISD::RLC1",    SDTUnaryArithWithFlagsOut>;
+def Z80rrc1          : SDNode<"Z80ISD::RRC1",    SDTUnaryArithWithFlagsOut>;
+def Z80rl1           : SDNode<"Z80ISD::RL1",     SDTUnaryArithWithFlagsInOut>;
+def Z80rr1           : SDNode<"Z80ISD::RR1",     SDTUnaryArithWithFlagsInOut>;
+def Z80sla1          : SDNode<"Z80ISD::SLA1",    SDTUnaryArithWithFlagsOut>;
+def Z80sra1          : SDNode<"Z80ISD::SRA1",    SDTUnaryArithWithFlagsOut>;
+def Z80srl1          : SDNode<"Z80ISD::SRL1",    SDTUnaryArithWithFlagsOut>;
+def Z80sla           : SDNode<"Z80ISD::SLA",     SDTBinaryArithWithFlagsOut>;
+def Z80sra           : SDNode<"Z80ISD::SRA",     SDTBinaryArithWithFlagsOut>;
+def Z80srl           : SDNode<"Z80ISD::SRL",     SDTBinaryArithWithFlagsOut>;
+def Z80inc_flag      : SDNode<"Z80ISD::INC",     SDTUnaryArithWithFlagsOut>;
+def Z80dec_flag      : SDNode<"Z80ISD::DEC",     SDTUnaryArithWithFlagsOut>;
+def Z80add_flag      : SDNode<"Z80ISD::ADD",     SDTBinaryArithWithFlagsOut,
+                              [SDNPCommutative]>;
+def Z80adc_flag      : SDNode<"Z80ISD::ADC",     SDTBinaryArithWithFlagsInOut>;
+def Z80sub_flag      : SDNode<"Z80ISD::SUB",     SDTBinaryArithWithFlagsOut>;
+def Z80sbc_flag      : SDNode<"Z80ISD::SBC",     SDTBinaryArithWithFlagsInOut>;
+def Z80and_flag      : SDNode<"Z80ISD::AND",     SDTBinaryArithWithFlagsOut,
+                              [SDNPCommutative]>;
+def Z80xor_flag      : SDNode<"Z80ISD::XOR",     SDTBinaryArithWithFlagsOut,
+                              [SDNPCommutative]>;
+def Z80or_flag       : SDNode<"Z80ISD::OR",      SDTBinaryArithWithFlagsOut,
+                              [SDNPCommutative]>;
+def Z80mlt           : SDNode<"Z80ISD::MLT",     SDT_Z80mlt>;
 def Z80retflag       : SDNode<"Z80ISD::RET_FLAG", SDTNone,
                               [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 def Z80tcret         : SDNode<"Z80ISD::TC_RETURN", SDT_Z80TCRet,
@@ -82,10 +112,9 @@ def Z80callseq_start : SDNode<"ISD::CALLSEQ_START", SDT_Z80CallSeqStart,
                               [SDNPHasChain, SDNPOutGlue]>;
 def Z80callseq_end   : SDNode<"ISD::CALLSEQ_END", SDT_Z80CallSeqEnd,
                               [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
-def Z80cmp           : SDNode<"Z80ISD::CMP", SDT_Z80Cmp, [SDNPOutGlue]>;
-def Z80brcond        : SDNode<"Z80ISD::BRCOND", SDT_Z80BrCond, [SDNPHasChain,
-                                                                SDNPInGlue]>;
-def Z80select        : SDNode<"Z80ISD::SELECT", SDT_Z80Select, [SDNPInGlue]>;
+def Z80cmp           : SDNode<"Z80ISD::CMP",    SDT_Z80Cmp>;
+def Z80brcond        : SDNode<"Z80ISD::BRCOND", SDT_Z80BrCond, [SDNPHasChain]>;
+def Z80select        : SDNode<"Z80ISD::SELECT", SDT_Z80Select>;
 
 //===----------------------------------------------------------------------===//
 // Z80 Instruction Predicate Definitions.
@@ -201,24 +230,27 @@ let usesCustomInserter = 1 in {
                              [(Z80callseq_end timm:$amt1, timm:$amt2)]>,
                            Requires<[In24BitMode]>;
   }
-  let Defs = [HL, F] in
-  def Sub16 : P<(outs), (ins O16:$src), [(set  HL, (sub  HL, O16:$src)),
-                                         (implicit F)]>;
-  let Defs = [UHL, F] in
-  def Sub24 : P<(outs), (ins O24:$src), [(set UHL, (sub UHL, O24:$src)),
-                                         (implicit F)]>;
-  let Defs = [F] in {
-    def Cmp16 : P<(outs), (ins O16:$src), [(Z80cmp  HL, O16:$src),
-                                           (implicit F)]>;
-    def Cmp24 : P<(outs), (ins O24:$src), [(Z80cmp UHL, O24:$src),
-                                           (implicit F)]>;
-  }
   def Select8  : P<(outs  R8:$dst), (ins  R8:$true,  R8:$false, i8imm:$cc),
-                   [(set  R8:$dst, (Z80select  R8:$true,  R8:$false, imm:$cc))]>;
+                   [(set  R8:$dst, (Z80select  R8:$true,  R8:$false, imm:$cc,
+                                    F))]>;
   def Select16 : P<(outs R16:$dst), (ins R16:$true, R16:$false, i8imm:$cc),
-                   [(set R16:$dst, (Z80select R16:$true, R16:$false, imm:$cc))]>;
+                   [(set R16:$dst, (Z80select R16:$true, R16:$false, imm:$cc,
+                                    F))]>;
   def Select24 : P<(outs R24:$dst), (ins R24:$true, R24:$false, i8imm:$cc),
-                   [(set R24:$dst, (Z80select R24:$true, R24:$false, imm:$cc))]>;
+                   [(set R24:$dst, (Z80select R24:$true, R24:$false, imm:$cc,
+                                    F))]>;
+}
+let Defs = [HL, F] in
+def Sub16 : P<(outs), (ins O16:$src), [(set  HL, (sub  HL, O16:$src)),
+                                       (implicit F)]>;
+let Defs = [UHL, F] in
+def Sub24 : P<(outs), (ins O24:$src), [(set UHL, (sub UHL, O24:$src)),
+                                       (implicit F)]>;
+let Defs = [F] in {
+  let Uses = [HL] in
+  def Cmp16 : P<(outs), (ins O16:$src), [(set F, (Z80cmp  HL, O16:$src))]>;
+  let Uses = [UHL] in
+  def Cmp24 : P<(outs), (ins O24:$src), [(set F, (Z80cmp UHL, O24:$src))]>;
 }
 
 let AsmString = "nop", hasSideEffects = 0 in
@@ -280,7 +312,7 @@ let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
 let isBranch = 1, isTerminator = 1, Uses = [F] in {
   let AsmString = "jq\t$cc, $target" in
   def JQCC : I<?, (outs), (ins jmptarget:$target, cc:$cc),
-               [(Z80brcond bb:$target, imm:$cc)]>;
+               [(Z80brcond bb:$target, imm:$cc, F)]>;
   let AsmString = "jr\t$cc, $target" in
   def JRCC : I<0x18, (outs), (ins jmptargetoff:$target, cc:$cc)>;
   let AsmString = "jp\t$cc, $target" in
@@ -437,27 +469,33 @@ def ADD24SP : LI<NoPrfx, 0x39, "add", "$dst, sp", "$imp = $dst",
                  (outs A24:$dst), (ins A24:$imp),
                  [(set A24:$dst,  (add A24:$imp, SPL)), (implicit F)]>;
 }
-let Defs = [HL, F], Uses = [HL, F] in {
-def SBC16ar : SI<ExtPrfx, 0x42, "sbc", "hl, $src", "", (outs), (ins O16:$src),
-                 [(set  HL, (sube  HL, O16:$src))]>;
-def SBC24ar : LI<ExtPrfx, 0x42, "sbc", "hl, $src", "", (outs), (ins O24:$src),
-                 [(set UHL, (sube UHL, O24:$src))]>;
-let Uses = [HL, SPS, F] in
+let Defs = [HL, F] in {
+let Uses = [HL, SPS, F] in {
 def SBC16SP : SI<ExtPrfx, 0x72, "sbc", "hl, sp", "", (outs), (ins),
                  [(set  HL, (sube  HL, SPS))]>;
-let Uses = [HL, SPL, F] in
-def SBC24SP : LI<ExtPrfx, 0x72, "sbc", "hl, sp", "", (outs), (ins),
-                 [(set UHL, (sube UHL, SPL))]>;
-def ADC16ar : SI<ExtPrfx, 0x4A, "adc", "hl, $src", "", (outs), (ins O16:$src),
-                 [(set  HL, (adde  HL, O16:$src))]>;
-def ADC24ar : LI<ExtPrfx, 0x4A, "adc", "hl, $src", "", (outs), (ins O24:$src),
-                 [(set UHL, (adde UHL, O24:$src))]>;
-let Uses = [HL, SPS, F] in
 def ADC16SP : SI<ExtPrfx, 0x7A, "adc", "hl, sp", "", (outs), (ins),
                  [(set  HL, (sube  HL, SPS))]>;
-let Uses = [HL, SPL, F] in
+}
+let Uses = [HL, F] in {
+def SBC16ar : SI<ExtPrfx, 0x42, "sbc", "hl, $src", "", (outs), (ins G16:$src),
+                 [(set  HL, (sube  HL, G16:$src))]>;
+def ADC16ar : SI<ExtPrfx, 0x4A, "adc", "hl, $src", "", (outs), (ins G16:$src),
+                 [(set  HL, (adde  HL, G16:$src))]>;
+}
+}
+let Defs = [UHL, F] in {
+let Uses = [UHL, SPL, F] in {
+def SBC24SP : LI<ExtPrfx, 0x72, "sbc", "hl, sp", "", (outs), (ins),
+                 [(set UHL, (sube UHL, SPL))]>;
 def ADC24SP : LI<ExtPrfx, 0x7A, "adc", "hl, sp", "", (outs), (ins),
                  [(set UHL, (sube UHL, SPL))]>;
+}
+let Uses = [UHL, F] in {
+def SBC24ar : LI<ExtPrfx, 0x42, "sbc", "hl, $src", "", (outs), (ins G24:$src),
+                 [(set UHL, (sube UHL, G24:$src))]>;
+def ADC24ar : LI<ExtPrfx, 0x4A, "adc", "hl, $src", "", (outs), (ins G24:$src),
+                 [(set UHL, (adde UHL, G24:$src))]>;
+}
 }
 
 let Defs = [F] in {
@@ -516,13 +554,13 @@ defm XOR : ALU8 <5, "xor", xor,  1>;
 defm  OR : ALU8 <6, "or",  or,   1>;
 let AsmString = "cp\ta, $arg", Defs = [F], Uses = [A], isCompare = 1 in {
 def  CP8ar : I<0xB8, (outs), (ins R8:$arg),
-                [(Z80cmp A,                R8:$arg),   (implicit F)]>;
+                [(set F, (Z80cmp A,                R8:$arg))]>;
 def  CP8ai : I<0xFE, (outs), (ins i8imm:$arg),
-                [(Z80cmp A,               imm:$arg),   (implicit F)]>;
+                [(set F, (Z80cmp A,               imm:$arg))]>;
 def  CP8am : I<0xBE, (outs), (ins ptr:$arg),
-                [(Z80cmp A, (i8 (load    iPTR:$arg))), (implicit F)]>;
+                [(set F, (Z80cmp A, (i8 (load    iPTR:$arg))))]>;
 def  CP8ao : I<0xBE, (outs), (ins off:$arg),
-                [(Z80cmp A, (i8 (load offpat:$arg))), (implicit F)]>;
+                [(set F, (Z80cmp A, (i8 (load offpat:$arg))))]>;
 }
 
 def LEA16ro : SI<ExtPrfx, 0x02, "lea", "$dst, $src", "",

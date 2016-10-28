@@ -33,7 +33,10 @@ protected:
     return MachineFunctionProperties()
       .set(MachineFunctionProperties::Property::TracksLiveness);
   }
+
 private:
+  StringRef getPassName() const override { return "Z80 Machine Late Optimization"; }
+
   static char ID;
 };
 
@@ -62,9 +65,11 @@ bool Z80MachineLateOptimization::runOnMachineFunction(MachineFunction &MF) {
           if (I->getOperand(0).getReg() == Z80::A &&
               I->getOperand(1).getImm() == 0) {
             I->setDesc(TII->get(Z80::XOR8ar));
-            I->getOperand(0).setIsUse();
-            I->getOperand(0).setIsUndef();
             I->RemoveOperand(1);
+            I->getOperand(0).setIsUse();
+            I->addImplicitDefUseOperands(MF);
+            for (auto &Op : I->uses())
+              Op.setIsUndef();
             DEBUG(dbgs() << '!');
             Changed = true;
           }
@@ -76,9 +81,11 @@ bool Z80MachineLateOptimization::runOnMachineFunction(MachineFunction &MF) {
               BuildMI(MBB, *I, I->getDebugLoc(),
                       TII->get(Imm ? Z80::SCF : Z80::RCF));
               I->setDesc(TII->get(Z80::SBC24ar));
-              I->getOperand(0).setIsUse();
-              I->getOperand(0).setIsUndef();
               I->RemoveOperand(1);
+              I->getOperand(0).setIsUse();
+              I->addImplicitDefUseOperands(MF);
+              for (auto &Op : I->uses())
+                Op.setIsUndef();
               DEBUG(dbgs() << '!');
               Changed = true;
             }

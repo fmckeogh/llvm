@@ -32,7 +32,10 @@ enum NodeType : unsigned {
   /// TargetGlobalAddress.
   Wrapper,
 
-  // Arithmetic operation with flags results.
+  /// Shift/Rotate
+  RLC1, RRC1, RL1, RR1, SLA1, SRA1, SRL1, SLA, SRA, SRL,
+
+  /// Arithmetic operation with flags results.
   INC, DEC, ADD, ADC, SUB, SBC, AND, XOR, OR,
 
   MLT,
@@ -96,7 +99,8 @@ public:
 
   /// Provide custom lowering hooks for some operations.
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
-  SDValue LowerLibCall(RTLIB::Libcall LC24, RTLIB::Libcall LC16,
+  SDValue LowerLibCall(RTLIB::Libcall LC8, RTLIB::Libcall LC16,
+                       RTLIB::Libcall LC24, RTLIB::Libcall LC32,
                        SDValue Op, SelectionDAG &DAG) const;
   SDValue NarrowOperation(SDValue Op, SelectionDAG &DAG) const;
 

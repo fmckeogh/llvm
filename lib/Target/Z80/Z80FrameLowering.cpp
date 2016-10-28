@@ -145,20 +145,20 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
 void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
                                     MachineBasicBlock &MBB) const {
   MachineBasicBlock::iterator MI = MBB.getFirstTerminator();
+  DebugLoc DL = MBB.findDebugLoc(MI);
 
-  DebugLoc DL;
-  if (MI != MBB.end())
-    DL = MI->getDebugLoc();
-
-  int32_t StackSize = (int32_t)MF.getFrameInfo().getStackSize();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  int StackSize = (int)MFI.getStackSize();
   if (hasFP(MF)) {
     unsigned FrameReg = TRI->getFrameRegister(MF);
-    if (StackSize)
+    if (StackSize || MFI.hasVarSizedObjects())
       BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24SP : Z80::LD16SP))
         .addReg(FrameReg);
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::POP24r : Z80::POP16r),
             FrameReg);
   } else {
+    assert(!MFI.hasVarSizedObjects() &&
+           "Can't use StackSize with var sized objects!");
     unsigned ScratchReg = Is24Bit ? Z80::UIY : Z80::IY;
     BuildStackAdjustment(MF, MBB, MI, DL, ScratchReg, StackSize, -StackSize);
   }
