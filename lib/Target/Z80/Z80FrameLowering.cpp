@@ -105,9 +105,8 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
   if (LargeCost <= LEACost) {
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
             ScratchReg).addImm(Offset);
-    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao),
-            ScratchReg).addReg(ScratchReg)
-      .addReg(Is24Bit ? Z80::SPL : Z80::SPS);
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::ADD24SP : Z80::ADD16SP),
+            ScratchReg).addReg(ScratchReg);
   } else {
     assert(CanUseLEA && hasFP(MF) && "Can't use lea");
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LEA24ro : Z80::LEA16ro),
@@ -170,14 +169,15 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
                               MachineBasicBlock::iterator I) const {
   if (!hasReservedCallFrame(MF)) {
     unsigned Amount = I->getOperand(0).getImm();
-    unsigned ScratchReg;
+    unsigned ScratchReg = I->getOperand(I->getNumOperands() - 1).getReg();
+    assert((Z80::A16RegClass.contains(ScratchReg) ||
+            Z80::A24RegClass.contains(ScratchReg)) &&
+           "Expected last operand to be the scratch reg.");
     if (I->getOpcode() == TII.getCallFrameSetupOpcode()) {
       Amount = -Amount;
-      ScratchReg = I->getOperand(1).getReg();
     } else {
       assert(I->getOpcode() == TII.getCallFrameDestroyOpcode());
       Amount -= I->getOperand(1).getImm();
-      ScratchReg = I->getOperand(2).getReg();
     }
     assert(TargetRegisterInfo::isPhysicalRegister(ScratchReg) &&
            "Reg alloc should have already happened.");

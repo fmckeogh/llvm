@@ -416,18 +416,18 @@ let Defs = [F] in {
 //
 
 let Defs = [F] in {
-def ADD16ao : SI<NoPrfx, 0x09, "add", "$dst, $src", "$imp = $dst",
-                 (outs A16:$dst), (ins A16:$imp, O16:$src),
-                 [(set A16:$dst,  (add A16:$imp, O16:$src)), (implicit F)]>;
-def ADD24ao : LI<NoPrfx, 0x09, "add", "$dst, $src", "$imp = $dst",
-                 (outs A24:$dst), (ins A24:$imp, O24:$src),
-                 [(set A24:$dst,  (add A24:$imp, O24:$src)), (implicit F)]>;
 def ADD16aa : SI<NoPrfx, 0x29, "add", "$dst, $src", "$src = $dst",
                  (outs A16:$dst), (ins A16:$src),
                  [(set A16:$dst,  (add A16:$src, A16:$src)), (implicit F)]>;
 def ADD24aa : LI<NoPrfx, 0x29, "add", "$dst, $src", "$src = $dst",
                  (outs A24:$dst), (ins A24:$src),
                  [(set A24:$dst,  (add A24:$src, A24:$src)), (implicit F)]>;
+def ADD16ao : SI<NoPrfx, 0x09, "add", "$dst, $src", "$imp = $dst",
+                 (outs A16:$dst), (ins A16:$imp, O16:$src),
+                 [(set A16:$dst,  (add A16:$imp, O16:$src)), (implicit F)]>;
+def ADD24ao : LI<NoPrfx, 0x09, "add", "$dst, $src", "$imp = $dst",
+                 (outs A24:$dst), (ins A24:$imp, O24:$src),
+                 [(set A24:$dst,  (add A24:$imp, O24:$src)), (implicit F)]>;
 let Uses = [SPS] in
 def ADD16SP : SI<NoPrfx, 0x39, "add", "$dst, sp", "$imp = $dst",
                  (outs A16:$dst), (ins A16:$imp),

@@ -401,8 +401,8 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
         .addReg(SrcReg, RegState::ImplicitKill);
     BuildMI(MBB, MI, DL, get(Subtarget.is24Bit() ? Z80::LD24ri : Z80::LD16ri),
             DstReg).addImm(0);
-    BuildMI(MBB, MI, DL, get(SrcReg == Z80::SPL ? Z80::ADD24ao : Z80::ADD16ao),
-            DstReg).addReg(DstReg).addReg(SrcReg, getKillRegState(KillSrc));
+    BuildMI(MBB, MI, DL, get(SrcReg == Z80::SPL ? Z80::ADD24SP : Z80::ADD16SP),
+            DstReg).addReg(DstReg);
     if (DstReg == Z80::DE || DstReg == Z80::UDE)
       BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::EX24DE : Z80::EX16DE))
         .addReg(DstReg, RegState::ImplicitDefine)
