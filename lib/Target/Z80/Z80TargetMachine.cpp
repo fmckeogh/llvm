@@ -117,6 +117,7 @@ public:
   }
 
   bool addInstSelector() override;
+  void addPreRegAlloc() override;
   void addMachineLateOptimization() override;
 };
 } // namespace
@@ -131,7 +132,14 @@ bool Z80PassConfig::addInstSelector() {
   return false;
 }
 
+void Z80PassConfig::addPreRegAlloc() {
+  TargetPassConfig::addPreRegAlloc();
+  if (getOptLevel() != CodeGenOpt::None)
+    addPass(createZ80CallFrameOptimization());
+}
+
 void Z80PassConfig::addMachineLateOptimization() {
   TargetPassConfig::addMachineLateOptimization();
-  addPass(createZ80MachineLateOptimization());
+  if (getOptLevel() != CodeGenOpt::None)
+    addPass(createZ80MachineLateOptimization());
 }
