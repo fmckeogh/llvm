@@ -622,7 +622,7 @@ Z80TargetLowering::EmitAdjCallStack(MachineInstr &MI,
   unsigned Reg = MRI.createVirtualRegister(Is24Bit ? &Z80::A24RegClass
                                                    : &Z80::A16RegClass);
   MI.addOperand(MachineOperand::CreateReg(Reg, true  /*IsDef*/,
-                                               true  /*IsImp*/,
+                                               false /*IsImp*/,
                                                false /*IsKill*/,
                                                true  /*IsDead*/));
   DEBUG(MI.dump());
