@@ -257,6 +257,21 @@ getRegisterVTs(Record *R) const {
   return Result;
 }
 
+MVT::SimpleValueType CodeGenTarget::getRegisterKnownVT(Record *R) const {
+  const CodeGenRegister *Reg = getRegBank().getReg(R);
+  MVT::SimpleValueType KnownVT = MVT::Other;
+  for (const auto &RC : getRegBank().getRegClasses()) {
+    if (RC.contains(Reg)) {
+      for (auto VT : RC.getValueTypes()) {
+        if (KnownVT != MVT::Other && KnownVT != VT)
+          return MVT::Other;
+        KnownVT = VT;
+      }
+    }
+  }
+  return KnownVT;
+}
+
 
 void CodeGenTarget::ReadLegalValueTypes() const {
   for (const auto &RC : getRegBank().getRegClasses())
