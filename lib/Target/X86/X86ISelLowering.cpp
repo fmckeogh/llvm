@@ -2307,7 +2307,7 @@ EVT X86TargetLowering::getTypeForExtReturn(LLVMContext &Context, EVT VT,
     ReturnMVT = MVT::i8;
   }
 
-  EVT MinVT = getRegisterType(Context, ReturnMVT);
+  MVT MinVT = getRegisterTypes(Context, ReturnMVT);
   return VT.bitsLT(MinVT) ? MinVT : VT;
 }
 

@@ -26,7 +26,7 @@ namespace llvm {
   /// MVT - Machine Value Type. Every type that is supported natively by some
   /// processor targeted by LLVM occurs here. This means that any legal value
   /// type can be represented by an MVT.
-class MVT {
+  class MVT {
   public:
     enum SimpleValueType : int8_t {
       // INVALID_SIMPLE_VALUE_TYPE - Simple value types less than zero are
@@ -286,6 +286,12 @@ class MVT {
       return (SimpleTy==MVT::Any  ||
               SimpleTy==MVT::iAny || SimpleTy==MVT::fAny ||
               SimpleTy==MVT::vAny || SimpleTy==MVT::iPTRAny);
+    }
+
+    /// isPow2Size - Returns true if the size of the MVT is a power of 2.
+    bool isPow2Size() const {
+      unsigned BitWidth = getSizeInBits();
+      return !(BitWidth & (BitWidth - 1));
     }
 
     /// isPow2VectorType - Returns true if the given vector is a power of 2.

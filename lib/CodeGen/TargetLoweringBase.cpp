@@ -1130,7 +1130,7 @@ TargetLoweringBase::getTypeConversion(LLVMContext &Context, EVT VT) const {
 
 static unsigned getVectorTypeBreakdownMVT(MVT VT, MVT &IntermediateVT,
                                           unsigned &NumIntermediates,
-                                          MVT &RegisterVT,
+                                          MVTPair &RegisterVT,
                                           TargetLoweringBase *TLI) {
   // Figure out the right, legal destination reg to copy into.
   unsigned NumElts = VT.getVectorNumElements();
@@ -1165,10 +1165,11 @@ static unsigned getVectorTypeBreakdownMVT(MVT VT, MVT &IntermediateVT,
   if (!isPowerOf2_32(NewVTSize))
     NewVTSize = NextPowerOf2(NewVTSize);
 
-  MVT DestVT = TLI->getRegisterType(NewVT);
+  MVTPair DestVT = TLI->getRegisterTypes(NewVT);
   RegisterVT = DestVT;
-  if (EVT(DestVT).bitsLT(NewVT))    // Value is expanded, e.g. i64 -> i16.
-    return NumVectorRegs*(NewVTSize/DestVT.getSizeInBits());
+  // Value is expanded, e.g. i64 -> i16.
+  if (DestVT.getFirstSizeInBits() < NewVT.getSizeInBits())
+    return NumVectorRegs*DestVT.getNumPartsFor(NewVTSize);
 
   // Otherwise, promotion or legal types use the same number of registers as
   // the vector decimated to the appropriate level.
@@ -1311,42 +1312,49 @@ void TargetLoweringBase::computeRegisterProperties(
   // Everything defaults to needing one register.
   for (unsigned i = 0; i != MVT::LAST_VALUETYPE; ++i) {
     NumRegistersForVT[i] = 1;
-    RegisterTypeForVT[i] = TransformToType[i] = (MVT::SimpleValueType)i;
+    RegisterTypesForVT[i] = TransformToType[i] = (MVT::SimpleValueType)i;
   }
   // ...except isVoid, which doesn't need any registers.
   NumRegistersForVT[MVT::isVoid] = 0;
 
   // Find the largest integer register class.
-  unsigned LargestIntReg = MVT::LAST_INTEGER_VALUETYPE;
-  for (; RegClassForVT[LargestIntReg] == nullptr; --LargestIntReg)
+  unsigned LargestIntReg = MVT::LAST_INTEGER_VALUETYPE,
+    ExpandedReg = MVT::LAST_INTEGER_VALUETYPE;
+  for (; RegClassForVT[LargestIntReg] == nullptr; --LargestIntReg) {
     assert(LargestIntReg != MVT::i1 && "No integer registers defined!");
-  if (LargestIntReg == MVT::i24)
-    --LargestIntReg;
+    MVT LVT = (MVT::SimpleValueType)LargestIntReg;
+    if (LVT.isPow2Size())
+      ExpandedReg = LargestIntReg;
+  }
 
   // Every integer value type larger than this largest register takes twice as
   // many registers to represent as the previous ValueType.
-  for (unsigned HalfReg = LargestIntReg, ExpandedReg = LargestIntReg + 1;
+  MVTPair ExpandRegTypes =
+    MVTPair::expand((MVT::SimpleValueType)ExpandedReg,
+                    (MVT::SimpleValueType)LargestIntReg);
+  for (unsigned HalfReg = LargestIntReg;
        ExpandedReg <= MVT::LAST_INTEGER_VALUETYPE; ++ExpandedReg) {
-    NumRegistersForVT[ExpandedReg] = 2*NumRegistersForVT[HalfReg];
-    RegisterTypeForVT[ExpandedReg] = (MVT::SimpleValueType)LargestIntReg;
+    MVT EVT = (MVT::SimpleValueType)ExpandedReg;
+    if (!EVT.isPow2Size())
+      continue;
+    NumRegistersForVT[ExpandedReg] = ExpandRegTypes.getNumPartsFor(EVT);
+    RegisterTypesForVT[ExpandedReg] = ExpandRegTypes;
     TransformToType[ExpandedReg] = (MVT::SimpleValueType)HalfReg;
-    ValueTypeActions.setTypeAction((MVT::SimpleValueType)ExpandedReg,
-                                   TypeExpandInteger);
-    if (ExpandedReg != MVT::i24)
-      HalfReg = ExpandedReg;
+    ValueTypeActions.setTypeAction(EVT, TypeExpandInteger);
+    HalfReg = ExpandedReg;
   }
 
-  // Inspect all of the ValueType's smaller than the largest integer
-  // register to see which ones need promotion.
-  unsigned LegalIntReg = LargestIntReg;
-  for (unsigned IntReg = LargestIntReg - 1;
-       IntReg >= (unsigned)MVT::i1; --IntReg) {
+  // Inspect all of the ValueType's to see which ones need promotion.
+  for (unsigned PromoteReg = MVT::LAST_INTEGER_VALUETYPE,
+       IntReg = PromoteReg - 1; IntReg >= (unsigned)MVT::i1; --IntReg) {
     MVT IVT = (MVT::SimpleValueType)IntReg;
-    if (isTypeLegal(IVT)) {
-      LegalIntReg = IntReg;
+    // Promote to the next legal type, otherwise the next power-of-two type.
+    if (isTypeLegal(IVT) ||
+        (IntReg > LargestIntReg && IVT.isPow2Size())) {
+      PromoteReg = IntReg;
     } else {
-      RegisterTypeForVT[IntReg] = TransformToType[IntReg] =
-        (const MVT::SimpleValueType)LegalIntReg;
+      RegisterTypesForVT[IntReg] = TransformToType[IntReg] =
+        (MVT::SimpleValueType)PromoteReg;
       ValueTypeActions.setTypeAction(IVT, TypePromoteInteger);
     }
   }
@@ -1355,12 +1363,12 @@ void TargetLoweringBase::computeRegisterProperties(
   if (!isTypeLegal(MVT::ppcf128)) {
     if (isTypeLegal(MVT::f64)) {
       NumRegistersForVT[MVT::ppcf128] = 2*NumRegistersForVT[MVT::f64];
-      RegisterTypeForVT[MVT::ppcf128] = MVT::f64;
+      RegisterTypesForVT[MVT::ppcf128] = MVT::f64;
       TransformToType[MVT::ppcf128] = MVT::f64;
       ValueTypeActions.setTypeAction(MVT::ppcf128, TypeExpandFloat);
     } else {
       NumRegistersForVT[MVT::ppcf128] = NumRegistersForVT[MVT::i128];
-      RegisterTypeForVT[MVT::ppcf128] = RegisterTypeForVT[MVT::i128];
+      RegisterTypesForVT[MVT::ppcf128] = RegisterTypesForVT[MVT::i128];
       TransformToType[MVT::ppcf128] = MVT::i128;
       ValueTypeActions.setTypeAction(MVT::ppcf128, TypeSoftenFloat);
     }
@@ -1370,7 +1378,7 @@ void TargetLoweringBase::computeRegisterProperties(
   // expand it to i128 and we will be generating soft float library calls.
   if (!isTypeLegal(MVT::f128)) {
     NumRegistersForVT[MVT::f128] = NumRegistersForVT[MVT::i128];
-    RegisterTypeForVT[MVT::f128] = RegisterTypeForVT[MVT::i128];
+    RegisterTypesForVT[MVT::f128] = RegisterTypesForVT[MVT::i128];
     TransformToType[MVT::f128] = MVT::i128;
     ValueTypeActions.setTypeAction(MVT::f128, TypeSoftenFloat);
   }
@@ -1379,7 +1387,7 @@ void TargetLoweringBase::computeRegisterProperties(
   // expand it to i64 and we will be generating soft float library calls.
   if (!isTypeLegal(MVT::f64)) {
     NumRegistersForVT[MVT::f64] = NumRegistersForVT[MVT::i64];
-    RegisterTypeForVT[MVT::f64] = RegisterTypeForVT[MVT::i64];
+    RegisterTypesForVT[MVT::f64] = RegisterTypesForVT[MVT::i64];
     TransformToType[MVT::f64] = MVT::i64;
     ValueTypeActions.setTypeAction(MVT::f64, TypeSoftenFloat);
   }
@@ -1388,7 +1396,7 @@ void TargetLoweringBase::computeRegisterProperties(
   // expand it to i32 and we will be generating soft float library calls.
   if (!isTypeLegal(MVT::f32)) {
     NumRegistersForVT[MVT::f32] = NumRegistersForVT[MVT::i32];
-    RegisterTypeForVT[MVT::f32] = RegisterTypeForVT[MVT::i32];
+    RegisterTypesForVT[MVT::f32] = RegisterTypesForVT[MVT::i32];
     TransformToType[MVT::f32] = MVT::i32;
     ValueTypeActions.setTypeAction(MVT::f32, TypeSoftenFloat);
   }
@@ -1398,7 +1406,7 @@ void TargetLoweringBase::computeRegisterProperties(
   // conversions).
   if (!isTypeLegal(MVT::f16)) {
     NumRegistersForVT[MVT::f16] = NumRegistersForVT[MVT::f32];
-    RegisterTypeForVT[MVT::f16] = RegisterTypeForVT[MVT::f32];
+    RegisterTypesForVT[MVT::f16] = RegisterTypesForVT[MVT::f32];
     TransformToType[MVT::f16] = MVT::f32;
     ValueTypeActions.setTypeAction(MVT::f16, TypePromoteFloat);
   }
@@ -1425,7 +1433,7 @@ void TargetLoweringBase::computeRegisterProperties(
         if (SVT.getScalarSizeInBits() > EltVT.getSizeInBits() &&
             SVT.getVectorNumElements() == NElts && isTypeLegal(SVT)) {
           TransformToType[i] = SVT;
-          RegisterTypeForVT[i] = SVT;
+          RegisterTypesForVT[i] = SVT;
           NumRegistersForVT[i] = 1;
           ValueTypeActions.setTypeAction(VT, TypePromoteInteger);
           IsLegalWiderType = true;
@@ -1434,6 +1442,7 @@ void TargetLoweringBase::computeRegisterProperties(
       }
       if (IsLegalWiderType)
         break;
+      LLVM_FALLTHROUGH;
     }
     case TypeWidenVector: {
       // Try to widen the vector.
@@ -1442,7 +1451,7 @@ void TargetLoweringBase::computeRegisterProperties(
         if (SVT.getVectorElementType() == EltVT
             && SVT.getVectorNumElements() > NElts && isTypeLegal(SVT)) {
           TransformToType[i] = SVT;
-          RegisterTypeForVT[i] = SVT;
+          RegisterTypesForVT[i] = SVT;
           NumRegistersForVT[i] = 1;
           ValueTypeActions.setTypeAction(VT, TypeWidenVector);
           IsLegalWiderType = true;
@@ -1451,15 +1460,16 @@ void TargetLoweringBase::computeRegisterProperties(
       }
       if (IsLegalWiderType)
         break;
+      LLVM_FALLTHROUGH;
     }
     case TypeSplitVector:
     case TypeScalarizeVector: {
       MVT IntermediateVT;
-      MVT RegisterVT;
+      MVTPair RegisterVT;
       unsigned NumIntermediates;
       NumRegistersForVT[i] = getVectorTypeBreakdownMVT(VT, IntermediateVT,
           NumIntermediates, RegisterVT, this);
-      RegisterTypeForVT[i] = RegisterVT;
+      RegisterTypesForVT[i] = RegisterVT;
 
       MVT NVT = VT.getPow2VectorType();
       if (NVT == VT) {
@@ -1517,10 +1527,10 @@ MVT::SimpleValueType TargetLoweringBase::getCmpLibcallReturnType() const {
 /// register.  It also returns the VT and quantity of the intermediate values
 /// before they are promoted/expanded.
 ///
-unsigned TargetLoweringBase::getVectorTypeBreakdown(LLVMContext &Context, EVT VT,
-                                                EVT &IntermediateVT,
-                                                unsigned &NumIntermediates,
-                                                MVT &RegisterVT) const {
+unsigned TargetLoweringBase::getVectorTypeBreakdown(LLVMContext &Context,
+                                                    EVT VT, EVT &IntermediateVT,
+                                                    unsigned &NumIntermediates,
+                                                    MVTPair &RegisterVT) const {
   unsigned NumElts = VT.getVectorNumElements();
 
   // If there is a wider vector type with the same element type as this one,
@@ -1566,16 +1576,17 @@ unsigned TargetLoweringBase::getVectorTypeBreakdown(LLVMContext &Context, EVT VT
     NewVT = EltTy;
   IntermediateVT = NewVT;
 
-  MVT DestVT = getRegisterType(Context, NewVT);
-  RegisterVT = DestVT;
   unsigned NewVTSize = NewVT.getSizeInBits();
 
   // Convert sizes such as i33 to i64.
   if (!isPowerOf2_32(NewVTSize))
     NewVTSize = NextPowerOf2(NewVTSize);
 
-  if (EVT(DestVT).bitsLT(NewVT))   // Value is expanded, e.g. i64 -> i16.
-    return NumVectorRegs*(NewVTSize/DestVT.getSizeInBits());
+  MVTPair DestVT = getRegisterTypes(Context, NewVT);
+  RegisterVT = DestVT;
+  // Value is expanded, e.g. i64 -> i16.
+  if (DestVT.getFirstSizeInBits() < NewVT.getSizeInBits())
+    return NumVectorRegs*DestVT.getNumPartsFor(NewVTSize);
 
   // Otherwise, promotion or legal types use the same number of registers as
   // the vector decimated to the appropriate level.
@@ -1608,13 +1619,14 @@ void llvm::GetReturnInfo(Type *ReturnType, AttributeSet attr,
     // conventions. The frontend should mark functions whose return values
     // require promoting with signext or zeroext attributes.
     if (ExtendKind != ISD::ANY_EXTEND && VT.isInteger()) {
-      MVT MinVT = TLI.getRegisterType(ReturnType->getContext(), MVT::i32);
+      EVT MinVT = TLI.getRegisterTypes(ReturnType->getContext(), MVT::i32)
+        .getFirst();
       if (VT.bitsLT(MinVT))
         VT = MinVT;
     }
 
     unsigned NumParts = TLI.getNumRegisters(ReturnType->getContext(), VT);
-    MVT PartVT = TLI.getRegisterType(ReturnType->getContext(), VT);
+    MVTPair PartVTs = TLI.getRegisterTypes(ReturnType->getContext(), VT);
 
     // 'inreg' on function refers to return value
     ISD::ArgFlagsTy Flags = ISD::ArgFlagsTy();
@@ -1628,7 +1640,8 @@ void llvm::GetReturnInfo(Type *ReturnType, AttributeSet attr,
       Flags.setZExt();
 
     for (unsigned i = 0; i < NumParts; ++i)
-      Outs.push_back(ISD::OutputArg(Flags, PartVT, VT, /*isFixed=*/true, 0, 0));
+      Outs.push_back(ISD::OutputArg(Flags, PartVTs.getPart(i), VT,
+                                    /*isFixed=*/true, 0, 0));
   }
 }
 

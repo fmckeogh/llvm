@@ -815,7 +815,7 @@ SDValue DAGTypeLegalizer::PromoteIntRes_VAARG(SDNode *N) {
   EVT VT = N->getValueType(0);
   SDLoc dl(N);
 
-  MVT RegVT = TLI.getRegisterType(*DAG.getContext(), VT);
+  MVT RegVT = TLI.getRegisterTypes(*DAG.getContext(), VT);
   unsigned NumRegs = TLI.getNumRegisters(*DAG.getContext(), VT);
   // The argument is passed as NumRegs registers of type RegVT.
 
@@ -1029,14 +1029,13 @@ SDValue DAGTypeLegalizer::PromoteIntOp_BRCOND(SDNode *N, unsigned OpNo) {
 
 SDValue DAGTypeLegalizer::PromoteIntOp_BUILD_PAIR(SDNode *N) {
   // Since the result type is legal, the operands must promote to it.
-  EVT OVT = N->getOperand(0).getValueType();
   SDValue Lo = ZExtPromotedInteger(N->getOperand(0));
   SDValue Hi = GetPromotedInteger(N->getOperand(1));
   assert(Lo.getValueType() == N->getValueType(0) && "Operand over promoted?");
   SDLoc dl(N);
 
   Hi = DAG.getNode(ISD::SHL, dl, N->getValueType(0), Hi,
-                   DAG.getConstant(OVT.getSizeInBits(), dl,
+                   DAG.getConstant(N->getOperand(0).getValueSizeInBits(), dl,
                                    TLI.getPointerTy(DAG.getDataLayout())));
   return DAG.getNode(ISD::OR, dl, N->getValueType(0), Lo, Hi);
 }
