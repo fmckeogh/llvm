@@ -3770,9 +3770,8 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
       Scalars.push_back(DAG.getNode(Node->getOpcode(), dl,
                                     VT.getScalarType(), Ex, Sh));
     }
-    SDValue Result =
-      DAG.getNode(ISD::BUILD_VECTOR, dl, Node->getValueType(0), Scalars);
-    ReplaceNode(SDValue(Node, 0), Result);
+    Results.push_back(DAG.getNode(ISD::BUILD_VECTOR, dl, Node->getValueType(0),
+                                  Scalars));
     break;
   }
   case ISD::GLOBAL_OFFSET_TABLE:

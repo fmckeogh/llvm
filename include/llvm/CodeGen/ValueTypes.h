@@ -16,6 +16,7 @@
 #ifndef LLVM_CODEGEN_VALUETYPES_H
 #define LLVM_CODEGEN_VALUETYPES_H
 
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/CodeGen/MachineValueType.h"
 #include <cassert>
 #include <string>
@@ -89,10 +90,10 @@ namespace llvm {
       return VecTy;
     }
 
-    /// Return the type converted to an equivalently sized integer or vector
-    /// with integer element type. Similar to changeVectorElementTypeToInteger,
-    /// but also handles scalars.
-    EVT changeTypeToInteger() {
+    /// changeTypeToInteger - Return the type converted to an equivalently sized
+    /// integer or vector with integer element type. Similar to
+    /// changeVectorElementTypeToInteger, but also handles scalars.
+    EVT changeTypeToInteger() const {
       if (isVector())
         return changeVectorElementTypeToInteger();
 
@@ -100,6 +101,13 @@ namespace llvm {
         return MVT::getIntegerVT(getSizeInBits());
 
       return changeExtendedTypeToInteger();
+    }
+
+    /// changeTypeToScalarInteger - Return the type converted to an equivalently
+    /// sized integer. Similar to changeTypeToInteger, but vectors are converted
+    /// to a scalar integer.
+    EVT changeTypeToScalarInteger(LLVMContext &Context) const {
+      return getIntegerVT(Context, getSizeInBits());
     }
 
     /// isSimple - Test if the given EVT is simple (as opposed to being
@@ -279,7 +287,7 @@ namespace llvm {
     /// to the nearest power of two (and at least to eight), and returns the
     /// integer EVT with that number of bits.
     EVT getRoundIntegerType(LLVMContext &Context) const {
-      assert(isInteger() && !isVector() && "Invalid integer type!");
+      assert(isScalarInteger() && "Invalid integer type!");
       unsigned BitWidth = getSizeInBits();
       if (BitWidth <= 8)
         return EVT(MVT::i8);
@@ -291,14 +299,11 @@ namespace llvm {
     /// value type can be found, an extended integer value type of half the
     /// size (rounded up) is returned.
     EVT getHalfSizedIntegerVT(LLVMContext &Context) const {
-      assert(isInteger() && !isVector() && "Invalid integer type!");
+      assert(isScalarInteger() && "Invalid integer type!");
       unsigned EVTSize = getSizeInBits();
-      for (unsigned IntVT = MVT::FIRST_INTEGER_VALUETYPE;
-          IntVT <= MVT::LAST_INTEGER_VALUETYPE; ++IntVT) {
-        EVT HalfVT = EVT((MVT::SimpleValueType)IntVT);
-        if (HalfVT.getSizeInBits() * 2 >= EVTSize)
+      for (MVT HalfVT : MVT::integer_valuetypes())
+        if (HalfVT.getSizeInBits() * 2 >= getSizeInBits())
           return HalfVT;
-      }
       return getIntegerVT(Context, (EVTSize + 1) / 2);
     }
 
@@ -308,6 +313,12 @@ namespace llvm {
       EVT EltVT = getVectorElementType();
       EltVT = EVT::getIntegerVT(Context, 2 * EltVT.getSizeInBits());
       return EVT::getVectorVT(Context, EltVT, getVectorNumElements());
+    }
+
+    /// isPow2Size - Returns true if the size of the EVT is a power of 2.
+    bool isPow2Size() const {
+      unsigned BitWidth = getSizeInBits();
+      return !(BitWidth & (BitWidth - 1));
     }
 
     /// isPow2VectorType - Returns true if the given vector is a power of 2.
@@ -387,6 +398,380 @@ namespace llvm {
     unsigned getExtendedSizeInBits() const LLVM_READONLY;
   };
 
+  /// VTS - Value Type Sequence.  Represents a sequence of either one type
+  /// repeated, or two related types alternating.  The one repeated type case is
+  /// represented as both types being identical.
+  template<typename VT>
+  struct VTS {
+  private:
+    VT VTs[2];
+
+  public:
+    constexpr VTS() {}
+    VTS(MVT::SimpleValueType SVT) : VTS(MVT(SVT), MVT(SVT)) {}
+    VTS(MVT::SimpleValueType FirstSVT, MVT::SimpleValueType SecondSVT)
+        : VTS(MVT(FirstSVT), MVT(SecondSVT)) {}
+    VTS(VT SingleVT) : VTS(SingleVT, SingleVT) {}
+    VTS(VT FirstVT, VT SecondVT) : VTs{FirstVT, SecondVT} {
+      assert(matching(FirstVT, SecondVT) && "Types must match");
+    }
+
+    /// getIntegerVT - Returns the VTS that represents integers with the given
+    /// numbers of bits.
+    static VTS getIntegerVT(LLVMContext &Context, unsigned FirstBitWidth,
+                            unsigned SecondBitWidth = 0) {
+      if (!SecondBitWidth)
+        SecondBitWidth = FirstBitWidth;
+      return VTS(VT::getIntegerVT(Context, FirstBitWidth),
+                 VT::getIntegerVT(Context, SecondBitWidth));
+    }
+
+    /// getVectorVT - Returns the VTS that represents vectors with the given
+    /// value type and numbers of elements.
+    static VTS getVectorVT(LLVMContext &Context, VT ElementVT,
+                           unsigned FirstNumElements,
+                           unsigned SecondNumElements = 0) {
+      if (!SecondNumElements)
+        SecondNumElements = FirstNumElements;
+      return VTS(VT::getVectorVT(Context, ElementVT, FirstNumElements),
+                 VT::getVectorVT(Context, ElementVT, SecondNumElements));
+    }
+
+    /// getExpandedIntegerVT - Returns the VTS that represents integers where
+    /// the first width is given and the second width is whatever part of the
+    /// whole is left over.
+    static VTS getExpandedIntegerVT(LLVMContext &Context,
+                                    unsigned WholeBitWidth,
+                                    unsigned FirstBitWidth = 0) {
+      if (!FirstBitWidth)
+        FirstBitWidth = WholeBitWidth / 2;
+      assert(WholeBitWidth > FirstBitWidth &&
+             "Whole is not large enough to split");
+      return getIntegerVT(Context, FirstBitWidth,
+                          WholeBitWidth - FirstBitWidth);
+    }
+
+    /// getHalfSizedIntegerVT - Returns the VTS that represents the WholeVT split into
+    /// two integer parts as per EVT::getHalfSizedIntegerVT.
+    static VTS getHalfSizedIntegerVT(LLVMContext &Context, VT WholeVT) {
+      return VTS::getExpandedIntegerVT(Context, WholeVT.getSizeInBits(),
+          WholeVT.getHalfSizedIntegerVT(Context).getSizeInBits());
+    }
+
+    /// getExpandedIntegerVT - Returns the VTS that represents integers where
+    /// the first num elements is given and the second num elements is whatever
+    /// part of the whole is left over.
+    static VTS getExpandedVectorVT(LLVMContext &Context, VT ElementVT,
+                                   unsigned WholeNumElements,
+                                   unsigned FirstNumElements = 0) {
+      if (!FirstNumElements)
+        FirstNumElements = WholeNumElements / 2;
+      assert(WholeNumElements > FirstNumElements &&
+             "Whole is not large enough to split");
+      return getVectorVT(Context, ElementVT, FirstNumElements,
+                         WholeNumElements - FirstNumElements);
+    }
+
+    /// getSplitVectorVT - Returns the VTS that represents the WholeVT split
+    /// into two vectors with half the elements.
+    static VTS getSplitVectorVT(LLVMContext &Context, VT WholeVT) {
+      return VTS::getExpandedVectorVT(Context, WholeVT.getVectorElementType(),
+                                      WholeVT.getVectorNumElements());
+    }
+
+    /// getExpandedVT - Returns the VTS that represents the WholeVT split into
+    /// FirstPartVT, and whatever is left over.
+    static VTS getExpandedVT(LLVMContext &Context,
+                             VT WholeVT, VT FirstVT) {
+      assert(matching(WholeVT, FirstVT) && "Types must match");
+      // Fast path
+      if (WholeVT.getSizeInBits() == FirstVT.getSizeInBits() * 2)
+        return FirstVT;
+      if (WholeVT.isScalarInteger())
+        return getExpandedIntegerVT(Context, WholeVT.getSizeInBits(),
+                                    FirstVT.getSizeInBits());
+      return getExpandedVectorVT(Context, WholeVT.getVectorElementType(),
+                                 WholeVT.getVectorNumElements(),
+                                 FirstVT.getVectorNumElements());
+    }
+
+    /// getUniqueParts - Returns all of the unique parts.
+    ArrayRef<VT> getUniqueParts() const {
+      return makeArrayRef(VTs, 2 - isSingle());
+    }
+
+    /// getLo - Returns the low part.
+    VT getLo() const {
+      return VTs[0];
+    }
+
+    /// getHi - Returns an high part.
+    VT getHi() const {
+      return VTs[1];
+    }
+
+    /// changeEndianness - Swap the order of the parts.
+    void changeEndianness() {
+      std::swap(VTs[0], VTs[1]);
+    }
+
+    /// getPart - Returns an indexed part.  Note that there is no maximum index
+    /// because the types repeat forever.
+    VT getPart(unsigned Part) const {
+      return VTs[Part % 2];
+    }
+
+    /// changeVectorElementTypesToInteger - Return a vector with the same number
+    /// of elements as this vector, but with the element type converted to an
+    /// integer type with the same bitwidth.
+    VTS changeVectorElementTypesToInteger() const {
+      return VTS(getLo().changeVectorElementTypeToInteger(),
+                 getHi().changeVectorElementTypeToInteger());
+    }
+
+    /// changeTypesToInteger - Return the type converted to an equivalently
+    /// sized integer or vector with integer element type. Similar to
+    /// changeVectorElementTypeToInteger, but also handles scalars.
+    VTS changeTypesToInteger() const {
+      return VTS(getLo().changeTypeToInteger(), getHi().changeTypeToInteger());
+    }
+
+    /// changeTypesToScalarInteger - Return the type converted to an
+    /// equivalently sized integer. Similar to changeTypeToInteger, but vectors
+    /// are converted to a scalar integer.
+    VTS changeTypesToScalarInteger(LLVMContext &Context) const {
+      return VTS(getLo().changeTypeToScalarInteger(Context),
+                 getHi().changeTypeToScalarInteger(Context));
+    }
+
+    /// isSingle - Return if this represents one type repeated.
+    bool isSingle() const {
+      return getLo() == getHi();
+    }
+
+    VT getSingle() const {
+      assert(isSingle() && "not single");
+      return getLo();
+    }
+
+    /// isFloatingPoint - Return true if this is a FP, or a vector FP type.
+    bool isFloatingPoint() const {
+      return getLo().isFloatingPoint();
+    }
+
+    /// isInteger - Return true if this is an integer, or a vector integer type.
+    bool isInteger() const {
+      return getLo().isInteger();
+    }
+
+    /// isScalarInteger - Return true if this is an integer, but not a vector.
+    bool isScalarInteger() const {
+      return getLo().isScalarInteger();
+    }
+
+    /// isVector - Return true if this is a vector value type.
+    bool isVector() const {
+      return getLo().isVector();
+    }
+
+    /// isByteSized - Return true if the bit size is a multiple of 8.
+    bool isByteSized() const {
+      return getLo().isByteSized() && getHi().isByteSized();
+    }
+
+    /// isRound - Return true if the size is a power-of-two number of bytes.
+    bool isRound() const {
+      return getLo().isRound() && getHi().isRound();
+    }
+
+    bool operator==(VTS OtherVTs) const {
+      return getLo() == OtherVTs.getLo() &&
+             getHi() == OtherVTs.getHi();
+    }
+    bool operator!=(VTS OtherVTs) const {
+      return !(*this == OtherVTs);
+    }
+
+    /// getPartSimpleVT - Return the MVT of the given part.
+    MVT getPartSimpleVT(unsigned Part) const {
+      return getPart(Part).getSimpleVT();
+    }
+
+    /// getPartScalarType - If the given part is a vector type, return its
+    /// element type, otherwise return that part.
+    VT getPartScalarType(unsigned Part) const {
+      return getPart(Part).getScalarType();
+    }
+
+    /// getVectorElementType - Given one or two repeated vector types, return
+    /// the common element type.
+    VT getVectorElementType() const {
+      return getLo().getVectorElementType();
+    }
+
+    /// getLoVectorNumElements - Given one or two repeated vector types, return
+    /// the number of elements in the given part.
+    unsigned getLoVectorNumElements() const {
+      return getLo().getVectorNumElements();
+    }
+
+    /// getHiVectorNumElements - Given one or two repeated vector types, return
+    /// the number of elements in the given part.
+    unsigned getHiVectorNumElements() const {
+      return getHi().getVectorNumElements();
+    }
+
+    /// getVectorPartNumElements - Given one or two repeated vector types,
+    /// return the number of elements in the given part.
+    unsigned getVectorPartNumElements(unsigned Part) const {
+      return getPart(Part).getVectorNumElements();
+    }
+
+    /// getLoSizeInBits - Return the size of the low part in bits.
+    unsigned getLoSizeInBits() const {
+      return getLo().getSizeInBits();
+    }
+
+    /// getHiSizeInBits - Return the size of the high part in bits.
+    unsigned getHiSizeInBits() const {
+      return getHi().getSizeInBits();
+    }
+
+    /// getPartSizeInBits - Return the size of the specified part in bits.
+    unsigned getPartSizeInBits(unsigned Part) const {
+      return getPart(Part).getSizeInBits();
+    }
+
+    /// getPartScalarSizeInBits - Return the size of the specified part's scalar
+    /// type.
+    unsigned getPartScalarSizeInBits(unsigned Part) const {
+      return getPart(Part).getScalarSizeInBits();
+    }
+
+    /// getLoStoreSize - Return the number of bytes overwritten by a store of
+    /// the low part.
+    unsigned getLoStoreSize() const {
+      return getLo().getStoreSize();
+    }
+
+    /// getHiStoreSize - Return the number of bytes overwritten by a store of
+    /// the high part.
+    unsigned getHiStoreSize() const {
+      return getHi().getStoreSize();
+    }
+
+    /// getPartStoreSize - Return the number of bytes overwritten by a store of
+    /// the specified part.
+    unsigned getPartStoreSize(unsigned Part) const {
+      return getPart(Part).getStoreSize();
+    }
+
+    /// getPartStoreSizeInBits - Return the number of bits overwritten by a
+    /// store of the specified part.
+    unsigned getPartStoreSizeInBits(unsigned Part) const {
+      return getPart(Part).getStoreSizeInBits();
+    }
+
+    /// getVectorPartsNumElements - Return the number of elements of the
+    /// specified range of parts.
+    unsigned getVectorPartsNumElements(unsigned NumParts = 2,
+                                       unsigned FirstPart = 0) const {
+      return getPartsSizeGeneric(NumParts, getVectorPartNumElements(FirstPart),
+                                 getVectorPartNumElements(FirstPart + 1));
+    }
+
+    /// getPartsSizeInBits - Return the size of the specified range of parts
+    /// in bits.
+    unsigned getPartsSizeInBits(unsigned NumParts = 2,
+                                unsigned FirstPart = 0) const {
+      return getPartsSizeGeneric(NumParts, getPartSizeInBits(FirstPart),
+                                 getPartSizeInBits(FirstPart + 1));
+    }
+
+    /// getPartsScalarSizeInBits - Return the size of the scalar type of the
+    /// specified range of parts.
+    unsigned getPartsScalarSizeInBits(unsigned NumParts = 2,
+                                      unsigned FirstPart = 0) const {
+      return getPartsSizeGeneric(NumParts, getPartScalarSizeInBits(FirstPart),
+                                 getPartScalarSizeInBits(FirstPart + 1));
+    }
+
+    /// getPartsStoreSize - Return the number of bytes overwritten by
+    /// individual stores (each part is padded independently) of the specified
+    /// range of parts.
+    unsigned getPartsStoreSize(unsigned NumParts = 2,
+                               unsigned FirstPart = 0) const {
+      return getPartsSizeGeneric(NumParts, getPartStoreSize(FirstPart),
+                                 getPartStoreSize(FirstPart + 1));
+    }
+
+    /// getPartsStoreSizeInBits - Return the number of bits overwritten by
+    /// individual stores (each part is padded independently) of the specified
+    /// range of parts.
+    unsigned getPartsStoreSizeInBits(unsigned NumParts = 2,
+                                     unsigned FirstPart = 0) const {
+      return getPartsSizeGeneric(NumParts, getPartStoreSizeInBits(FirstPart),
+                                 getPartStoreSizeInBits(FirstPart + 1));
+    }
+
+    /// getPartsVT - Return a VT covering NumParts parts starting with FirstPart.
+    VT getPartsVT(LLVMContext &Context, unsigned NumParts = 2,
+                  unsigned FirstPart = 0) const {
+      if (isScalarInteger())
+        return VT::getIntegerVT(Context,
+                                getPartsSizeInBits(NumParts, FirstPart));
+      return VT::getVectorVT(Context, getVectorElementType(),
+                             getVectorPartsNumElements(NumParts, FirstPart));
+    }
+
+    /// getNumPartsFor - Return the number of parts required to hold the given
+    /// number of bits.
+    unsigned getNumPartsFor(unsigned BitWidth) const {
+      return getNumPartsForGeneric(BitWidth, getLoSizeInBits(),
+                                   getHiSizeInBits());
+    }
+
+    /// getNumPartsForVT - Return the number of parts required to hold the given
+    /// value type's bits.
+    unsigned getNumPartsForVT(VT WholeVT) const {
+      assert(matching(getLo(), WholeVT) && "Types must match");
+      return getNumPartsFor(WholeVT.getSizeInBits());
+    }
+
+  private:
+#ifndef NDEBUG
+    /// matching - Checks the invariant of this class that all types in the
+    /// sequence are related.  This means they are one of:
+    /// * both identical
+    /// * both scalar integers with different sizes
+    /// * both vectors with the same scalar type and differing numbers of
+    ///   elements
+    static bool matching(VT VT1, VT VT2) {
+      if (VT1.isScalarInteger())
+        return VT2.isScalarInteger();
+      if (VT1.isVector())
+        return VT1.getVectorElementType() == VT2.getVectorElementType();
+      return VT1 == VT2;
+    }
+#endif
+    static unsigned getPartsSizeGeneric(unsigned NumParts, unsigned FirstSize,
+                                        unsigned SecondSize) {
+      return NumParts / 2 * (FirstSize + SecondSize) + NumParts % 2 * FirstSize;
+    }
+    static unsigned getNumPartsForGeneric(unsigned TotalSize,
+                                          unsigned FirstSize,
+                                          unsigned SecondSize) {
+      // By doing --TotalSize, we ensure that we are always 1-2 parts short,
+      // which is why we add 1 below, instead of having to handle cases 0-2.
+      --TotalSize;
+      if (LLVM_LIKELY(FirstSize == SecondSize))
+        return (TotalSize + FirstSize) / FirstSize; // Fast path
+      return TotalSize / (FirstSize + SecondSize) * 2 + 1 +
+        (TotalSize % (FirstSize + SecondSize) >= FirstSize);
+    }
+  };
+
+  // TODO: replace all uses of this class with VTS
   /// MVTPair - This represents a pair of Machine Value Types.
   class MVTPair {
     MVT VTs[2];

@@ -7123,33 +7123,27 @@ unsigned SelectionDAG::InferPtrAlignment(SDValue Ptr) const {
 
 /// GetSplitDestVTs - Compute the VTs needed for the low/hi parts of a type
 /// which is split (or expanded) into two not necessarily identical pieces.
-std::pair<EVT, EVT> SelectionDAG::GetSplitDestVTs(const EVT &VT) const {
+VTS<EVT> SelectionDAG::GetSplitDestVTs(const EVT &VT) const {
   // Currently all types are split in half.
   EVT LoVT, HiVT;
-  if (!VT.isVector()) {
-    LoVT = HiVT = TLI->getTypeToTransformTo(*getContext(), VT);
-  } else {
-    unsigned NumElements = VT.getVectorNumElements();
-    assert(!(NumElements & 1) && "Splitting vector, but not in half!");
-    LoVT = HiVT = EVT::getVectorVT(*getContext(), VT.getVectorElementType(),
-                                   NumElements/2);
-  }
-  return std::make_pair(LoVT, HiVT);
+  if (!VT.isVector())
+    return TLI->getTypesToTransformTo(*getContext(), VT);
+  return VTS<EVT>::getSplitVectorVT(*getContext(), VT);
 }
 
 /// SplitVector - Split the vector with EXTRACT_SUBVECTOR and return the
 /// low/high part.
 std::pair<SDValue, SDValue>
-SelectionDAG::SplitVector(const SDValue &N, const SDLoc &DL, const EVT &LoVT,
-                          const EVT &HiVT) {
-  assert(LoVT.getVectorNumElements() + HiVT.getVectorNumElements() <=
+SelectionDAG::SplitVector(const SDValue &N, const SDLoc &DL,
+                          const VTS<EVT> &VTs) {
+  assert(VTs.getVectorPartsNumElements(2) <=
          N.getValueType().getVectorNumElements() &&
          "More vector elements requested than available!");
   SDValue Lo, Hi;
-  Lo = getNode(ISD::EXTRACT_SUBVECTOR, DL, LoVT, N,
+  Lo = getNode(ISD::EXTRACT_SUBVECTOR, DL, VTs.getLo(), N,
                getConstant(0, DL, TLI->getVectorIdxTy(getDataLayout())));
-  Hi = getNode(ISD::EXTRACT_SUBVECTOR, DL, HiVT, N,
-               getConstant(LoVT.getVectorNumElements(), DL,
+  Hi = getNode(ISD::EXTRACT_SUBVECTOR, DL, VTs.getHi(), N,
+               getConstant(VTs.getLoVectorNumElements(), DL,
                            TLI->getVectorIdxTy(getDataLayout())));
   return std::make_pair(Lo, Hi);
 }

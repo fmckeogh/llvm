@@ -507,9 +507,9 @@ static void getCopyToParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
       SDValue &Part1 = Parts[i+StepSize/2];
 
       Part1 = DAG.getNode(ISD::EXTRACT_ELEMENT, DL,
-                          ThisVT0, Part0, DAG.getIntPtrConstant(1, DL));
+                          ThisVT1, Part0, DAG.getIntPtrConstant(1, DL));
       Part0 = DAG.getNode(ISD::EXTRACT_ELEMENT, DL,
-                          ThisVT1, Part0, DAG.getIntPtrConstant(0, DL));
+                          ThisVT0, Part0, DAG.getIntPtrConstant(0, DL));
 
       if (StepSize == 2) {
         Part0 = DAG.getNode(ISD::BITCAST, DL, PartVTs.getFirst(), Part0);
@@ -1456,8 +1456,17 @@ void SelectionDAGBuilder::visitRet(const ReturnInst &I) {
           Flags.setZExt();
 
         for (unsigned i = 0; i < NumParts; ++i) {
-          Outs.push_back(ISD::OutputArg(Flags, PartVTs.getPart(i), VT,
-                                        /*isfixed=*/true, 0, 0));
+          ISD::OutputArg MyFlags(Flags, PartVTs.getPart(i), VT,
+                                 /*isfixed=*/true, 0, 0);
+          if (NumParts > 1 && i == 0)
+            MyFlags.Flags.setSplit();
+          // if it isn't first piece, alignment must be 1
+          else if (i > 0) {
+            MyFlags.Flags.setOrigAlign(1);
+            if (i == NumParts - 1)
+              MyFlags.Flags.setSplitEnd();
+          }
+          Outs.push_back(MyFlags);
           OutVals.push_back(Parts[i]);
         }
       }

@@ -815,10 +815,9 @@ void DAGTypeLegalizer::GetExpandedInteger(SDValue Op, SDValue &Lo,
 
 void DAGTypeLegalizer::SetExpandedInteger(SDValue Op, SDValue Lo,
                                           SDValue Hi) {
-  assert(Lo.getValueType() ==
-         TLI.getTypeToTransformTo(*DAG.getContext(), Op.getValueType()) &&
-         Lo.getValueSizeInBits() + Hi.getValueSizeInBits() ==
-         Op.getValueSizeInBits() && "Invalid type for expanded integer");
+  assert(VTS<EVT>(Lo.getValueType(), Hi.getValueType()) ==
+         TLI.getTypesToTransformTo(*DAG.getContext(), Op.getValueType()) &&
+         "Invalid type for expanded integer");
   // Lo/Hi may have been newly allocated, if so, add nodeid's as relevant.
   AnalyzeNewValue(Lo);
   AnalyzeNewValue(Hi);
@@ -842,9 +841,8 @@ void DAGTypeLegalizer::GetExpandedFloat(SDValue Op, SDValue &Lo,
 
 void DAGTypeLegalizer::SetExpandedFloat(SDValue Op, SDValue Lo,
                                         SDValue Hi) {
-  assert(Lo.getValueType() ==
-         TLI.getTypeToTransformTo(*DAG.getContext(), Op.getValueType()) &&
-         Hi.getValueType() == Lo.getValueType() &&
+  assert(VTS<EVT>(Lo.getValueType(), Hi.getValueType()) ==
+         TLI.getTypesToTransformTo(*DAG.getContext(), Op.getValueType()) &&
          "Invalid type for expanded float");
   // Lo/Hi may have been newly allocated, if so, add nodeid's as relevant.
   AnalyzeNewValue(Lo);
@@ -869,11 +867,8 @@ void DAGTypeLegalizer::GetSplitVector(SDValue Op, SDValue &Lo,
 
 void DAGTypeLegalizer::SetSplitVector(SDValue Op, SDValue Lo,
                                       SDValue Hi) {
-  assert(Lo.getValueType().getVectorElementType() ==
-         Op.getValueType().getVectorElementType() &&
-         2*Lo.getValueType().getVectorNumElements() ==
-         Op.getValueType().getVectorNumElements() &&
-         Hi.getValueType() == Lo.getValueType() &&
+  assert(VTS<EVT>(Lo.getValueType(), Hi.getValueType()) ==
+         TLI.getTypesToTransformTo(*DAG.getContext(), Op.getValueType()) &&
          "Invalid type for split vector");
   // Lo/Hi may have been newly allocated, if so, add nodeid's as relevant.
   AnalyzeNewValue(Lo);
@@ -1010,10 +1005,11 @@ SDValue DAGTypeLegalizer::DisintegrateMERGE_VALUES(SDNode *N, unsigned ResNo) {
 void DAGTypeLegalizer::GetPairElements(SDValue Pair,
                                        SDValue &Lo, SDValue &Hi) {
   SDLoc dl(Pair);
-  EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), Pair.getValueType());
-  Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, NVT, Pair,
+  VTS<EVT> VTs = TLI.getTypesToTransformTo(*DAG.getContext(),
+                                           Pair.getValueType());
+  Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, VTs.getLo(), Pair,
                    DAG.getIntPtrConstant(0, dl));
-  Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, NVT, Pair,
+  Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, VTs.getHi(), Pair,
                    DAG.getIntPtrConstant(1, dl));
 }
 
@@ -1036,17 +1032,15 @@ SDValue DAGTypeLegalizer::GetVectorElementPointer(SDValue VecPtr, EVT EltVT,
 /// Build an integer with low bits Lo and high bits Hi.
 SDValue DAGTypeLegalizer::JoinIntegers(SDValue Lo, SDValue Hi) {
   // Arbitrarily use dlHi for result SDLoc
-  SDLoc dlHi(Hi);
   SDLoc dlLo(Lo);
-  EVT LVT = Lo.getValueType();
-  EVT HVT = Hi.getValueType();
-  EVT NVT = EVT::getIntegerVT(*DAG.getContext(),
-                              LVT.getSizeInBits() + HVT.getSizeInBits());
+  SDLoc dlHi(Hi);
+  VTS<EVT> NVTs(Lo.getValueType(), Hi.getValueType());
+  EVT NVT = NVTs.getPartsVT(*DAG.getContext());
 
   Lo = DAG.getNode(ISD::ZERO_EXTEND, dlLo, NVT, Lo);
   Hi = DAG.getNode(ISD::ANY_EXTEND, dlHi, NVT, Hi);
   Hi = DAG.getNode(ISD::SHL, dlHi, NVT, Hi,
-                   DAG.getConstant(LVT.getSizeInBits(), dlHi,
+                   DAG.getConstant(NVTs.getLoSizeInBits(), dlHi,
                                    TLI.getPointerTy(DAG.getDataLayout())));
   return DAG.getNode(ISD::OR, dlHi, NVT, Lo, Hi);
 }
@@ -1139,28 +1133,38 @@ SDValue DAGTypeLegalizer::WidenTargetBoolean(SDValue Bool, EVT ValVT,
 }
 
 /// Return the lower LoVT bits of Op in Lo and the upper HiVT bits in Hi.
-void DAGTypeLegalizer::SplitInteger(SDValue Op,
-                                    EVT LoVT, EVT HiVT,
+void DAGTypeLegalizer::SplitInteger(SDValue Op, VTS<EVT> VTs,
                                     SDValue &Lo, SDValue &Hi) {
   SDLoc dl(Op);
-  assert(LoVT.getSizeInBits() + HiVT.getSizeInBits() ==
-         Op.getValueSizeInBits() && "Invalid integer splitting!");
-  Lo = DAG.getNode(ISD::TRUNCATE, dl, LoVT, Op);
+  assert(VTs.getPartsSizeInBits() == Op.getValueSizeInBits() &&
+         "Invalid integer splitting!");
+  if (Op.getOpcode() == ISD::BUILD_PAIR &&
+      VTS<EVT>(Op.getOperand(0).getValueType(),
+               Op.getOperand(1).getValueType()) == VTs) {
+    Lo = Op.getOperand(0);
+    Hi = Op.getOperand(1);
+    return;
+  }
+  Lo = DAG.getNode(ISD::TRUNCATE, dl, VTs.getLo(), Op);
   Hi = DAG.getNode(ISD::SRL, dl, Op.getValueType(), Op,
-                   DAG.getConstant(LoVT.getSizeInBits(), dl,
+                   DAG.getConstant(VTs.getLoSizeInBits(), dl,
                                    TLI.getPointerTy(DAG.getDataLayout())));
-  Hi = DAG.getNode(ISD::TRUNCATE, dl, HiVT, Hi);
+  Hi = DAG.getNode(ISD::TRUNCATE, dl, VTs.getHi(), Hi);
 }
 
 /// Return the lower and upper halves of Op's bits in a value type half the
 /// size of Op's.
-void DAGTypeLegalizer::SplitInteger(SDValue Op,
-                                    SDValue &Lo, SDValue &Hi) {
-  EVT HalfVT =
-      EVT::getIntegerVT(*DAG.getContext(), Op.getValueSizeInBits() / 2);
-  SplitInteger(Op, HalfVT, HalfVT, Lo, Hi);
+void DAGTypeLegalizer::SplitInteger(SDValue Op, SDValue &Lo, SDValue &Hi) {
+  SplitInteger(Op, VTS<EVT>::getHalfSizedIntegerVT(*DAG.getContext(),
+                                                   Op.getValueType()), Lo, Hi);
 }
 
+/// Return the lower and upper halves of Op's bits as the target would like them
+/// expanded.
+void DAGTypeLegalizer::ExpandInteger(SDValue Op, SDValue &Lo, SDValue &Hi) {
+  SplitInteger(Op, TLI.getTypesToTransformTo(*DAG.getContext(),
+                                             Op.getValueType()), Lo, Hi);
+}
 
 //===----------------------------------------------------------------------===//
 //  Entry Point

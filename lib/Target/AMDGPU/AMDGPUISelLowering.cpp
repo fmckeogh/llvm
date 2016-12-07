@@ -1046,27 +1046,26 @@ SDValue AMDGPUTargetLowering::SplitVectorLoad(const SDValue Op,
 
   const MachinePointerInfo &SrcValue = Load->getMemOperand()->getPointerInfo();
 
-  EVT LoVT, HiVT;
-  EVT LoMemVT, HiMemVT;
   SDValue Lo, Hi;
 
-  std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(VT);
-  std::tie(LoMemVT, HiMemVT) = DAG.GetSplitDestVTs(MemVT);
-  std::tie(Lo, Hi) = DAG.SplitVector(Op, SL, LoVT, HiVT);
+  VTS<EVT> VTs = DAG.GetSplitDestVTs(VT);
+  VTS<EVT> MemVTs = DAG.GetSplitDestVTs(MemVT);
+  std::tie(Lo, Hi) = DAG.SplitVector(Op, SL, VTs);
 
-  unsigned Size = LoMemVT.getStoreSize();
+  unsigned Size = MemVTs.getLoStoreSize();
   unsigned BaseAlign = Load->getAlignment();
   unsigned HiAlign = MinAlign(BaseAlign, Size);
 
-  SDValue LoLoad = DAG.getExtLoad(Load->getExtensionType(), SL, LoVT,
-                                  Load->getChain(), BasePtr, SrcValue, LoMemVT,
-                                  BaseAlign, Load->getMemOperand()->getFlags());
+  SDValue LoLoad = DAG.getExtLoad(Load->getExtensionType(), SL, VTs.getLo(),
+                                  Load->getChain(), BasePtr, SrcValue,
+                                  MemVTs.getLo(), BaseAlign,
+                                  Load->getMemOperand()->getFlags());
   SDValue HiPtr = DAG.getNode(ISD::ADD, SL, PtrVT, BasePtr,
                               DAG.getConstant(Size, SL, PtrVT));
   SDValue HiLoad =
-      DAG.getExtLoad(Load->getExtensionType(), SL, HiVT, Load->getChain(),
-                     HiPtr, SrcValue.getWithOffset(LoMemVT.getStoreSize()),
-                     HiMemVT, HiAlign, Load->getMemOperand()->getFlags());
+    DAG.getExtLoad(Load->getExtensionType(), SL, VTs.getHi(), Load->getChain(),
+                   HiPtr, SrcValue.getWithOffset(MemVTs.getLoStoreSize()),
+                   MemVTs.getHi(), HiAlign, Load->getMemOperand()->getFlags());
 
   SDValue Ops[] = {
     DAG.getNode(ISD::CONCAT_VECTORS, SL, VT, LoLoad, HiLoad),
@@ -1093,30 +1092,29 @@ SDValue AMDGPUTargetLowering::SplitVectorStore(SDValue Op,
   SDValue BasePtr = Store->getBasePtr();
   SDLoc SL(Op);
 
-  EVT LoVT, HiVT;
-  EVT LoMemVT, HiMemVT;
   SDValue Lo, Hi;
 
-  std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(VT);
-  std::tie(LoMemVT, HiMemVT) = DAG.GetSplitDestVTs(MemVT);
-  std::tie(Lo, Hi) = DAG.SplitVector(Val, SL, LoVT, HiVT);
+  VTS<EVT> VTs = DAG.GetSplitDestVTs(VT);
+  VTS<EVT> MemVTs = DAG.GetSplitDestVTs(MemVT);
+  std::tie(Lo, Hi) = DAG.SplitVector(Val, SL, VTs);
+
+  unsigned Size = MemVTs.getLoStoreSize();
+  unsigned BaseAlign = Store->getAlignment();
+  unsigned HiAlign = MinAlign(BaseAlign, Size);
 
   EVT PtrVT = BasePtr.getValueType();
   SDValue HiPtr = DAG.getNode(ISD::ADD, SL, PtrVT, BasePtr,
-                              DAG.getConstant(LoMemVT.getStoreSize(), SL,
-                                              PtrVT));
+                              DAG.getConstant(Size, SL, PtrVT));
 
   const MachinePointerInfo &SrcValue = Store->getMemOperand()->getPointerInfo();
-  unsigned BaseAlign = Store->getAlignment();
-  unsigned Size = LoMemVT.getStoreSize();
-  unsigned HiAlign = MinAlign(BaseAlign, Size);
 
   SDValue LoStore =
-      DAG.getTruncStore(Chain, SL, Lo, BasePtr, SrcValue, LoMemVT, BaseAlign,
-                        Store->getMemOperand()->getFlags());
+      DAG.getTruncStore(Chain, SL, Lo, BasePtr, SrcValue, MemVTs.getLo(),
+                        BaseAlign, Store->getMemOperand()->getFlags());
   SDValue HiStore =
       DAG.getTruncStore(Chain, SL, Hi, HiPtr, SrcValue.getWithOffset(Size),
-                        HiMemVT, HiAlign, Store->getMemOperand()->getFlags());
+                        MemVTs.getHi(), HiAlign,
+                        Store->getMemOperand()->getFlags());
 
   return DAG.getNode(ISD::TokenFactor, SL, MVT::Other, LoStore, HiStore);
 }

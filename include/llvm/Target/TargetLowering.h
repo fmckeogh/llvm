@@ -112,6 +112,7 @@ public:
   /// LegalizeKind holds the legalization kind that needs to happen to EVT
   /// in order to type-legalize it.
   typedef std::pair<LegalizeTypeAction, EVT> LegalizeKind;
+  typedef std::pair<LegalizeTypeAction, VTS<EVT>> LegalizeKinds;
 
   /// Enum that describes how the target represents true/false values.
   enum BooleanContent {
@@ -548,6 +549,9 @@ public:
   /// to transform to.
   EVT getTypeToTransformTo(LLVMContext &Context, EVT VT) const {
     return getTypeConversion(Context, VT).second;
+  }
+  VTS<EVT> getTypesToTransformTo(LLVMContext &Context, EVT VT) const {
+    return getTypeConversions(Context, VT).second;
   }
 
   /// For types supported by the target, this is an identity function.  For
@@ -2062,6 +2066,17 @@ protected:
 
 private:
   LegalizeKind getTypeConversion(LLVMContext &Context, EVT VT) const;
+  LegalizeKinds getTypeConversions(LLVMContext &Context, EVT VT) const {
+    LegalizeKind LK = getTypeConversion(Context, VT);
+    switch (LK.first) {
+    default:
+      return LegalizeKinds(LK.first, LK.second);
+    case TypeExpandInteger:
+    case TypeSplitVector:
+      return LegalizeKinds(LK.first,
+                           VTS<EVT>::getExpandedVT(Context, VT, LK.second));
+    }
+  }
 
 private:
 
