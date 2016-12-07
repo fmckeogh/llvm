@@ -121,39 +121,39 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   setLibcallName(RTLIB::SHL_I8, "_bshl");
   setLibcallCallingConv(RTLIB::SHL_I8, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::SHL_I16, "_sshl");
-  setLibcallCallingConv(RTLIB::SHL_I16, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::SHL_I16, CallingConv::Z80_LibCall_C);
   setLibcallName(RTLIB::SHL_I16_I8, "_sshl_b");
   setLibcallCallingConv(RTLIB::SHL_I16_I8, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::SHL_I24, "_ishl");
-  setLibcallCallingConv(RTLIB::SHL_I24, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::SHL_I24, CallingConv::Z80_LibCall_C);
   setLibcallName(RTLIB::SHL_I24_I8, "_ishl_b");
   setLibcallCallingConv(RTLIB::SHL_I24_I8, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::SHL_I32, "_lshl");
-  setLibcallCallingConv(RTLIB::SHL_I32, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::SHL_I32, CallingConv::Z80_LibCall_L);
   setLibcallName(RTLIB::SRA_I8, "_bshrs");
   setLibcallCallingConv(RTLIB::SRA_I8, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::SRA_I16, "_sshrs");
-  setLibcallCallingConv(RTLIB::SRA_I16, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::SRA_I16, CallingConv::Z80_LibCall_C);
   setLibcallName(RTLIB::SRA_I16_I8, "_sshrs_b");
   setLibcallCallingConv(RTLIB::SRA_I16_I8, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::SRA_I24, "_ishrs");
-  setLibcallCallingConv(RTLIB::SRA_I24, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::SRA_I24, CallingConv::Z80_LibCall_C);
   setLibcallName(RTLIB::SRA_I24_I8, "_ishrs_b");
   setLibcallCallingConv(RTLIB::SRA_I24_I8, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::SRA_I32, "_lshrs");
-  setLibcallCallingConv(RTLIB::SRA_I32, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::SRA_I32, CallingConv::Z80_LibCall_L);
   setLibcallName(RTLIB::SRL_I8, "_bshl");
   setLibcallCallingConv(RTLIB::SRL_I8, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::SRL_I16, "_sshru");
-  setLibcallCallingConv(RTLIB::SRL_I16, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::SRL_I16, CallingConv::Z80_LibCall_C);
   setLibcallName(RTLIB::SRL_I16_I8, "_sshru_b");
   setLibcallCallingConv(RTLIB::SRL_I16_I8, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::SRL_I24, "_ishru");
-  setLibcallCallingConv(RTLIB::SRL_I24, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::SRL_I24, CallingConv::Z80_LibCall_C);
   setLibcallName(RTLIB::SRL_I24_I8, "_ishru_b");
   setLibcallCallingConv(RTLIB::SRL_I24_I8, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::SRL_I32, "_lshru");
-  setLibcallCallingConv(RTLIB::SRL_I32, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::SRL_I32, CallingConv::Z80_LibCall_L);
   setLibcallName(RTLIB::CMP_I32, "_lcmpu");
   setLibcallCallingConv(RTLIB::CMP_I32, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::CMP_I16_0, "_scmpzero");
@@ -177,7 +177,7 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   setLibcallName(RTLIB::SUB_I32, "_lsub");
   setLibcallCallingConv(RTLIB::SUB_I32, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::MUL_I8, "_bmulu");
-  setLibcallCallingConv(RTLIB::MUL_I8, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::MUL_I8, CallingConv::Z80_LibCall_BC);
   setLibcallName(RTLIB::MUL_I16, "_smulu");
   setLibcallCallingConv(RTLIB::MUL_I16, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::MUL_I24, "_imulu");
@@ -187,7 +187,7 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   setLibcallName(RTLIB::MUL_I32, "_lmulu");
   setLibcallCallingConv(RTLIB::MUL_I32, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::SDIV_I8, "_bdivs");
-  setLibcallCallingConv(RTLIB::SDIV_I8, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::SDIV_I8, CallingConv::Z80_LibCall_BC);
   setLibcallName(RTLIB::SDIV_I16, "_sdivs");
   setLibcallCallingConv(RTLIB::SDIV_I16, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::SDIV_I24, "_idivs");
@@ -195,7 +195,7 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   setLibcallName(RTLIB::SDIV_I32, "_ldivs");
   setLibcallCallingConv(RTLIB::SDIV_I32, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::UDIV_I8, "_bdivu");
-  setLibcallCallingConv(RTLIB::UDIV_I8, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::UDIV_I8, CallingConv::Z80_LibCall_BC);
   setLibcallName(RTLIB::UDIV_I16, "_sdivu");
   setLibcallCallingConv(RTLIB::UDIV_I16, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::UDIV_I24, "_idivu");
@@ -203,7 +203,7 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   setLibcallName(RTLIB::UDIV_I32, "_ldivu");
   setLibcallCallingConv(RTLIB::UDIV_I32, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::SREM_I8, "_brems");
-  setLibcallCallingConv(RTLIB::SREM_I8, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::SREM_I8, CallingConv::Z80_LibCall_AC);
   setLibcallName(RTLIB::SREM_I16, "_srems");
   setLibcallCallingConv(RTLIB::SREM_I16, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::SREM_I24, "_irems");
@@ -211,7 +211,7 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   setLibcallName(RTLIB::SREM_I32, "_lrems");
   setLibcallCallingConv(RTLIB::SREM_I32, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::UREM_I8, "_bremu");
-  setLibcallCallingConv(RTLIB::UREM_I8, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::UREM_I8, CallingConv::Z80_LibCall_AC);
   setLibcallName(RTLIB::UREM_I16, "_sremu");
   setLibcallCallingConv(RTLIB::UREM_I16, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::UREM_I24, "_iremu");
@@ -744,7 +744,29 @@ CCAssignFn *Z80TargetLowering::getCCAssignFn(CallingConv::ID CallConv) const {
   case CallingConv::C:
     return Is24Bit ? CC_EZ80_C : CC_Z80_C;
   case CallingConv::Z80_LibCall:
-    return CC_Z80_LC;
+    return CC_Z80_LC_AB;
+  case CallingConv::Z80_LibCall_AC:
+    return CC_Z80_LC_AC;
+  case CallingConv::Z80_LibCall_BC:
+    return CC_Z80_LC_BC;
+  case CallingConv::Z80_LibCall_C:
+    return CC_Z80_LC_C;
+  case CallingConv::Z80_LibCall_L:
+    return CC_Z80_LC_L;
+  }
+}
+CCAssignFn *Z80TargetLowering::getRetCCAssignFn(CallingConv::ID CallConv) const {
+  bool Is24Bit = Subtarget.is24Bit();
+  switch (CallConv) {
+  default: llvm_unreachable("Unsupported calling convention!");
+  case CallingConv::C:
+  case CallingConv::Z80_LibCall:
+  case CallingConv::Z80_LibCall_AC:
+  case CallingConv::Z80_LibCall_BC:
+  case CallingConv::Z80_LibCall_C:
+    return RetCC_Z80_C;
+  case CallingConv::Z80_LibCall_L:
+    return RetCC_Z80_LC_L;
   }
 }
 
@@ -975,7 +997,7 @@ SDValue Z80TargetLowering::LowerReturn(SDValue Chain,
 
   SmallVector<CCValAssign, 16> RVLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, *DAG.getContext());
-  CCInfo.AnalyzeReturn(Outs, RetCC_Z80_C);
+  CCInfo.AnalyzeReturn(Outs, getRetCCAssignFn(CallConv));
 
   SDValue Flag;
   SmallVector<SDValue, 6> RetOps;
@@ -1012,7 +1034,7 @@ Z80TargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
   SmallVector<CCValAssign, 16> RVLocs;
   CCState CCInfo(CallConv, IsVarArg, DAG.getMachineFunction(), RVLocs,
                  *DAG.getContext());
-  CCInfo.AnalyzeCallResult(Ins, RetCC_Z80_C);
+  CCInfo.AnalyzeCallResult(Ins, getRetCCAssignFn(CallConv));
 
   // Copy all of the result registers out of their specified physreg.
   for (unsigned I = 0, E = RVLocs.size(); I != E; ++I) {
@@ -1027,8 +1049,8 @@ Z80TargetLowering::LowerCallResult(SDValue Chain, SDValue InFlag,
 
 EVT Z80TargetLowering::getTypeForExtReturn(LLVMContext &Context, EVT VT,
                                            ISD::NodeType ExtendKind) const {
-  EVT MinVT = getRegisterType(Context, MVT::i8);
-  return VT.bitsLT(MinVT) ? MinVT : VT;
+  // The ABI does not require anything to be extended.
+  return VT;
 }
 
 SDValue Z80TargetLowering::LowerFormalArguments(

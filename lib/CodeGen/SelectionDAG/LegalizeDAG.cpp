@@ -4017,6 +4017,24 @@ void SelectionDAGLegalize::ConvertNodeToLibcall(SDNode *Node) {
                                        RTLIB::XOR_I24, RTLIB::XOR_I32,
                                        RTLIB::XOR_I64, RTLIB::XOR_I128));
     break;
+  case ISD::SHL:
+    Results.push_back(ExpandIntLibCall(Node, false,
+                                       RTLIB::SHL_I8,  RTLIB::SHL_I16,
+                                       RTLIB::SHL_I24, RTLIB::SHL_I32,
+                                       RTLIB::SHL_I64, RTLIB::SHL_I128));
+    break;
+  case ISD::SRA:
+    Results.push_back(ExpandIntLibCall(Node, false,
+                                       RTLIB::SRA_I8,  RTLIB::SRA_I16,
+                                       RTLIB::SRA_I24, RTLIB::SRA_I32,
+                                       RTLIB::SRA_I64, RTLIB::SRA_I128));
+    break;
+  case ISD::SRL:
+    Results.push_back(ExpandIntLibCall(Node, false,
+                                       RTLIB::SRL_I8,  RTLIB::SRL_I16,
+                                       RTLIB::SRL_I24, RTLIB::SRL_I32,
+                                       RTLIB::SRL_I64, RTLIB::SRL_I128));
+    break;
   case ISD::SREM:
     Results.push_back(ExpandIntLibCall(Node, true,
                                        RTLIB::SREM_I8,  RTLIB::SREM_I16,

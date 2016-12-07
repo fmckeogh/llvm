@@ -196,9 +196,13 @@ namespace CallingConv {
     /// Register calling convention used for parameters transfer optimization
     X86_RegCall = 92,
 
-    /// Calling convention used for special Z80 rtlib functions
+    /// Calling conventions used for special Z80 rtlib functions
     /// which pass in registers and saves all registers.
     Z80_LibCall = 93,
+    Z80_LibCall_AC = 94,
+    Z80_LibCall_BC = 95,
+    Z80_LibCall_C = 96,
+    Z80_LibCall_L = 97,
 
     /// The highest possible calling convention ID. Must be some 2^k - 1.
     MaxID = 1023

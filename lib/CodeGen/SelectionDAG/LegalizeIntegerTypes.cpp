@@ -2195,6 +2195,8 @@ void DAGTypeLegalizer::ExpandIntRes_MUL(SDNode *N,
   RTLIB::Libcall LC = RTLIB::UNKNOWN_LIBCALL;
   if (VT == MVT::i16)
     LC = RTLIB::MUL_I16;
+  else if (VT == MVT::i24)
+    LC = RTLIB::MUL_I24;
   else if (VT == MVT::i32)
     LC = RTLIB::MUL_I32;
   else if (VT == MVT::i64)
@@ -2316,13 +2318,15 @@ void DAGTypeLegalizer::ExpandIntRes_SDIV(SDNode *N,
 
   if (TLI.getOperationAction(ISD::SDIVREM, VT) == TargetLowering::Custom) {
     SDValue Res = DAG.getNode(ISD::SDIVREM, dl, DAG.getVTList(VT, VT), Ops);
-    SplitInteger(Res.getValue(0), Lo, Hi);
+    ExpandInteger(Res.getValue(0), Lo, Hi);
     return;
   }
 
   RTLIB::Libcall LC = RTLIB::UNKNOWN_LIBCALL;
   if (VT == MVT::i16)
     LC = RTLIB::SDIV_I16;
+  else if (VT == MVT::i24)
+    LC = RTLIB::SDIV_I24;
   else if (VT == MVT::i32)
     LC = RTLIB::SDIV_I32;
   else if (VT == MVT::i64)
@@ -2505,13 +2509,15 @@ void DAGTypeLegalizer::ExpandIntRes_SREM(SDNode *N,
 
   if (TLI.getOperationAction(ISD::SDIVREM, VT) == TargetLowering::Custom) {
     SDValue Res = DAG.getNode(ISD::SDIVREM, dl, DAG.getVTList(VT, VT), Ops);
-    SplitInteger(Res.getValue(1), Lo, Hi);
+    ExpandInteger(Res.getValue(1), Lo, Hi);
     return;
   }
 
   RTLIB::Libcall LC = RTLIB::UNKNOWN_LIBCALL;
   if (VT == MVT::i16)
     LC = RTLIB::SREM_I16;
+  else if (VT == MVT::i24)
+    LC = RTLIB::SREM_I24;
   else if (VT == MVT::i32)
     LC = RTLIB::SREM_I32;
   else if (VT == MVT::i64)
@@ -2652,13 +2658,15 @@ void DAGTypeLegalizer::ExpandIntRes_UDIV(SDNode *N,
 
   if (TLI.getOperationAction(ISD::UDIVREM, VT) == TargetLowering::Custom) {
     SDValue Res = DAG.getNode(ISD::UDIVREM, dl, DAG.getVTList(VT, VT), Ops);
-    SplitInteger(Res.getValue(0), Lo, Hi);
+    ExpandInteger(Res.getValue(0), Lo, Hi);
     return;
   }
 
   RTLIB::Libcall LC = RTLIB::UNKNOWN_LIBCALL;
   if (VT == MVT::i16)
     LC = RTLIB::UDIV_I16;
+  else if (VT == MVT::i24)
+    LC = RTLIB::UDIV_I24;
   else if (VT == MVT::i32)
     LC = RTLIB::UDIV_I32;
   else if (VT == MVT::i64)
@@ -2678,13 +2686,15 @@ void DAGTypeLegalizer::ExpandIntRes_UREM(SDNode *N,
 
   if (TLI.getOperationAction(ISD::UDIVREM, VT) == TargetLowering::Custom) {
     SDValue Res = DAG.getNode(ISD::UDIVREM, dl, DAG.getVTList(VT, VT), Ops);
-    SplitInteger(Res.getValue(1), Lo, Hi);
+    ExpandInteger(Res.getValue(1), Lo, Hi);
     return;
   }
 
   RTLIB::Libcall LC = RTLIB::UNKNOWN_LIBCALL;
   if (VT == MVT::i16)
     LC = RTLIB::UREM_I16;
+  else if (VT == MVT::i24)
+    LC = RTLIB::UREM_I24;
   else if (VT == MVT::i32)
     LC = RTLIB::UREM_I32;
   else if (VT == MVT::i64)

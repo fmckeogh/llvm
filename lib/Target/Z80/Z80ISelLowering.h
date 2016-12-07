@@ -167,6 +167,7 @@ public:
   SDValue LowerSTORE(StoreSDNode *Node, SelectionDAG &DAG) const;
 
   CCAssignFn *getCCAssignFn(CallingConv::ID CallConv) const;
+  CCAssignFn *getRetCCAssignFn(CallingConv::ID CallConv) const;
 
   SDValue LowerFormalArguments(SDValue Chain,
                                CallingConv::ID CallConv, bool isVarArg,

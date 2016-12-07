@@ -62,6 +62,10 @@ Z80RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
   case CallingConv::C:
     return Is24Bit ? CSR_EZ80_C_RegMask : CSR_Z80_C_RegMask;
   case CallingConv::Z80_LibCall:
+  case CallingConv::Z80_LibCall_AC:
+  case CallingConv::Z80_LibCall_BC:
+  case CallingConv::Z80_LibCall_C:
+  case CallingConv::Z80_LibCall_L:
     return Is24Bit ? CSR_EZ80_LC_RegMask : CSR_Z80_LC_RegMask;
   }
 }
