@@ -2450,6 +2450,11 @@ public:
     return false;
   }
 
+  /// Return true if x op y -> (SrcVT)((DstVT)x op (DstVT)y) is beneficial.
+  virtual bool isDesirableToShrinkOp(unsigned /*Opc*/, EVT SrcVT, EVT DstVT) const {
+    return isTruncateFree(SrcVT, DstVT) && isZExtFree(DstVT, SrcVT);
+  }
+
   /// This method query the target whether it is beneficial for dag combiner to
   /// promote the specified node. If true, it should return the desired
   /// promotion type by reference.

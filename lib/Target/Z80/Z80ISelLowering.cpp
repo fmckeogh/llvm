@@ -597,6 +597,66 @@ void Z80TargetLowering::ReplaceNodeResults(SDNode *N,
   }
 }
 
+/// Return true if the target has native support for the specified value type
+/// and it is 'desirable' to use the type for the given node type. e.g. On x86
+/// i16 is legal, but undesirable since i16 instruction encodings are longer and
+/// some i16 instructions are slow.
+bool Z80TargetLowering::isTypeDesirableForOp(unsigned Opc, EVT VT) const {
+  if (!isTypeLegal(VT))
+    return false;
+  if (VT != MVT::i16 || Subtarget.is16Bit())
+    return true;
+
+  switch (Opc) {
+  default:
+    return true;
+  case ISD::LOAD:
+  case ISD::STORE:
+  case ISD::SIGN_EXTEND:
+  case ISD::ZERO_EXTEND:
+  case ISD::ANY_EXTEND:
+  case ISD::SHL:
+  case ISD::SRL:
+  case ISD::SUB:
+  case ISD::ADD:
+  case ISD::MUL:
+  case ISD::AND:
+  case ISD::OR:
+  case ISD::XOR:
+    return false;
+  }
+}
+
+/// Return true if x op y -> (SrcVT)((DstVT)x op (DstVT)y) is beneficial.
+bool Z80TargetLowering::isDesirableToShrinkOp(unsigned Opc, EVT SrcVT,
+                                              EVT DstVT) const {
+  switch (Opc) {
+  default:
+    return false;
+  case ISD::ADD:
+  case ISD::SUB:
+    // These require a .sis suffix for i24 -> i16
+    return DstVT != MVT::i16 || Subtarget.is16Bit();
+  case ISD::AND:
+  case ISD::OR:
+  case ISD::XOR:
+  case ISD::MUL:
+    // These are more expensive on larger types, so always shrink.
+    return true;
+  }
+}
+
+/// This method query the target whether it is beneficial for dag combiner to
+/// promote the specified node. If true, it should return the desired promotion
+/// type by reference.
+bool Z80TargetLowering::IsDesirableToPromoteOp(SDValue Op, EVT &PVT) const {
+  EVT VT = Op.getValueType();
+  if (VT != MVT::i16 || Subtarget.is16Bit())
+    return false;
+  PVT = MVT::i24;
+  return true;
+}
+
 MachineBasicBlock *
 Z80TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                MachineBasicBlock *BB) const {

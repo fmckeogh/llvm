@@ -374,6 +374,8 @@ bool TargetLowering::TargetLoweringOpt::ShrinkDemandedConstant(SDValue Op,
 /// Convert x+y to (VT)((SmallVT)x+(SmallVT)y) if the casts are free.
 /// This uses isZExtFree and ZERO_EXTEND for the widening cast, but it could be
 /// generalized for targets with other types of implicit widening casts.
+///// This uses ANY_EXTEND for the widening cast, because undemanded bits are
+///// undefined.
 bool TargetLowering::TargetLoweringOpt::ShrinkDemandedOp(SDValue Op,
                                                          unsigned BitWidth,
                                                          const APInt &Demanded,
@@ -393,25 +395,24 @@ bool TargetLowering::TargetLoweringOpt::ShrinkDemandedOp(SDValue Op,
     return false;
 
   // Search for the smallest integer type with free casts to and from
-  // Op's type. For expedience, just check power-of-2 integer types.
+  // Op's type. For expedience, just check MVTs.
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   unsigned DemandedSize = BitWidth - Demanded.countLeadingZeros();
-  unsigned SmallVTBits = DemandedSize;
-  if (!isPowerOf2_32(SmallVTBits))
-    SmallVTBits = NextPowerOf2(SmallVTBits);
-  for (; SmallVTBits < BitWidth; SmallVTBits = NextPowerOf2(SmallVTBits)) {
-    EVT SmallVT = EVT::getIntegerVT(*DAG.getContext(), SmallVTBits);
-    if (TLI.isTruncateFree(Op.getValueType(), SmallVT) &&
-        TLI.isZExtFree(SmallVT, Op.getValueType())) {
-      // We found a type with free casts.
+  for (MVT SmallVT : MVT::integer_valuetypes()) {
+    unsigned SmallVTBits = SmallVT.getSizeInBits();
+    // Skip types too small to compute DemandedSize bits
+    if (SmallVTBits < DemandedSize)
+      continue;
+    // Stop when we get to the original size
+    if (SmallVTBits >= BitWidth)
+      break;
+    if (TLI.isDesirableToShrinkOp(Op.getOpcode(), Op.getValueType(), SmallVT)) {
       SDValue X = DAG.getNode(Op.getOpcode(), dl, SmallVT,
                               DAG.getNode(ISD::TRUNCATE, dl, SmallVT,
                                           Op.getNode()->getOperand(0)),
                               DAG.getNode(ISD::TRUNCATE, dl, SmallVT,
                                           Op.getNode()->getOperand(1)));
-      bool NeedZext = DemandedSize > SmallVTBits;
-      SDValue Z = DAG.getNode(NeedZext ? ISD::ZERO_EXTEND : ISD::ANY_EXTEND,
-                              dl, Op.getValueType(), X);
+      SDValue Z = DAG.getNode(ISD::ANY_EXTEND, dl, Op.getValueType(), X);
       return CombineTo(Op, Z);
     }
   }

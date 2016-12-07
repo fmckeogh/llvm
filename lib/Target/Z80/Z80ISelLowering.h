@@ -151,6 +151,21 @@ public:
   void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
                           SelectionDAG &DAG) const override;
 
+  /// Return true if the target has native support for
+  /// the specified value type and it is 'desirable' to use the type for the
+  /// given node type. e.g. On x86 i16 is legal, but undesirable since i16
+  /// instruction encodings are longer and some i16 instructions are slow.
+  bool isTypeDesirableForOp(unsigned Opc, EVT VT) const override;
+
+  /// Return true if x op y -> (SrcVT)((DstVT)x op (DstVT)y) is beneficial.
+  bool isDesirableToShrinkOp(unsigned Opc, EVT SrcVT, EVT DstVT) const override;
+
+  /// Return true if the target has native support for the
+  /// specified value type and it is 'desirable' to use the type. e.g. On x86
+  /// i16 is legal, but undesirable since i16 instruction encodings are longer
+  /// and some i16 instructions are slow.
+  bool IsDesirableToPromoteOp(SDValue Op, EVT &PVT) const override;
+
   MachineBasicBlock *
     EmitInstrWithCustomInserter(MachineInstr &MI,
                                 MachineBasicBlock *BB) const override;
