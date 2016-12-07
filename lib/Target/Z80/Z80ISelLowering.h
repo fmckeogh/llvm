@@ -89,10 +89,6 @@ public:
 
   // Legalize Helpers
 
-  bool allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
-                          unsigned AddrSpace = 0, unsigned Alignment = 1,
-                          bool *Fast = nullptr) const override;
-
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
   SDValue LowerLoad(LoadSDNode *Node, SelectionDAG &DAG) const;
   SDValue LowerStore(StoreSDNode *Node, SelectionDAG &DAG) const;

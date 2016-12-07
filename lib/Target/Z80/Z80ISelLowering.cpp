@@ -256,16 +256,6 @@ void Z80TargetLowering::ReplaceNodeResults(SDNode *N,
 
 // Legalize Helpers
 
-bool Z80TargetLowering::
-allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
-                   unsigned AddrSpace, unsigned Alignment, bool *Fast) const {
-//if (VT == MVT::i16 && !Subtarget.has16BitEZ80Ops())
-//  return false;
-  if (Fast != nullptr)
-    *Fast = true;
-  return true;
-}
-
 SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   DEBUG(dbgs() << "LowerOperation: "; Op->dump(&DAG));
   assert(Op.getResNo() == 0);
