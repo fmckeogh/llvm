@@ -47,9 +47,8 @@ enum CondCode {
 CondCode GetOppositeBranchCondition(CondCode CC);
 
 bool splitReg(unsigned ByteSize, unsigned Opc8, unsigned Opc16, unsigned Opc24,
-              unsigned &Idx, unsigned &LoOpc, unsigned &LoReg,
-              unsigned &HiOpc, unsigned &HiReg, unsigned &HiOff,
-              const Z80Subtarget &Subtarget);
+              unsigned &RC, unsigned &LoOpc, unsigned &LoIdx, unsigned &HiOpc,
+              unsigned &HiIdx, unsigned &HiOff, bool Has16BitEZ80Ops);
 } // end namespace Z80;
 
 class Z80InstrInfo final : public Z80GenInstrInfo {
@@ -89,11 +88,16 @@ public:
                            unsigned SrcReg, bool isKill, int FrameIndex,
                            const TargetRegisterClass *RC,
                            const TargetRegisterInfo *TRI) const override;
+  unsigned isStoreToStackSlot(const MachineInstr &MI,
+                              int &FrameIndex) const override;
   void loadRegFromStackSlot(MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MI,
                             unsigned DstReg, int FrameIndex,
                             const TargetRegisterClass *RC,
                             const TargetRegisterInfo *TRI) const override;
+  unsigned isLoadFromStackSlot(const MachineInstr &MI,
+                               int &FrameIndex) const override;
+
   bool expandPostRAPseudo(MachineInstr &MI) const override;
 
   /// analyzeCompare - For a comparison instruction, return the source registers
@@ -110,12 +114,29 @@ public:
                             unsigned SrcReg2, int CmpMask, int CmpValue,
                             const MachineRegisterInfo *MRI) const override;
 
+  MachineInstr *
+  foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
+                        ArrayRef<unsigned> Ops,
+                        MachineBasicBlock::iterator InsertPt, int FrameIndex,
+                        LiveIntervals *LIS = nullptr) const override;
+  MachineInstr *
+  foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
+                        ArrayRef<unsigned> Ops,
+                        MachineBasicBlock::iterator InsertPt,
+                        MachineInstr &LoadMI,
+                        LiveIntervals *LIS = nullptr) const override;
+
 private:
   /// canExchange - This returns whether the two instructions can be directly
   /// exchanged with one EX instruction. Since the only register exchange
   /// instruction is EX DE,HL, simply returns whether the two arguments are
   /// super-registers of E and L, in any order.
   bool canExchange(unsigned RegA, unsigned RegB) const;
+
+  /// isFrameOperand - Return true and the FrameIndex if the specified
+  /// operand and follow operands form a reference to the stack frame.
+  bool isFrameOperand(const MachineInstr &MI, unsigned int Op,
+                      int &FrameIndex) const;
 };
 
 } // End llvm namespace

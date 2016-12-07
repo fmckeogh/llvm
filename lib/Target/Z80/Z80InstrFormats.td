@@ -14,13 +14,13 @@
 class Prefix<bits<3> val> {
   bits<3> Value = val;
 }
-def NoPrfx   : Prefix<0>;
-def ExtPrfx  : Prefix<1>;
-def BSPrfx   : Prefix<2>;
-def IXPrfx   : Prefix<3>;
-def IXBSPrfx : Prefix<4>;
-def IYPrfx   : Prefix<5>;
-def IYXSPrfx : Prefix<6>;
+def NoPre   : Prefix<0>;
+def CBPre   : Prefix<1>;
+def DDPre   : Prefix<2>;
+def DDCBPre : Prefix<3>;
+def EDPre   : Prefix<4>;
+def FDPre   : Prefix<5>;
+def FDCBPre : Prefix<6>;
 
 class Z80Inst<Prefix prfx, bits<8> opcod, dag outs, dag ins, list<dag> pattern,
               string asm = "", string con = "">
@@ -54,6 +54,6 @@ class P<dag outs = (outs), dag ins = (ins), list<dag> pattern = []>
   let isPseudo = 1;
 }
 class I<bits<8> o, dag outs = (outs), dag ins = (ins), list<dag> pattern = []>
-  : Z80Inst<NoPrfx, o, outs, ins, pattern>;
+  : Z80Inst<NoPre, o, outs, ins, pattern>;
 class PI<Prefix prfx, bits<8> o, dag outs, dag ins, list<dag> pattern = []>
   : Z80Inst<prfx, o, outs, ins, pattern>;

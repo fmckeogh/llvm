@@ -13,6 +13,7 @@ add_public_tablegen_target(Z80CommonTableGen)
 set(sources
   Z80AsmPrinter.cpp
   Z80CallFrameOptimization.cpp
+  Z80ExpandPseudo.cpp
   Z80FrameLowering.cpp
   Z80ISelDAGToDAG.cpp
   Z80ISelLowering.cpp

@@ -30,6 +30,12 @@ FunctionPass *createZ80ISelDag(Z80TargetMachine &TM,
 /// Return a pass that optimizes z80 call sequences.
 FunctionPass *createZ80CallFrameOptimization();
 
+/// Return a Machine IR pass that expands Z80-specific pseudo
+/// instructions into a sequence of actual instructions. This pass
+/// must run after prologue/epilogue insertion and before lowering
+/// the MachineInstr to MC.
+FunctionPass *createZ80ExpandPseudoPass();
+
 /// Return a pass that optimizes instructions after register selection.
 FunctionPass *createZ80MachineLateOptimization();
 } // End llvm namespace

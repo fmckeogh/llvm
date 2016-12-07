@@ -154,7 +154,8 @@ class Z80RC16<dag regList> : RegisterClass<"Z80", [i16], 8, regList>;
 class Z80RC24<dag regList> : RegisterClass<"Z80", [i24], 8, regList>;
 class Z80RC32<dag regList> : RegisterClass<"Z80", [i32], 8, regList>;
 
-def C8  : Z80RC8 <(add F)>;
+let CopyCost = -1, isAllocatable = 0 in
+def F8  : Z80RC8 <(add F)>;
 def G8  : Z80RC8 <(add A, L, E, C, H, D, B)>;
 def O8  : Z80RC8 <(add A, E, C, D, B)>;
 def X8  : Z80RC8 <(add O8, IXL, IXH)>;
@@ -167,20 +168,26 @@ def G16 : Z80RC16<(add HL, O16)>;
 def X16 : Z80RC16<(add IX, O16)>;
 def Y16 : Z80RC16<(add IY, O16)>;
 def I16 : Z80RC16<(add IX, IY)>;
-def L16 : Z80RC16<(add G16, I16)>;
-def R16 : Z80RC16<(add L16, SPS)>;
-def S16 : Z80RC16<(add L16, AF)>;
 def A16 : Z80RC16<(add HL, I16)>;
+def R16 : Z80RC16<(add G16, I16)>;
+def S16 : Z80RC16<(add R16, AF)>;
+//def L16 : Z80RC16<(add G16, I16)>;
+//def R16 : Z80RC16<(add L16, SPS)>;
+//def S16 : Z80RC16<(add L16, AF)>;
+def C16 : Z80RC16<(add SPS)>;
 
 def O24 : Z80RC24<(add UDE, UBC)>;
 def G24 : Z80RC24<(add UHL, O24)>;
 def X24 : Z80RC24<(add UIX, O24)>;
 def Y24 : Z80RC24<(add UIY, O24)>;
 def I24 : Z80RC24<(add UIX, UIY)>;
-def L24 : Z80RC24<(add G24, I24)>;
-def R24 : Z80RC24<(add L24, SPL)>;
-def S24 : Z80RC24<(add L24, AF)>;
 def A24 : Z80RC24<(add UHL, I24)>;
+def R24 : Z80RC24<(add G24, I24)>;
+def S24 : Z80RC24<(add R24, AF)>;
+//def L24 : Z80RC24<(add G24, I24)>;
+//def R24 : Z80RC24<(add L24, SPL)>;
+//def S24 : Z80RC24<(add L24, AF)>;
+def C24 : Z80RC24<(add SPL)>;
 
 def A32 : Z80RC32<(add AUHL, AUIX, AUIY)>;
 def R32 : Z80RC32<(add AUHL, CUHL, BUHL, EUHL, DUHL,

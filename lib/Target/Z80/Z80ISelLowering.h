@@ -33,10 +33,13 @@ enum NodeType : unsigned {
   Wrapper,
 
   /// Shift/Rotate
-  RLC1, RRC1, RL1, RR1, SLA1, SRA1, SRL1, SLA, SRA, SRL,
+  RLC, RRC, RL, RR, SLA, SRA, SRL,
 
   /// Arithmetic operation with flags results.
   INC, DEC, ADD, ADC, SUB, SBC, AND, XOR, OR,
+
+  /// Z80 compare and test
+  CP, TST,
 
   MLT,
 
@@ -50,9 +53,6 @@ enum NodeType : unsigned {
 
   /// Tail call return.
   TC_RETURN,
-
-  /// Z80 compare
-  CMP,
 
   /// BRCOND - Z80 conditional branch.  The first operand is the chain, the
   /// second is the block to branch to if the condition is true, the third is
@@ -76,19 +76,34 @@ public:
   explicit Z80TargetLowering(const Z80TargetMachine &TM,
                              const Z80Subtarget &STI);
 
+  MVT getScalarShiftAmountTy(const DataLayout &, EVT) const override {
+    return MVT::i8;
+  }
+
+  // Legalize Types Helpers
+
+  /// Replace the results of node with an illegal result type with new values
+  /// built out of custom code.
+  void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
+                          SelectionDAG &DAG) const override;
+
+  // Legalize Helpers
+
+  bool allowsMemoryAccess(LLVMContext &Context, const DataLayout &DL, EVT VT,
+                          unsigned AddrSpace = 0, unsigned Alignment = 1,
+                          bool *Fast = nullptr) const override;
+
+  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+  SDValue LowerLoad(LoadSDNode *Node, SelectionDAG &DAG) const;
+  SDValue LowerStore(StoreSDNode *Node, SelectionDAG &DAG) const;
+
+  /// ---------------------------------------------------------------------- ///
+
   bool useSoftFloat() const override { return true; }
   bool isSelectSupported(SelectSupportKind /*Kind*/) const override {
     return false;
   }
   bool canOpTrap(unsigned Op, EVT VT) const override { return false; }
-  bool allowsMisalignedMemoryAccesses(EVT /*VT*/, unsigned /*AddrSpace*/,
-                                      unsigned /*Align*/,
-                                      bool *Fast) const override {
-    if (Fast != nullptr)
-      *Fast = true;
-    return true;
-  }
-  
 
   /// This method returs the name of a target specific DAG node.
   const char *getTargetNodeName(unsigned Opcode) const override;
@@ -98,7 +113,7 @@ public:
                          EVT VT) const override;
 
   /// Provide custom lowering hooks for some operations.
-  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+  SDValue LowerOperationOld(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerLibCall(RTLIB::Libcall LC8, RTLIB::Libcall LC16,
                        RTLIB::Libcall LC24, RTLIB::Libcall LC32,
                        SDValue Op, SelectionDAG &DAG) const;
@@ -148,8 +163,10 @@ public:
 
   /// Replace the results of node with an illegal result type with new values
   /// built out of custom code.
-  void ReplaceNodeResults(SDNode *N, SmallVectorImpl<SDValue> &Results,
-                          SelectionDAG &DAG) const override;
+  void ReplaceNodeResultsOld(SDNode *N, SmallVectorImpl<SDValue> &Results,
+                          SelectionDAG &DAG) const;
+
+  SDValue PerformDAGCombine(SDNode *N, DAGCombinerInfo &DCI) const override;
 
   /// Return true if the target has native support for
   /// the specified value type and it is 'desirable' to use the type for the
@@ -166,14 +183,42 @@ public:
   /// and some i16 instructions are slow.
   bool IsDesirableToPromoteOp(SDValue Op, EVT &PVT) const override;
 
+  /// Return true if the MachineFunction contains a COPY which would imply
+  /// HasOpaqueSPAdjustment.
+  bool hasCopyImplyingStackAdjustment(MachineFunction *MF) const override;
+
   MachineBasicBlock *
     EmitInstrWithCustomInserter(MachineInstr &MI,
                                 MachineBasicBlock *BB) const override;
 
+  void AdjustInstrPostInstrSelection(MachineInstr &MI,
+                                     SDNode *Node) const override;
+
  private:
-  SDValue EmitCMP(SDValue &LHS, SDValue &RHS, SDValue &TargetCC,
+  // SelectionDAG helpers
+  SDValue EmitOffset(int64_t Amount, const SDLoc &DL, SDValue Op,
+                     SelectionDAG &DAG) const;
+  SDValue EmitNegate(const SDLoc &DL, SDValue Op, SelectionDAG &DAG) const;
+  SDValue EmitFlipSign(const SDLoc &DL, SDValue Op, SelectionDAG &DAG) const;
+  // Legalize Helpers
+  SDValue EmitCmp(SDValue LHS, SDValue RHS, SDValue &TargetCC,
+                  ISD::CondCode CC, const SDLoc &DL, SelectionDAG &DAG) const;
+  // Old SelectionDAG Helpers
+  SDValue EmitExtractSubreg(unsigned Idx, const SDLoc &DL, SDValue Op,
+                            SelectionDAG &DAG) const;
+  SDValue EmitInsertSubreg(unsigned Idx, const SDLoc &DL, MVT VT, SDValue Op,
+                           SelectionDAG &DAG) const;
+
+  SDValue EmitCMP(SDValue LHS, SDValue RHS, SDValue &TargetCC,
                   ISD::CondCode CC, const SDLoc &DL, SelectionDAG &DAG) const;
 
+  SDValue LowerAddSubNew(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerAddSub(SDValue Op, SelectionDAG &DAG) const;
+
+  SDValue LowerADDSUB(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerSHL(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerSHR(bool Signed, SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerMUL(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBR_CC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
@@ -213,14 +258,24 @@ public:
   EVT getTypeForExtReturn(LLVMContext &Context, EVT VT,
                           ISD::NodeType ExtendKind) const override;
 
-  MachineBasicBlock *EmitAdjCallStack(MachineInstr &MI,
-                                      MachineBasicBlock *BB) const;
+  void AdjustAdjCallStack(MachineInstr &MI) const;
+  MachineBasicBlock *EmitLoweredSub0(MachineInstr &MI,
+                                     MachineBasicBlock *BB) const;
   MachineBasicBlock *EmitLoweredSub(MachineInstr &MI,
                                     MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitLoweredCmp0(MachineInstr &MI,
+                                     MachineBasicBlock *BB) const;
   MachineBasicBlock *EmitLoweredCmp(MachineInstr &MI,
                                     MachineBasicBlock *BB) const;
   MachineBasicBlock *EmitLoweredSelect(MachineInstr &MI,
                                        MachineBasicBlock *BB) const;
+
+  SDValue combineCopyFromReg(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue combineStore(StoreSDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue combineEXTRACT_SUBREG(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue combineINSERT_SUBREG(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue combineADD(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue combineSUB(SDNode *N, DAGCombinerInfo &DCI) const;
 };
 } // End llvm namespace
 

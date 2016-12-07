@@ -16,42 +16,34 @@
 //===----------------------------------------------------------------------===//
 // Type Constraints.
 //===----------------------------------------------------------------------===//
-class SDTCisI8 <int OpNum> : SDTCisVT<OpNum, i8>;
-class SDTCisI16<int OpNum> : SDTCisVT<OpNum, i16>;
-class SDTCisI24<int OpNum> : SDTCisVT<OpNum, i24>;
-class SDTCisPtr<int OpNum> : SDTCisVT<OpNum, iPTR>;
+class SDTCisI8  <int OpNum> : SDTCisVT<OpNum, i8>;
+class SDTCisFlag<int OpNum> : SDTCisI8<OpNum>;
+class SDTCisI16 <int OpNum> : SDTCisVT<OpNum, i16>;
+class SDTCisI24 <int OpNum> : SDTCisVT<OpNum, i24>;
+class SDTCisPtr <int OpNum> : SDTCisVT<OpNum, iPTR>;
 
 //===----------------------------------------------------------------------===//
 // Type Profiles.
 //===----------------------------------------------------------------------===//
-def SDTUnaryByteArithWithFlagsOut   : SDTypeProfile<2, 1, [SDTCisI8<0>,
-                                                           SDTCisI8<1>,
-                                                           SDTCisI8<2>]>;
-def SDTUnaryByteArithWithFlagsInOut : SDTypeProfile<2, 2, [SDTCisI8<0>,
-                                                           SDTCisI8<1>,
-                                                           SDTCisI8<2>,
-                                                           SDTCisI8<3>]>;
-def SDTUnaryArith                   : SDTypeProfile<1, 1, [SDTCisInt<0>,
-                                                           SDTCisSameAs<1, 0>]>;
-def SDTUnaryArithWithFlagsOut       : SDTypeProfile<2, 1, [SDTCisInt<0>,
-                                                           SDTCisI8<1>,
-                                                           SDTCisSameAs<2, 0>]>;
-def SDTUnaryArithWithFlagsInOut     : SDTypeProfile<2, 2, [SDTCisInt<0>,
-                                                           SDTCisI8<1>,
-                                                           SDTCisSameAs<2, 0>,
-                                                           SDTCisI8<3>]>;
-def SDTBinaryArith                  : SDTypeProfile<1, 2, [SDTCisInt<0>,
-                                                           SDTCisSameAs<1, 0>,
-                                                           SDTCisSameAs<2, 0>]>;
-def SDTBinaryArithWithFlagsOut      : SDTypeProfile<2, 2, [SDTCisInt<0>,
-                                                           SDTCisI8<1>,
-                                                           SDTCisSameAs<2, 0>,
-                                                           SDTCisSameAs<3, 0>]>;
-def SDTBinaryArithWithFlagsInOut    : SDTypeProfile<2, 3, [SDTCisInt<0>,
-                                                           SDTCisI8<1>,
-                                                           SDTCisSameAs<2, 0>,
-                                                           SDTCisSameAs<3, 0>,
-                                                           SDTCisI8<4>]>;
+def SDTUnOpRF   : SDTypeProfile<2, 1, [SDTCisInt<0>,
+                                       SDTCisFlag<1>,
+                                       SDTCisSameAs<2, 0>]>;
+def SDTUnOpRFF  : SDTypeProfile<2, 2, [SDTCisInt<0>,
+                                       SDTCisFlag<1>,
+                                       SDTCisSameAs<2, 0>,
+                                       SDTCisFlag<3>]>;
+def SDTBinOpRF  : SDTypeProfile<2, 2, [SDTCisInt<0>,
+                                       SDTCisFlag<1>,
+                                       SDTCisSameAs<2, 0>,
+                                       SDTCisSameAs<3, 0>]>;
+def SDTBinOpRFF : SDTypeProfile<2, 3, [SDTCisInt<0>,
+                                       SDTCisFlag<1>,
+                                       SDTCisSameAs<2, 0>,
+                                       SDTCisSameAs<3, 0>,
+                                       SDTCisFlag<4>]>;
+def SDTBinOpF   : SDTypeProfile<1, 2, [SDTCisFlag<0>,
+                                       SDTCisInt<1>,
+                                       SDTCisSameAs<2, 1>]>;
 
 def SDTZ80Wrapper        : SDTypeProfile<1, 1, [SDTCisPtrTy<0>,
                                                 SDTCisSameAs<1, 0>]>;
@@ -60,9 +52,6 @@ def SDT_Z80TCRet         : SDTypeProfile<0, 1, [SDTCisPtrTy<0>]>;
 def SDT_Z80Call          : SDTypeProfile<0, -1, [SDTCisPtr<0>]>;
 def SDT_Z80CallSeqStart  : SDCallSeqStart<[SDTCisPtr<0>]>;
 def SDT_Z80CallSeqEnd    : SDCallSeqEnd<[SDTCisPtr<0>, SDTCisPtr<1>]>;
-def SDT_Z80Cmp           : SDTypeProfile<1, 2, [SDTCisI8<0>,
-                                                SDTCisInt<1>,
-                                                SDTCisSameAs<2, 1>]>;
 def SDT_Z80BrCond        : SDTypeProfile<0, 3, [SDTCisVT<0, OtherVT>,
                                                 SDTCisI8<1>,
                                                 SDTCisI8<2>]>;
@@ -77,29 +66,24 @@ def SDT_Z80Select        : SDTypeProfile<1, 4, [SDTCisInt<0>,
 //
 
 def Z80Wrapper       : SDNode<"Z80ISD::Wrapper", SDTZ80Wrapper>;
-def Z80rlc1          : SDNode<"Z80ISD::RLC1",    SDTUnaryArithWithFlagsOut>;
-def Z80rrc1          : SDNode<"Z80ISD::RRC1",    SDTUnaryArithWithFlagsOut>;
-def Z80rl1           : SDNode<"Z80ISD::RL1",     SDTUnaryArithWithFlagsInOut>;
-def Z80rr1           : SDNode<"Z80ISD::RR1",     SDTUnaryArithWithFlagsInOut>;
-def Z80sla1          : SDNode<"Z80ISD::SLA1",    SDTUnaryArithWithFlagsOut>;
-def Z80sra1          : SDNode<"Z80ISD::SRA1",    SDTUnaryArithWithFlagsOut>;
-def Z80srl1          : SDNode<"Z80ISD::SRL1",    SDTUnaryArithWithFlagsOut>;
-def Z80sla           : SDNode<"Z80ISD::SLA",     SDTBinaryArithWithFlagsOut>;
-def Z80sra           : SDNode<"Z80ISD::SRA",     SDTBinaryArithWithFlagsOut>;
-def Z80srl           : SDNode<"Z80ISD::SRL",     SDTBinaryArithWithFlagsOut>;
-def Z80inc_flag      : SDNode<"Z80ISD::INC",     SDTUnaryArithWithFlagsOut>;
-def Z80dec_flag      : SDNode<"Z80ISD::DEC",     SDTUnaryArithWithFlagsOut>;
-def Z80add_flag      : SDNode<"Z80ISD::ADD",     SDTBinaryArithWithFlagsOut,
-                              [SDNPCommutative]>;
-def Z80adc_flag      : SDNode<"Z80ISD::ADC",     SDTBinaryArithWithFlagsInOut>;
-def Z80sub_flag      : SDNode<"Z80ISD::SUB",     SDTBinaryArithWithFlagsOut>;
-def Z80sbc_flag      : SDNode<"Z80ISD::SBC",     SDTBinaryArithWithFlagsInOut>;
-def Z80and_flag      : SDNode<"Z80ISD::AND",     SDTBinaryArithWithFlagsOut,
-                              [SDNPCommutative]>;
-def Z80xor_flag      : SDNode<"Z80ISD::XOR",     SDTBinaryArithWithFlagsOut,
-                              [SDNPCommutative]>;
-def Z80or_flag       : SDNode<"Z80ISD::OR",      SDTBinaryArithWithFlagsOut,
-                              [SDNPCommutative]>;
+def Z80rlc_flag      : SDNode<"Z80ISD::RLC",     SDTUnOpRF>;
+def Z80rrc_flag      : SDNode<"Z80ISD::RRC",     SDTUnOpRF>;
+def Z80rl_flag       : SDNode<"Z80ISD::RL",      SDTUnOpRFF>;
+def Z80rr_flag       : SDNode<"Z80ISD::RR",      SDTUnOpRFF>;
+def Z80sla_flag      : SDNode<"Z80ISD::SLA",     SDTUnOpRF>;
+def Z80sra_flag      : SDNode<"Z80ISD::SRA",     SDTUnOpRF>;
+def Z80srl_flag      : SDNode<"Z80ISD::SRL",     SDTUnOpRF>;
+def Z80inc_flag      : SDNode<"Z80ISD::INC",     SDTUnOpRF>;
+def Z80dec_flag      : SDNode<"Z80ISD::DEC",     SDTUnOpRF>;
+def Z80add_flag      : SDNode<"Z80ISD::ADD",     SDTBinOpRF, [SDNPCommutative]>;
+def Z80adc_flag      : SDNode<"Z80ISD::ADC",     SDTBinOpRFF>;
+def Z80sub_flag      : SDNode<"Z80ISD::SUB",     SDTBinOpRF>;
+def Z80sbc_flag      : SDNode<"Z80ISD::SBC",     SDTBinOpRFF>;
+def Z80and_flag      : SDNode<"Z80ISD::AND",     SDTBinOpRF, [SDNPCommutative]>;
+def Z80xor_flag      : SDNode<"Z80ISD::XOR",     SDTBinOpRF, [SDNPCommutative]>;
+def Z80or_flag       : SDNode<"Z80ISD::OR",      SDTBinOpRF, [SDNPCommutative]>;
+def Z80cp_flag       : SDNode<"Z80ISD::CP",      SDTBinOpF>;
+def Z80tst_flag      : SDNode<"Z80ISD::TST",     SDTBinOpF,  [SDNPCommutative]>;
 def Z80mlt           : SDNode<"Z80ISD::MLT",     SDT_Z80mlt>;
 def Z80retflag       : SDNode<"Z80ISD::RET_FLAG", SDTNone,
                               [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
@@ -112,7 +96,6 @@ def Z80callseq_start : SDNode<"ISD::CALLSEQ_START", SDT_Z80CallSeqStart,
                               [SDNPHasChain, SDNPOutGlue]>;
 def Z80callseq_end   : SDNode<"ISD::CALLSEQ_END", SDT_Z80CallSeqEnd,
                               [SDNPHasChain, SDNPOptInGlue, SDNPOutGlue]>;
-def Z80cmp           : SDNode<"Z80ISD::CMP",    SDT_Z80Cmp>;
 def Z80brcond        : SDNode<"Z80ISD::BRCOND", SDT_Z80BrCond, [SDNPHasChain]>;
 def Z80select        : SDNode<"Z80ISD::SELECT", SDT_Z80Select>;
 
@@ -213,7 +196,7 @@ def offpat : ComplexPattern<iPTR, 2, "SelectOff",
 // Instruction list.
 //
 
-let usesCustomInserter = 1 in {
+let hasPostISelHook = 1 in {
   let Defs = [SPS, F], Uses = [SPS] in {
   def ADJCALLSTACKDOWN16 : P<(outs), (ins i16imm:$amt),
                              [(Z80callseq_start timm:$amt)]>,
@@ -223,13 +206,15 @@ let usesCustomInserter = 1 in {
                            Requires<[In16BitMode]>;
   }
   let Defs = [SPL, F], Uses = [SPL] in {
-  def ADJCALLSTACKDOWN24 : P<(outs), (ins i16imm:$amt),
+  def ADJCALLSTACKDOWN24 : P<(outs), (ins i24imm:$amt),
                              [(Z80callseq_start timm:$amt)]>,
                            Requires<[In24BitMode]>;
-  def ADJCALLSTACKUP24   : P<(outs), (ins i16imm:$amt1, i16imm:$amt2),
+  def ADJCALLSTACKUP24   : P<(outs), (ins i24imm:$amt1, i24imm:$amt2),
                              [(Z80callseq_end timm:$amt1, timm:$amt2)]>,
                            Requires<[In24BitMode]>;
   }
+}
+let usesCustomInserter = 1 in {
   def Select8  : P<(outs  R8:$dst), (ins  R8:$true,  R8:$false, i8imm:$cc),
                    [(set  R8:$dst, (Z80select  R8:$true,  R8:$false, imm:$cc,
                                     F))]>;
@@ -238,20 +223,39 @@ let usesCustomInserter = 1 in {
                                     F))]>;
   def Select24 : P<(outs R24:$dst), (ins R24:$true, R24:$false, i8imm:$cc),
                    [(set R24:$dst, (Z80select R24:$true, R24:$false, imm:$cc,
-                                    F))]>;
+                                    F))]>,
+                   Requires<[In24BitMode]>;
+  let Defs = [HL, F], Uses = [HL] in {
+    def Sub016 : P<(outs), (ins), [(set  HL, F, (Z80sub_flag  HL, 0))]>;
+    def Sub16  : P<(outs), (ins G16:$src),
+                   [(set  HL, F, (Z80sub_flag  HL, G16:$src))]>;
+  }
+  let Defs = [UHL, F], Uses = [UHL] in {
+    def Sub024 : P<(outs), (ins), [(set UHL, F, (Z80sub_flag UHL, 0))]>,
+                 Requires<[In24BitMode]>;
+    def Sub24 :  P<(outs), (ins G24:$src),
+                   [(set UHL, F, (Z80sub_flag UHL, G24:$src))]>,
+                 Requires<[In24BitMode]>;
+  }
+  let Defs = [F] in {
+    let Uses = [HL] in {
+      def Cp016 : P<(outs), (ins), [(set F, (Z80cp_flag HL, 0))]>;
+      def Cp16  : P<(outs), (ins G16:$src),
+                   [(set F, (Z80cp_flag HL, G16:$src))]>;
+    }
+    let Uses = [UHL] in {
+      def Cp024 : P<(outs), (ins), [(set F, (Z80cp_flag UHL, 0))]>,
+                  Requires<[In24BitMode]>;
+      def Cp24  : P<(outs), (ins G24:$src),
+                    [(set F, (Z80cp_flag UHL, G24:$src))]>,
+                  Requires<[In24BitMode]>;
+    }
+  }
 }
-let Defs = [HL, F] in
-def Sub16 : P<(outs), (ins O16:$src), [(set  HL, (sub  HL, O16:$src)),
-                                       (implicit F)]>;
-let Defs = [UHL, F] in
-def Sub24 : P<(outs), (ins O24:$src), [(set UHL, (sub UHL, O24:$src)),
-                                       (implicit F)]>;
-let Defs = [F] in {
-  let Uses = [HL] in
-  def Cmp16 : P<(outs), (ins O16:$src), [(set F, (Z80cmp  HL, O16:$src))]>;
-  let Uses = [UHL] in
-  def Cmp24 : P<(outs), (ins O24:$src), [(set F, (Z80cmp UHL, O24:$src))]>;
-}
+def : Pat<(sub   HL, G16:$src), (Sub16 G16:$src)>;
+def : Pat<(subc  HL, G16:$src), (Sub16 G16:$src)>;
+def : Pat<(sub  UHL, G24:$src), (Sub24 G24:$src)>;
+def : Pat<(subc UHL, G24:$src), (Sub24 G24:$src)>;
 
 let AsmString = "nop", hasSideEffects = 0 in
 def NOP : I<0x00, (outs), (ins), []>;
@@ -324,13 +328,13 @@ let isBranch = 1, isTerminator = 1, Uses = [F] in {
 //
 
 let AsmString = "ld\t$dst, $src" in {
-def  LD8rr :  I<        0x40, (outs  R8:$dst), (ins  R8:$src)>;
-def  LD8xx : PI<IXPrfx, 0x40, (outs  X8:$dst), (ins  X8:$src)>,
+def  LD8rr :  I<       0x40, (outs  R8:$dst), (ins  R8:$src)>;
+def  LD8xx : PI<DDPre, 0x40, (outs  X8:$dst), (ins  X8:$src)>,
              Requires<[HaveIdxHalf]>;
-def  LD8yy : PI<IYPrfx, 0x40, (outs  Y8:$dst), (ins  Y8:$src)>,
+def  LD8yy : PI<FDPre, 0x40, (outs  Y8:$dst), (ins  Y8:$src)>,
              Requires<[HaveIdxHalf]>;
 
-let mayLoad = 1 in {
+let mayLoad = 1, canFoldAsLoad = 1 in {
 def LD16rm : I<0x2A, (outs R16:$dst), (ins mem:$src),
                [(set R16:$dst, (i16 (load mempat:$src)))]>;
 def LD24rm : I<0x2A, (outs R24:$dst), (ins mem:$src),
@@ -338,21 +342,21 @@ def LD24rm : I<0x2A, (outs R24:$dst), (ins mem:$src),
              Requires<[HaveEZ80Ops]>;
 
 def  LD8rp : I<0x46, (outs  R8:$dst), (ins ptr:$src),
-               [(set  R8:$dst, (i8  (load iPTR:$src)))]>;
+               [(set  R8:$dst, (load iPTR:$src))]>;
 def LD16rp : I<0x46, (outs R16:$dst), (ins ptr:$src),
-               [(set R16:$dst, (i16 (load iPTR:$src)))]>,
+               [(set R16:$dst, (load iPTR:$src))]>,
              Requires<[HaveEZ80Ops]>;
 def LD24rp : I<0x46, (outs R24:$dst), (ins ptr:$src),
-               [(set R24:$dst, (i24 (load iPTR:$src)))]>,
+               [(set R24:$dst, (load iPTR:$src))]>,
              Requires<[HaveEZ80Ops]>;
 
 def  LD8ro : I<0x46, (outs  R8:$dst), (ins off:$src),
-               [(set  R8:$dst, (i8  (load offpat:$src)))]>;
+               [(set  R8:$dst, (load offpat:$src))]>;
 def LD16ro : I<0x46, (outs R16:$dst), (ins off:$src),
-               [(set R16:$dst, (i16 (load offpat:$src)))]>,
+               [(set R16:$dst, (load offpat:$src))]>,
              Requires<[HaveEZ80Ops]>;
 def LD24ro : I<0x46, (outs R24:$dst), (ins off:$src),
-               [(set R24:$dst, (i24 (load offpat:$src)))]>,
+               [(set R24:$dst, (load offpat:$src))]>,
              Requires<[HaveEZ80Ops]>;
 }
 
@@ -387,39 +391,41 @@ def  LD8oi : I<0x36, (outs), (ins off:$dst,  i8imm:$src),
                [(store (i8 imm:$src), offpat:$dst)]>;
 }
 
+let isMoveImm = 1, isReMaterializable = 1 in {
 def  LD8ri :  I<        0x06, (outs  R8:$dst), (ins  i8imm:$src),
                 [(set  R8:$dst,    imm:$src)]>;
 }
-def LD16ri : SI<NoPrfx, 0x01, "ld", "$dst, $src", "",
+def LD16ri : SI<NoPre, 0x01, "ld", "$dst, $src", "",
                 (outs R16:$dst), (ins i16imm:$src),
                 [(set R16:$dst, mempat:$src)]>;
-def LD24ri : LI<NoPrfx, 0x01, "ld", "$dst, $src", "",
+def LD24ri : LI<NoPre, 0x01, "ld", "$dst, $src", "",
                 (outs R24:$dst), (ins i24imm:$src),
                 [(set R24:$dst, mempat:$src)]>;
+}
 
 let AsmString = "ld\ta, $src", Defs = [A], mayLoad = 1 in
 def  LD8am : I<0x3A, (outs), (ins mem:$src),
-               [(set  A, (i8  (load mempat:$src)))]>;
+               [(set  A, (load mempat:$src))]>;
 let AsmString = "ld\t$dst, a", Uses = [A], mayStore = 1 in
 def  LD8ma : I<0x32, (outs), (ins mem:$dst),
                [(store  A, mempat:$dst)]>;
 
 let AsmString = "ld\tsp, $src" in {
 let Defs = [SPS] in
-def LD16SP : SI<NoPrfx, 0xF9, "ld", "sp, $src", "", (outs), (ins A16:$src)>;
+def LD16SP : SI<NoPre, 0xF9, "ld", "sp, $src", "", (outs), (ins A16:$src)>;
 let Defs = [SPL] in
-def LD24SP : LI<NoPrfx, 0xF9, "ld", "sp, $src", "", (outs), (ins A24:$src)>;
+def LD24SP : LI<NoPre, 0xF9, "ld", "sp, $src", "", (outs), (ins A24:$src)>;
 }
 
 let Defs = [DE, HL], Uses = [DE, HL] in
-def EX16DE : SI<NoPrfx, 0xEB, "ex", "de, hl", "", (outs), (ins)>;
+def EX16DE : SI<NoPre, 0xEB, "ex", "de, hl", "", (outs), (ins)>;
 let Defs = [UDE, UHL], Uses = [UDE, UHL] in
-def EX24DE : LI<NoPrfx, 0xEB, "ex", "de, hl", "", (outs), (ins)>;
+def EX24DE : LI<NoPre, 0xEB, "ex", "de, hl", "", (outs), (ins)>;
 
 let Defs = [HL], Uses = [HL, SPS] in
-def EX16SP : SI<NoPrfx, 0xE3, "ex", "(sp), hl", "", (outs), (ins)>;
+def EX16SP : SI<NoPre, 0xE3, "ex", "(sp), hl", "", (outs), (ins)>;
 let Defs = [UHL], Uses = [UHL, SPL] in
-def EX24SP : LI<NoPrfx, 0xE3, "ex", "(sp), hl", "", (outs), (ins)>;
+def EX24SP : LI<NoPre, 0xE3, "ex", "(sp), hl", "", (outs), (ins)>;
 
 let AsmString = "pop\t$dst" in {
 let Uses = [SPS] in
@@ -435,7 +441,7 @@ let Uses = [SPL] in
 def PUSH24r : I<0xC5, (outs), (ins S24:$src)>;
 }
 
-let Defs = [F] in {
+let Defs = [F], isReMaterializable = 1 in {
   def RCF : P;
   let AsmString = "scf" in
   def SCF : I<0x37>;
@@ -447,131 +453,231 @@ let Defs = [F] in {
 //  Arithmetic Instructions.
 //
 
-let Defs = [F] in {
-def ADD16aa : SI<NoPrfx, 0x29, "add", "$dst, $src", "$src = $dst",
-                 (outs A16:$dst), (ins A16:$src),
-                 [(set A16:$dst,  (add A16:$src, A16:$src)), (implicit F)]>;
-def ADD24aa : LI<NoPrfx, 0x29, "add", "$dst, $src", "$src = $dst",
-                 (outs A24:$dst), (ins A24:$src),
-                 [(set A24:$dst,  (add A24:$src, A24:$src)), (implicit F)]>;
-def ADD16ao : SI<NoPrfx, 0x09, "add", "$dst, $src", "$imp = $dst",
-                 (outs A16:$dst), (ins A16:$imp, O16:$src),
-                 [(set A16:$dst,  (add A16:$imp, O16:$src)), (implicit F)]>;
-def ADD24ao : LI<NoPrfx, 0x09, "add", "$dst, $src", "$imp = $dst",
-                 (outs A24:$dst), (ins A24:$imp, O24:$src),
-                 [(set A24:$dst,  (add A24:$imp, O24:$src)), (implicit F)]>;
-let Uses = [SPS] in
-def ADD16SP : SI<NoPrfx, 0x39, "add", "$dst, sp", "$imp = $dst",
-                 (outs A16:$dst), (ins A16:$imp),
-                 [(set A16:$dst,  (add A16:$imp, SPS)), (implicit F)]>;
-let Uses = [SPL] in
-def ADD24SP : LI<NoPrfx, 0x39, "add", "$dst, sp", "$imp = $dst",
-                 (outs A24:$dst), (ins A24:$imp),
-                 [(set A24:$dst,  (add A24:$imp, SPL)), (implicit F)]>;
+multiclass UnOp8RF<Prefix prefix, bits<8> opcode, string mnemonic> {
+  let AsmString = !strconcat(mnemonic, "\t$arg"), Defs = [F] in {
+    let Constraints = "$imp = $arg" in
+    def 8r : PI<prefix, opcode, (outs R8:$imp), (ins R8:$arg),
+                [(set R8:$imp, F,
+                      (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                          R8:$arg))]>;
+    def 8m : PI<prefix, opcode, (outs), (ins ptr:$arg),
+                [(store (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                            (i8 (load iPTR:$arg))), iPTR:$arg),
+                 (implicit F)]>;
+    def 8o : PI<prefix, opcode, (outs), (ins off:$arg),
+                [(store (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                            (i8 (load offpat:$arg))), offpat:$arg),
+                 (implicit F)]>;
+  }
 }
+multiclass UnOp8RFF<Prefix prefix, bits<8> opcode, string mnemonic> {
+  let AsmString = !strconcat(mnemonic, "\t$arg"), Defs = [F], Uses = [F] in {
+    let Constraints = "$imp = $arg" in
+    def 8r : PI<prefix, opcode, (outs R8:$imp), (ins R8:$arg),
+                [(set R8:$imp, F,
+                      (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                          R8:$arg, F))]>;
+    def 8m : PI<prefix, opcode, (outs), (ins ptr:$arg),
+                [(store (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                            (i8 (load iPTR:$arg)), F), iPTR:$arg),
+                 (implicit F)]>;
+    def 8o : PI<prefix, opcode, (outs), (ins off:$arg),
+                [(store (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                            (i8 (load offpat:$arg)), F), offpat:$arg),
+                 (implicit F)]>;
+  }
+}
+multiclass BinOp8RF<Prefix prefix, bits<3> opcode, string mnemonic,
+                    bit compare = 0> {
+  let AsmString = !strconcat(mnemonic, "\ta, $arg"),
+      isCompare = compare, Defs = [A, F], Uses = [A] in {
+    def 8ar : PI<prefix, {0b10, opcode, 0b000}, (outs), (ins    R8:$arg),
+                 [(set A, F,
+                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                           A, R8:$arg))]>;
+    def 8ai : PI<prefix, {0b11, opcode, 0b110}, (outs), (ins i8imm:$arg),
+                 [(set A, F,
+                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                           A, imm:$arg))]>;
+    def 8am : PI<prefix, {0b10, opcode, 0b110}, (outs), (ins   ptr:$arg),
+                 [(set A, F,
+                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                           A, (i8 (load   iPTR:$arg))))]>;
+    def 8ao : PI<prefix, {0b10, opcode, 0b110}, (outs), (ins   off:$arg),
+                 [(set A, F,
+                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                           A, (i8 (load offpat:$arg))))]>;
+  }
+  def : Pat<(!cast<SDNode>(mnemonic) A,  R8:$arg),
+            (!cast<Instruction>(!strconcat(NAME, "8ar"))  R8:$arg)>;
+  def : Pat<(!cast<SDNode>(mnemonic) A, imm:$arg),
+            (!cast<Instruction>(!strconcat(NAME, "8ai")) imm:$arg)>;
+  def : Pat<(!cast<SDNode>(mnemonic) A, (load iPTR:$arg)),
+            (!cast<Instruction>(!strconcat(NAME, "8am")) ptr:$arg)>;
+  def : Pat<(!cast<SDNode>(mnemonic) A, (load offpat:$arg)),
+            (!cast<Instruction>(!strconcat(NAME, "8ao")) off:$arg)>;
+}
+multiclass BinOp8RFF<Prefix prefix, bits<3> opcode, string mnemonic,
+                     SDNode node, bit compare = 0> {
+  let AsmString = !strconcat(mnemonic, "\ta, $arg"),
+      isCompare = compare, Defs = [A, F], Uses = [A, F] in {
+    def 8ar : PI<prefix, {0b10, opcode, 0b000}, (outs), (ins    R8:$arg),
+                 [(set A, F,
+                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                           A, R8:$arg, F))]>;
+    def 8ai : PI<prefix, {0b11, opcode, 0b110}, (outs), (ins i8imm:$arg),
+                 [(set A, F,
+                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                           A, imm:$arg, F))]>;
+    def 8am : PI<prefix, {0b10, opcode, 0b110}, (outs), (ins   ptr:$arg),
+                 [(set A, F,
+                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                           A, (i8 (load iPTR:$arg)), F))]>;
+    def 8ao : PI<prefix, {0b10, opcode, 0b110}, (outs), (ins   off:$arg),
+                 [(set A, F,
+                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                           A, (i8 (load offpat:$arg)), F))]>;
+  }
+  def : Pat<(node A,  R8:$arg),
+            (!cast<Instruction>(!strconcat(NAME, "8ar"))  R8:$arg)>;
+  def : Pat<(node A, imm:$arg),
+            (!cast<Instruction>(!strconcat(NAME, "8ai")) imm:$arg)>;
+  def : Pat<(node A, (load iPTR:$arg)),
+            (!cast<Instruction>(!strconcat(NAME, "8am")) ptr:$arg)>;
+  def : Pat<(node A, (load offpat:$arg)),
+            (!cast<Instruction>(!strconcat(NAME, "8ao")) off:$arg)>;
+}
+multiclass BinOp8F<Prefix prefix, bits<3> opcode, string mnemonic,
+                   bit compare = 0> {
+  let AsmString = !strconcat(mnemonic, "\ta, $arg"),
+      isCompare = compare, Defs = [F], Uses = [A] in {
+    def 8ar : PI<prefix, {0b10, opcode, 0b000}, (outs), (ins    R8:$arg),
+                 [(set F,
+                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                           A, R8:$arg))]>;
+    def 8ai : PI<prefix, {0b11, opcode, 0b110}, (outs), (ins i8imm:$arg),
+                 [(set F,
+                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                           A, imm:$arg))]>;
+    def 8am : PI<prefix, {0b10, opcode, 0b110}, (outs), (ins   ptr:$arg),
+                 [(set F,
+                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                           A, (i8 (load iPTR:$arg))))]>;
+    def 8ao : PI<prefix, {0b10, opcode, 0b110}, (outs), (ins   off:$arg),
+                 [(set F,
+                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
+                           A, (i8 (load offpat:$arg))))]>;
+  }
+}
+defm RLC : UnOp8RF  <CBPre, 0, "rlc">;
+defm RRC : UnOp8RF  <CBPre, 1, "rrc">;
+defm RL  : UnOp8RFF <CBPre, 2, "rl">;
+defm RR  : UnOp8RFF <CBPre, 3, "rr">;
+defm SLA : UnOp8RF  <CBPre, 4, "sla">;
+defm SRA : UnOp8RF  <CBPre, 5, "sra">;
+defm SRL : UnOp8RF  <CBPre, 7, "srl">;
+defm INC : UnOp8RF  <NoPre, 4, "inc">;
+def : Pat<(add R8:$reg, 1), (INC8r R8:$reg)>;
+defm DEC : UnOp8RF  <NoPre, 5, "dec">;
+def : Pat<(add R8:$reg, -1), (DEC8r R8:$reg)>;
+defm ADD : BinOp8RF <NoPre, 0, "add">;
+defm ADC : BinOp8RFF<NoPre, 1, "adc", adde>;
+defm SUB : BinOp8RF <NoPre, 2, "sub", 1>;
+defm SBC : BinOp8RFF<NoPre, 3, "sbc", sube>;
+defm AND : BinOp8RF <NoPre, 4, "and">;
+defm XOR : BinOp8RF <NoPre, 5, "xor">;
+defm OR  : BinOp8RF <NoPre, 6, "or">;
+defm CP  : BinOp8F  <NoPre, 7, "cp",  1>;
+defm TST : BinOp8F  <EDPre, 4, "tst", 1>,
+           Requires<[HaveEZ80Ops]>;
+
+let Defs = [F] in {
+def ADD16aa : SI<NoPre, 0x29, "add", "$dst, $src", "$src = $dst",
+                 (outs A16:$dst), (ins A16:$src),
+                 [(set A16:$dst, F, (Z80add_flag A16:$src, A16:$src))]>;
+def ADD24aa : LI<NoPre, 0x29, "add", "$dst, $src", "$src = $dst",
+                 (outs A24:$dst), (ins A24:$src),
+                 [(set A24:$dst, F, (Z80add_flag A24:$src, A24:$src))]>;
+def ADD16ao : SI<NoPre, 0x09, "add", "$dst, $src", "$imp = $dst",
+                 (outs A16:$dst), (ins A16:$imp, O16:$src),
+                 [(set A16:$dst, F, (Z80add_flag A16:$imp, O16:$src))]>;
+def ADD24ao : LI<NoPre, 0x09, "add", "$dst, $src", "$imp = $dst",
+                 (outs A24:$dst), (ins A24:$imp, O24:$src),
+                 [(set A24:$dst, F, (Z80add_flag A24:$imp, O24:$src))]>;
+let Uses = [SPS] in
+def ADD16SP : SI<NoPre, 0x39, "add", "$dst, sp", "$imp = $dst",
+                 (outs A16:$dst), (ins A16:$imp),
+                 [(set A16:$dst, F, (Z80add_flag A16:$imp, SPS))]>;
+let Uses = [SPL] in
+def ADD24SP : LI<NoPre, 0x39, "add", "$dst, sp", "$imp = $dst",
+                 (outs A24:$dst), (ins A24:$imp),
+                 [(set A24:$dst, F, (Z80add_flag A24:$imp, SPL))]>;
+}
+def : Pat<(add  A16:$dst, O16:$src), (ADD16ao A16:$dst, O16:$src)>;
+def : Pat<(addc A16:$dst, O16:$src), (ADD16ao A16:$dst, O16:$src)>;
+def : Pat<(add  A24:$dst, O24:$src), (ADD24ao A24:$dst, O24:$src)>;
+def : Pat<(addc A24:$dst, O24:$src), (ADD24ao A24:$dst, O24:$src)>;
 let Defs = [HL, F] in {
 let Uses = [HL, SPS, F] in {
-def SBC16SP : SI<ExtPrfx, 0x72, "sbc", "hl, sp", "", (outs), (ins),
-                 [(set  HL, (sube  HL, SPS))]>;
-def ADC16SP : SI<ExtPrfx, 0x7A, "adc", "hl, sp", "", (outs), (ins),
-                 [(set  HL, (sube  HL, SPS))]>;
+def SBC16SP : SI<EDPre, 0x72, "sbc", "hl, sp", "", (outs), (ins),
+                 [(set  HL, F, (Z80sbc_flag HL, SPS, F))]>;
+def ADC16SP : SI<EDPre, 0x7A, "adc", "hl, sp", "", (outs), (ins),
+                 [(set  HL, F, (Z80adc_flag HL, SPS, F))]>;
 }
 let Uses = [HL, F] in {
-def SBC16ar : SI<ExtPrfx, 0x42, "sbc", "hl, $src", "", (outs), (ins G16:$src),
-                 [(set  HL, (sube  HL, G16:$src))]>;
-def ADC16ar : SI<ExtPrfx, 0x4A, "adc", "hl, $src", "", (outs), (ins G16:$src),
-                 [(set  HL, (adde  HL, G16:$src))]>;
+def SBC16ar : SI<EDPre, 0x42, "sbc", "hl, $src", "", (outs), (ins G16:$src),
+                 [(set  HL, F, (Z80sbc_flag  HL, G16:$src, F))]>;
+def ADC16ar : SI<EDPre, 0x4A, "adc", "hl, $src", "", (outs), (ins G16:$src),
+                 [(set  HL, F, (Z80adc_flag  HL, G16:$src, F))]>;
 }
 }
 let Defs = [UHL, F] in {
 let Uses = [UHL, SPL, F] in {
-def SBC24SP : LI<ExtPrfx, 0x72, "sbc", "hl, sp", "", (outs), (ins),
-                 [(set UHL, (sube UHL, SPL))]>;
-def ADC24SP : LI<ExtPrfx, 0x7A, "adc", "hl, sp", "", (outs), (ins),
-                 [(set UHL, (sube UHL, SPL))]>;
+def SBC24SP : LI<EDPre, 0x72, "sbc", "hl, sp", "", (outs), (ins),
+                 [(set UHL, F, (Z80sbc_flag UHL, SPL, F))]>;
+def ADC24SP : LI<EDPre, 0x7A, "adc", "hl, sp", "", (outs), (ins),
+                 [(set UHL, F, (Z80adc_flag UHL, SPL, F))]>;
 }
 let Uses = [UHL, F] in {
-def SBC24ar : LI<ExtPrfx, 0x42, "sbc", "hl, $src", "", (outs), (ins G24:$src),
-                 [(set UHL, (sube UHL, G24:$src))]>;
-def ADC24ar : LI<ExtPrfx, 0x4A, "adc", "hl, $src", "", (outs), (ins G24:$src),
-                 [(set UHL, (adde UHL, G24:$src))]>;
+def SBC24ar : LI<EDPre, 0x42, "sbc", "hl, $src", "", (outs), (ins G24:$src),
+                 [(set UHL, F, (Z80sbc_flag UHL, G24:$src, F))]>;
+def ADC24ar : LI<EDPre, 0x4A, "adc", "hl, $src", "", (outs), (ins G24:$src),
+                 [(set UHL, F, (Z80adc_flag UHL, G24:$src, F))]>;
 }
 }
+def : Pat<(sube  HL, G16:$src), (SBC16ar G16:$src)>;
+def : Pat<(adde  HL, G16:$src), (ADC16ar G16:$src)>;
+def : Pat<(sube UHL, G24:$src), (SBC24ar G24:$src)>;
+def : Pat<(adde UHL, G24:$src), (ADC24ar G24:$src)>;
 
 let Defs = [F] in {
-def INC8r  : BI<NoPrfx, 0x04, "inc", "$dst", "$dst = $imp",
-                (outs  R8:$dst), (ins  R8:$imp),
-                [(set  R8:$dst, (add  R8:$imp, 1)), (implicit F)]>;
-def DEC8r  : BI<NoPrfx, 0x05, "dec", "$dst", "$dst = $imp",
-                (outs  R8:$dst), (ins  R8:$imp),
-                [(set  R8:$dst, (add  R8:$imp, -1)), (implicit F)]>;
-}
-def INC16r : SI<NoPrfx, 0x03, "inc", "$dst", "$dst = $imp",
+def INC16r : SI<NoPre, 0x03, "inc", "$dst", "$dst = $imp",
                 (outs R16:$dst), (ins R16:$imp),
-                [(set R16:$dst, (add R16:$imp, 1))]>;
-def DEC16r : SI<NoPrfx, 0x0B, "dec", "$dst", "$dst = $imp",
+                [(set R16:$dst, F, (Z80inc_flag R16:$imp))]>;
+def DEC16r : SI<NoPre, 0x0B, "dec", "$dst", "$dst = $imp",
                 (outs R16:$dst), (ins R16:$imp),
-                [(set R16:$dst, (add R16:$imp, -1))]>;
-def INC24r : LI<NoPrfx, 0x03, "inc", "$dst", "$dst = $imp",
+                [(set R16:$dst, F, (Z80dec_flag R16:$imp))]>;
+def INC24r : LI<NoPre, 0x03, "inc", "$dst", "$dst = $imp",
                 (outs R24:$dst), (ins R24:$imp),
-                [(set R24:$dst, (add R24:$imp, 1))]>;
-def DEC24r : LI<NoPrfx, 0x0B, "dec", "$dst", "$dst = $imp",
+                [(set R24:$dst, F, (Z80inc_flag R24:$imp))]>;
+def DEC24r : LI<NoPre, 0x0B, "dec", "$dst", "$dst = $imp",
                 (outs R24:$dst), (ins R24:$imp),
-                [(set R24:$dst, (add R24:$imp, -1))]>;
+                [(set R24:$dst, F, (Z80dec_flag R24:$imp))]>;
+}
+def : Pat<(add R16:$reg,  1), (INC16r R16:$reg)>;
+def : Pat<(add R16:$reg, -1), (DEC16r R16:$reg)>;
+def : Pat<(add R24:$reg,  1), (INC24r R24:$reg)>;
+def : Pat<(add R24:$reg, -1), (DEC24r R24:$reg)>;
 
-multiclass ALU8<bits<3> opcode, string mnemonic, SDNode op, bit Commutable> {
-  let AsmString = mnemonic#"\ta, $arg", Defs = [A, F], Uses = [A] in {
-    let isCommutable = Commutable in
-    def 8ar : I<{0b10, opcode, 0b000}, (outs), (ins    R8:$arg),
-                [(set A, (op A,               R8:$arg))]>;
-    def 8ai : I<{0b11, opcode, 0b110}, (outs), (ins i8imm:$arg),
-                [(set A, (op A,              imm:$arg))]>;
-    def 8am : I<{0b10, opcode, 0b110}, (outs), (ins   ptr:$arg),
-                [(set A, (op A, (i8 (load   iPTR:$arg))))]>;
-    def 8ao : I<{0b10, opcode, 0b110}, (outs), (ins   off:$arg),
-                [(set A, (op A, (i8 (load offpat:$arg))))]>;
-  }
-}
-multiclass ALU8F<bits<3> opcode, string mnemonic, SDNode op, bit Commutable> {
-  let AsmString = mnemonic#"\ta, $arg", Defs = [A, F], Uses = [A, F] in {
-    let isCommutable = Commutable in
-    def 8ar : I<{0b10, opcode, 0b000}, (outs), (ins    R8:$arg),
-                [(set A, (op A,               R8:$arg))]>;
-    def 8ai : I<{0b11, opcode, 0b110}, (outs), (ins i8imm:$arg),
-                [(set A, (op A,              imm:$arg))]>;
-    def 8am : I<{0b10, opcode, 0b110}, (outs), (ins   ptr:$arg),
-                [(set A, (op A, (i8 (load   iPTR:$arg))))]>;
-    def 8ao : I<{0b10, opcode, 0b110}, (outs), (ins   off:$arg),
-                [(set A, (op A, (i8 (load offpat:$arg))))]>;
-  }
-}
-defm ADD : ALU8 <0, "add", add,  1>;
-defm ADC : ALU8F<1, "adc", adde, 1>;
-defm SUB : ALU8 <2, "sub", sub,  0>;
-defm SBC : ALU8F<3, "sbc", sube, 0>;
-defm AND : ALU8 <4, "and", and,  1>;
-defm XOR : ALU8 <5, "xor", xor,  1>;
-defm  OR : ALU8 <6, "or",  or,   1>;
-let AsmString = "cp\ta, $arg", Defs = [F], Uses = [A], isCompare = 1 in {
-def  CP8ar : I<0xB8, (outs), (ins R8:$arg),
-                [(set F, (Z80cmp A,                R8:$arg))]>;
-def  CP8ai : I<0xFE, (outs), (ins i8imm:$arg),
-                [(set F, (Z80cmp A,               imm:$arg))]>;
-def  CP8am : I<0xBE, (outs), (ins ptr:$arg),
-                [(set F, (Z80cmp A, (i8 (load    iPTR:$arg))))]>;
-def  CP8ao : I<0xBE, (outs), (ins off:$arg),
-                [(set F, (Z80cmp A, (i8 (load offpat:$arg))))]>;
-}
-
-def LEA16ro : SI<ExtPrfx, 0x02, "lea", "$dst, $src", "",
-                 (outs L16:$dst), (ins off16:$src),
-                 [(set L16:$dst, offpat:$src)]>, Requires<[HaveEZ80Ops]>;
-def LEA24ro : LI<ExtPrfx, 0x02, "lea", "$dst, $src", "",
-                 (outs L24:$dst), (ins off24:$src),
-                 [(set L24:$dst, offpat:$src)]>;
+def LEA16ro : SI<EDPre, 0x02, "lea", "$dst, $src", "",
+                 (outs R16:$dst), (ins off16:$src),
+                 [(set R16:$dst, offpat:$src)]>, Requires<[HaveEZ80Ops]>;
+def LEA24ro : LI<EDPre, 0x02, "lea", "$dst, $src", "",
+                 (outs R24:$dst), (ins off24:$src),
+                 [(set R24:$dst, offpat:$src)]>;
 
 let AsmString = "mlt\t$dst", Constraints = "$src = $dst" in
-def MLT8rr : PI<ExtPrfx, 0x4C, (outs G16:$dst), (ins G16:$src),
+def MLT8rr : PI<EDPre, 0x4C, (outs G16:$dst), (ins G16:$src),
                 [(set G16:$dst, (Z80mlt G16:$src))]>, Requires<[HaveZ180Ops]>;
 
 //===----------------------------------------------------------------------===//
@@ -592,15 +698,15 @@ def MLT8rr : PI<ExtPrfx, 0x4C, (outs G16:$dst), (ins G16:$src),
 // Subsystems.
 //===----------------------------------------------------------------------===//
 
-//def : Pat<(sub UHL, O24:$src),>;
+//def : Pat<(i24 (Z80sub_flag UHL, G24:$src)), (SBC24ar G24:$src, RCF)>;
 
 // mlt
 //def : Pat<(i8 (mul R8:$arg1, R8:$arg2)),
 //          (SUBREG_TO_REG (i24 0), (MLT8rr (INSERT_SUBREG R8:$arg1)), sub_low)>;
 
-def : Pat<(i32 (imm:$src)),
+/*def : Pat<(i32 (imm:$src)),
           (REG_SEQUENCE R32, (LD24ri (imm_long_XFORM imm:$src)), sub_long,
-                             (LD8ri (imm_top_XFORM imm:$src)), sub_top)>;
+                             (LD8ri (imm_top_XFORM imm:$src)), sub_top)>;*/
 
 // anyexts
 def : Pat<(i16 (anyext R8 :$src)),
@@ -609,12 +715,12 @@ def : Pat<(i24 (anyext R8 :$src)),
           (INSERT_SUBREG (IMPLICIT_DEF), R8 :$src, sub_low)>;
 def : Pat<(i24 (anyext R16:$src)),
           (INSERT_SUBREG (IMPLICIT_DEF), R16:$src, sub_short)>;
-def : Pat<(i32 (anyext R8 :$src)),
+/*def : Pat<(i32 (anyext R8 :$src)),
           (INSERT_SUBREG (IMPLICIT_DEF), R8 :$src, sub_low)>;
 def : Pat<(i32 (anyext R16:$src)),
           (INSERT_SUBREG (IMPLICIT_DEF), R16:$src, sub_short)>;
 def : Pat<(i32 (anyext R24:$src)),
-          (INSERT_SUBREG (IMPLICIT_DEF), R24:$src, sub_long)>;
+          (INSERT_SUBREG (IMPLICIT_DEF), R24:$src, sub_long)>;*/
 
 // zexts
 def : Pat<(i16 (zext R8 :$src)),
@@ -623,7 +729,7 @@ def : Pat<(i24 (zext R8 :$src)),
           (INSERT_SUBREG (LD24ri 0), R8 :$src, sub_low)>;
 def : Pat<(i24 (zext R16:$src)),
           (INSERT_SUBREG (LD24ri 0), R16:$src, sub_short)>;
-def : Pat<(i32 (zext R8:$src)),
+/*def : Pat<(i32 (zext R8:$src)),
           (REG_SEQUENCE R32, (INSERT_SUBREG (LD24ri 0), R8:$src,
                                             sub_low), sub_long,
                              (LD8ri 0), sub_top)>;
@@ -632,15 +738,15 @@ def : Pat<(i32 (zext R16:$src)),
                                             sub_short), sub_long,
                              (LD8ri 0), sub_top)>;
 def : Pat<(i32 (zext R24:$src)),
-          (REG_SEQUENCE R32, R24:$src, sub_long, (LD8ri 0), sub_top)>;
+          (REG_SEQUENCE R32, R24:$src, sub_long, (LD8ri 0), sub_top)>;*/
 
 // truncs
 def : Pat<(i8  (trunc R16:$src)), (EXTRACT_SUBREG R16:$src, sub_low)>;
 def : Pat<(i8  (trunc R24:$src)), (EXTRACT_SUBREG R24:$src, sub_low)>;
 def : Pat<(i16 (trunc R24:$src)), (EXTRACT_SUBREG R24:$src, sub_short)>;
-def : Pat<(i8  (trunc R32:$src)), (EXTRACT_SUBREG R32:$src, sub_low)>;
+/*def : Pat<(i8  (trunc R32:$src)), (EXTRACT_SUBREG R32:$src, sub_low)>;
 def : Pat<(i16 (trunc R32:$src)), (EXTRACT_SUBREG R32:$src, sub_short)>;
-def : Pat<(i24 (trunc R32:$src)), (EXTRACT_SUBREG R32:$src, sub_long)>;
+def : Pat<(i24 (trunc R32:$src)), (EXTRACT_SUBREG R32:$src, sub_long)>;*/
 
 // loads
 //def : Pat<(i32 (load mempat:$src)), (REG_SEQUENCE R32, (LD24rm mempat:$src), sub_long, (LD8am (imm_add_3_XFORM mempat:$src)), sub_top)>;

@@ -118,7 +118,8 @@ public:
 
   bool addInstSelector() override;
   void addPreRegAlloc() override;
-  void addMachineLateOptimization() override;
+  bool addPreRewrite() override;
+  void addPreSched2() override;
 };
 } // namespace
 
@@ -135,11 +136,17 @@ bool Z80PassConfig::addInstSelector() {
 void Z80PassConfig::addPreRegAlloc() {
   TargetPassConfig::addPreRegAlloc();
   if (getOptLevel() != CodeGenOpt::None)
-    addPass(createZ80CallFrameOptimization());
+    ;//addPass(createZ80CallFrameOptimization());
 }
 
-void Z80PassConfig::addMachineLateOptimization() {
-  TargetPassConfig::addMachineLateOptimization();
+bool Z80PassConfig::addPreRewrite() {
+  //addPass(createZ80ExpandPseudoPass());
+  return TargetPassConfig::addPreRewrite();
+}
+
+void Z80PassConfig::addPreSched2() {
+  // Z80MachineLateOptimization pass must be run after ExpandPostRAPseudos
   if (getOptLevel() != CodeGenOpt::None)
     addPass(createZ80MachineLateOptimization());
+  TargetPassConfig::addPreSched2();
 }

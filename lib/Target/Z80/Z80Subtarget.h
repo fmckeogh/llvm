@@ -86,6 +86,8 @@ public:
   bool hasZ180Ops()       const { return HasZ180Ops;  }
   bool hasEZ80Ops()       const { return HasEZ80Ops;  }
   bool hasIndexHalfRegs() const { return HasIdxHalfRegs; }
+  bool has24BitEZ80Ops()  const { return is24Bit() && hasEZ80Ops(); }
+  bool has16BitEZ80Ops()  const { return is16Bit() && hasEZ80Ops(); }
 };
 } // End llvm namespace
 
