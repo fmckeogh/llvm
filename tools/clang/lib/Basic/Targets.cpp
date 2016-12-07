@@ -8248,6 +8248,7 @@ public:
     Char32Type = UnsignedLong;
     UseBitFieldTypeAlignment = false;
   }
+  bool hasInt48Type() const override { return true; }
   ArrayRef<Builtin::Info> getTargetBuiltins() const final { return None; }
   BuiltinVaListKind getBuiltinVaListKind() const override {
     return TargetInfo::VoidPtrBuiltinVaList;

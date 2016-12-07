@@ -846,10 +846,11 @@ TargetLoweringBase::TargetLoweringBase(const TargetMachine &tm) : TM(tm) {
 void TargetLoweringBase::initActions() {
   // All operations default to being supported.
   memset(OpActions, 0, sizeof(OpActions));
-  // except i24
+  // except i24, i48
   if (TM.getPointerSize() != 3)
-    std::fill(std::begin(OpActions[MVT::i24]), std::end(OpActions[MVT::i24]),
-              Expand);
+    for (auto BadVT : { MVT::i24, MVT::i48 })
+      std::fill(std::begin(OpActions[BadVT]), std::end(OpActions[BadVT]),
+                Expand);
   memset(LoadExtActions, 0, sizeof(LoadExtActions));
   memset(TruncStoreActions, 0, sizeof(TruncStoreActions));
   memset(IndexedModeActions, 0, sizeof(IndexedModeActions));
@@ -867,16 +868,20 @@ void TargetLoweringBase::initActions() {
       setIndexedStoreAction(IM, VT, Expand);
     }
 
-    // Most backends don't support i24
+    // Most backends don't support i24, i48
     if (VT.isInteger()) {
-      setLoadExtAction(ISD::EXTLOAD, MVT::i24, VT, Expand);
-      setLoadExtAction(ISD::EXTLOAD, VT, MVT::i24, Expand);
-      setLoadExtAction(ISD::ZEXTLOAD, MVT::i24, VT, Expand);
-      setLoadExtAction(ISD::ZEXTLOAD, VT, MVT::i24, Expand);
-      setLoadExtAction(ISD::SEXTLOAD, MVT::i24, VT, Expand);
-      setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i24, Expand);
-      setTruncStoreAction(MVT::i24, VT, Expand);
-      setTruncStoreAction(VT, MVT::i24, Expand);
+      for (MVT BadVT : { MVT::i24, MVT::i48 })
+        if (VT.bitsLT(BadVT)) {
+          setLoadExtAction(ISD::EXTLOAD, BadVT, VT, Expand);
+          setLoadExtAction(ISD::ZEXTLOAD, BadVT, VT, Expand);
+          setLoadExtAction(ISD::SEXTLOAD, BadVT, VT, Expand);
+          setTruncStoreAction(BadVT, VT, Expand);
+        } else if (VT.bitsGT(BadVT)) {
+          setLoadExtAction(ISD::EXTLOAD, VT, BadVT, Expand);
+          setLoadExtAction(ISD::ZEXTLOAD, VT, BadVT, Expand);
+          setLoadExtAction(ISD::SEXTLOAD, VT, BadVT, Expand);
+          setTruncStoreAction(VT, BadVT, Expand);
+        }
     }
 
     // Most backends expect to see the node which just returns the value loaded.
@@ -1353,8 +1358,10 @@ void TargetLoweringBase::computeRegisterProperties(
         (IntReg > LargestIntReg && IVT.isPow2Size())) {
       PromoteReg = IntReg;
     } else {
-      RegisterTypesForVT[IntReg] = TransformToType[IntReg] =
-        (MVT::SimpleValueType)PromoteReg;
+      MVTPair RegVTs = RegisterTypesForVT[PromoteReg];
+      NumRegistersForVT[IntReg] = RegVTs.getNumPartsFor(IVT);
+      RegisterTypesForVT[IntReg] = RegVTs;
+      TransformToType[IntReg] = (MVT::SimpleValueType)PromoteReg;
       ValueTypeActions.setTypeAction(IVT, TypePromoteInteger);
     }
   }

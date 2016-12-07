@@ -332,6 +332,11 @@ public:
   unsigned getLongLongWidth() const { return LongLongWidth; }
   unsigned getLongLongAlign() const { return LongLongAlign; }
 
+  /// \brief Determine whether the __int48 type is supported on this target.
+  virtual bool hasInt48Type() const {
+    return false;
+  } // FIXME
+
   /// \brief Determine whether the __int128 type is supported on this target.
   virtual bool hasInt128Type() const {
     return getPointerWidth(0) >= 64;

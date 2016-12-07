@@ -669,11 +669,11 @@ void AMDGPUTargetLowering::analyzeFormalArgumentsCompute(CCState &State,
     } else if (NumRegs == 1) {
       // This argument is not split, so the IR type is the memory type.
       assert(!In.Flags.isSplit());
-      if (In.ArgVT.isExtended()) {
+      if (In.ArgVT.isPow2Size()) {
+        MemVT = In.ArgVT;
+      } else {
         // We have an extended type, like i24, so we should just use the register type
         MemVT = In.VT;
-      } else {
-        MemVT = In.ArgVT;
       }
     } else if (In.ArgVT.isVector() && In.VT.isVector() &&
                In.ArgVT.getScalarType() == In.VT.getScalarType()) {
