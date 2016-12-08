@@ -671,7 +671,7 @@ public:
                                               unsigned Neighborhood=10) const;
 
   // Debugging methods.
-  void dump() const;
+  void dump(const SlotIndexes *Indexes = nullptr) const;
   void print(raw_ostream &OS, const SlotIndexes* = nullptr) const;
   void print(raw_ostream &OS, ModuleSlotTracker &MST,
              const SlotIndexes* = nullptr) const;
@@ -790,6 +790,8 @@ class MachineInstrSpan {
   MachineBasicBlock &MBB;
   MachineBasicBlock::iterator I, B, E;
 public:
+  explicit MachineInstrSpan(MachineBasicBlock &MBB)
+      : MBB(MBB), I(MBB.end()), B(std::prev(MBB.end())), E(MBB.end()) {}
   explicit MachineInstrSpan(MachineInstr *MI)
     : MachineInstrSpan(*MI->getParent(), MI) {}
   MachineInstrSpan(MachineBasicBlock &MBB, MachineBasicBlock::iterator I)

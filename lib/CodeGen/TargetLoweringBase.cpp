@@ -1340,13 +1340,13 @@ void TargetLoweringBase::computeRegisterProperties(
   for (unsigned HalfReg = LargestIntReg;
        ExpandedReg <= MVT::LAST_INTEGER_VALUETYPE; ++ExpandedReg) {
     MVT EVT = (MVT::SimpleValueType)ExpandedReg;
-    if (!EVT.isPow2Size())
-      continue;
-    NumRegistersForVT[ExpandedReg] = ExpandRegTypes.getNumPartsFor(EVT);
-    RegisterTypesForVT[ExpandedReg] = ExpandRegTypes;
-    TransformToType[ExpandedReg] = (MVT::SimpleValueType)HalfReg;
-    ValueTypeActions.setTypeAction(EVT, TypeExpandInteger);
-    HalfReg = ExpandedReg;
+    if (EVT.isPow2Size()) {
+      NumRegistersForVT[ExpandedReg] = ExpandRegTypes.getNumPartsFor(EVT);
+      RegisterTypesForVT[ExpandedReg] = ExpandRegTypes;
+      TransformToType[ExpandedReg] = (MVT::SimpleValueType)HalfReg;
+      ValueTypeActions.setTypeAction(EVT, TypeExpandInteger);
+      HalfReg = ExpandedReg;
+    }
   }
 
   // Inspect all of the ValueType's to see which ones need promotion.
@@ -1364,6 +1364,19 @@ void TargetLoweringBase::computeRegisterProperties(
       TransformToType[IntReg] = (MVT::SimpleValueType)PromoteReg;
       ValueTypeActions.setTypeAction(IVT, TypePromoteInteger);
     }
+  }
+
+  if (isTypeLegal(MVT::i24)) {
+    NumRegistersForVT[MVT::i48] = 2*NumRegistersForVT[MVT::i24];
+    RegisterTypesForVT[MVT::i48] = RegisterTypesForVT[MVT::i24];
+    TransformToType[MVT::i48] = MVT::i24;
+    ValueTypeActions.setTypeAction(MVT::i48, TypeExpandInteger);
+
+    NumRegistersForVT[MVT::i64] = NumRegistersForVT[MVT::i16]
+                                + NumRegistersForVT[MVT::i48];
+    RegisterTypesForVT[MVT::i64] = MVTPair(MVT::i16, MVT::i48);
+    TransformToType[MVT::i64] = MVT::i48;
+    ValueTypeActions.setTypeAction(MVT::i64, TypeExpandInteger);
   }
 
   // ppcf128 type is really two f64's.

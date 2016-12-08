@@ -32,7 +32,7 @@ def CC_Z80_C : CallingConv<[
 def CC_EZ80_C : CallingConv<[
   CCIfByVal<CCPassByVal<3, 1>>,
   CCIfType<[i1, i8, i16, i24], CCAssignToStack<3, 1>>,
-  CCIfType<[i32, f32], CCAssignToStack<6, 1>>,
+  CCIfType<[i32, f32, i48], CCAssignToStack<6, 1>>,
   CCIfType<[i64, f64], CCAssignToStack<9, 1>>
 ]>;
 
