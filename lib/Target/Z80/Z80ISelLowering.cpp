@@ -84,7 +84,7 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   setStackPointerRegisterToSaveRestore(Is24Bit ? Z80::SPL : Z80::SPS);
 
   // Compute derived properties from the register classes
-  computeRegisterProperties(STI.getRegisterInfo());
+  computeRegisterProperties(STI.getRegisterInfo(), false);
 
   setBooleanContents(ZeroOrOneBooleanContent);
   setJumpIsExpensive();

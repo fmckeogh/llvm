@@ -267,6 +267,18 @@ namespace llvm {
       return getExtendedSizeInBits();
     }
 
+    /// getNumParts - Return the number of parts with PartBits bits that make up
+    /// this VT.
+    unsigned getNumParts(unsigned PartBits) const {
+      return (getSizeInBits() + PartBits - 1) / PartBits;
+    }
+
+    /// getNumParts - Return the number of parts of type PartVT that make up
+    /// this VT.
+    unsigned getNumParts(EVT PartVT) const {
+      return getNumParts(PartVT.getSizeInBits());
+    }
+
     unsigned getScalarSizeInBits() const {
       return getScalarType().getSizeInBits();
     }
@@ -274,7 +286,7 @@ namespace llvm {
     /// getStoreSize - Return the number of bytes overwritten by a store
     /// of the specified value type.
     unsigned getStoreSize() const {
-      return (getSizeInBits() + 7) / 8;
+      return getNumParts(8);
     }
 
     /// getStoreSizeInBits - Return the number of bits overwritten by a store

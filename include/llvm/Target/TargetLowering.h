@@ -583,8 +583,7 @@ public:
   /// before they are promoted/expanded.
   unsigned getVectorTypeBreakdown(LLVMContext &Context, EVT VT,
                                   EVT &IntermediateVT,
-                                  unsigned &NumIntermediates,
-                                  MVTPair &RegisterVT) const;
+                                  unsigned &NumIntermediates, MVT &RegVT) const;
 
   struct IntrinsicInfo {
     unsigned     opc;         // target opcode
@@ -873,14 +872,39 @@ public:
   /// its logarithm.
   virtual unsigned getByValTypeAlignment(Type *Ty, const DataLayout &DL) const;
 
+  /// Return the type of registers that this ValueType will eventually require.
+  MVT getRegisterType(MVT VT) const {
+    assert((unsigned)VT.SimpleTy < array_lengthof(RegisterTypeForVT));
+    return RegisterTypeForVT[VT.SimpleTy];
+  }
+
+  /// Return the type of registers that this ValueType will eventually require.
+  MVT getRegisterType(LLVMContext &Context, EVT VT) const {
+    if (VT.isSimple()) {
+      assert((unsigned)VT.getSimpleVT().SimpleTy <
+             array_lengthof(RegisterTypeForVT));
+      return RegisterTypeForVT[VT.getSimpleVT().SimpleTy];
+    }
+    if (VT.isVector()) {
+      EVT VT1;
+      MVT RegVT;
+      unsigned NumIntermediates;
+      (void)getVectorTypeBreakdown(Context, VT, VT1, NumIntermediates, RegVT);
+      return RegVT;
+    }
+    if (VT.isInteger())
+      return getRegisterType(Context, getTypeToTransformTo(Context, VT));
+    llvm_unreachable("Unsupported extended type!");
+  }
+
   /// Return the types of registers that this ValueType will eventually require.
-  MVTPair getRegisterTypes(MVT VT) const {
+  LLVM_ATTRIBUTE_DEPRECATED(MVTPair getRegisterTypes(MVT VT) const, "old new") {
     assert((unsigned)VT.SimpleTy < array_lengthof(RegisterTypesForVT));
     return RegisterTypesForVT[VT.SimpleTy];
   }
 
   /// Return the types of registers that this ValueType will eventually require.
-  MVTPair getRegisterTypes(LLVMContext &Context, EVT VT) const {
+  LLVM_ATTRIBUTE_DEPRECATED(MVTPair getRegisterTypes(LLVMContext &Context, EVT VT) const, "old new") {
     if (VT.isSimple()) {
       assert((unsigned)VT.getSimpleVT().SimpleTy <
                 array_lengthof(RegisterTypesForVT));
@@ -888,11 +912,10 @@ public:
     }
     if (VT.isVector()) {
       EVT VT1;
-      MVTPair RegisterVT;
+      MVT RegVT;
       unsigned NumIntermediates;
-      (void)getVectorTypeBreakdown(Context, VT, VT1,
-                                   NumIntermediates, RegisterVT);
-      return RegisterVT;
+      (void)getVectorTypeBreakdown(Context, VT, VT1, NumIntermediates, RegVT);
+      return RegVT;
     }
     if (VT.isInteger())
       return getRegisterTypes(Context, getTypeToTransformTo(Context, VT));
@@ -915,12 +938,12 @@ public:
     }
     if (VT.isVector()) {
       EVT VT1;
-      MVTPair VT2;
+      MVT VT2;
       unsigned NumIntermediates;
       return getVectorTypeBreakdown(Context, VT, VT1, NumIntermediates, VT2);
     }
     if (VT.isInteger())
-      return getRegisterTypes(Context, VT).getNumPartsFor(VT);
+      return EVT(getRegisterType(Context, VT)).getNumParts(VT);
     llvm_unreachable("Unsupported extended type!");
   }
 
@@ -1447,7 +1470,7 @@ protected:
 
   /// Once all of the register classes are added, this allows us to compute
   /// derived properties we expose.
-  void computeRegisterProperties(const TargetRegisterInfo *TRI);
+  void computeRegisterProperties(const TargetRegisterInfo *TRI, bool = true);
 
   /// Indicate that the specified operation does not work with the specified
   /// type and indicate what to do about it.
@@ -2006,6 +2029,7 @@ private:
   /// target supports natively.
   const TargetRegisterClass *RegClassForVT[MVT::LAST_VALUETYPE];
   unsigned char NumRegistersForVT[MVT::LAST_VALUETYPE];
+  MVT RegisterTypeForVT[MVT::LAST_VALUETYPE];
   MVTPair RegisterTypesForVT[MVT::LAST_VALUETYPE];
 
   /// This indicates the "representative" register class to use for each
@@ -2756,7 +2780,7 @@ public:
   /// necessary information.
   virtual EVT getTypeForExtReturn(LLVMContext &Context, EVT VT,
                                   ISD::NodeType /*ExtendKind*/) const {
-    EVT MinVT = getRegisterTypes(Context, MVT::i32).getFirst();
+    EVT MinVT = getRegisterType(Context, MVT::i32);
     return VT.bitsLT(MinVT) ? MinVT : VT;
   }
 

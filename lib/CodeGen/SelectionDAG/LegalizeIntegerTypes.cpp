@@ -1860,13 +1860,14 @@ void DAGTypeLegalizer::ExpandIntRes_ADDSUBE(SDNode *N,
 
 void DAGTypeLegalizer::ExpandIntRes_ANY_EXTEND(SDNode *N,
                                                SDValue &Lo, SDValue &Hi) {
-  EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), N->getValueType(0));
+  VTS<EVT> NVTs = TLI.getTypesToTransformTo(*DAG.getContext(),
+                                            N->getValueType(0));
   SDLoc dl(N);
   SDValue Op = N->getOperand(0);
-  if (Op.getValueType().bitsLE(NVT)) {
+  if (Op.getValueType().bitsLE(NVTs.getLo())) {
     // The low part is any extension of the input (which degenerates to a copy).
-    Lo = DAG.getNode(ISD::ANY_EXTEND, dl, NVT, Op);
-    Hi = DAG.getUNDEF(NVT);   // The high part is undefined.
+    Lo = DAG.getNode(ISD::ANY_EXTEND, dl, NVTs.getLo(), Op);
+    Hi = DAG.getUNDEF(NVTs.getHi()); // The high part is undefined.
   } else {
     // For example, extension of an i48 to an i64.  The operand type necessarily
     // promotes to the result type, so will end up being expanded too.
@@ -1876,8 +1877,8 @@ void DAGTypeLegalizer::ExpandIntRes_ANY_EXTEND(SDNode *N,
     SDValue Res = GetPromotedInteger(Op);
     assert(Res.getValueType() == N->getValueType(0) &&
            "Operand over promoted?");
-    // Split the promoted operand.  This will simplify when it is expanded.
-    SplitInteger(Res, Lo, Hi);
+    // Expand the promoted operand.  This will simplify when it is expanded.
+    ExpandInteger(Res, Lo, Hi);
   }
 }
 
@@ -2450,7 +2451,7 @@ void DAGTypeLegalizer::ExpandIntRes_SIGN_EXTEND(SDNode *N,
   SDValue Op = N->getOperand(0);
   if (Op.getValueType().bitsLE(NVTs.getLo())) {
     // The low part is sign extension of the input (degenerates to a copy).
-    Lo = DAG.getNode(ISD::SIGN_EXTEND, dl, NVTs.getLo(), N->getOperand(0));
+    Lo = DAG.getNode(ISD::SIGN_EXTEND, dl, NVTs.getLo(), Op);
     // The high part is obtained by SRA'ing all but one of the bits of low part.
     Hi = DAG.getNode(ISD::SRA, dl, NVTs.getHi(),
                      DAG.getSExtOrTrunc(Lo, dl, NVTs.getHi()),
@@ -2715,7 +2716,7 @@ void DAGTypeLegalizer::ExpandIntRes_ZERO_EXTEND(SDNode *N,
   SDValue Op = N->getOperand(0);
   if (Op.getValueType().bitsLE(NVTs.getLo())) {
     // The low part is zero extension of the input (degenerates to a copy).
-    Lo = DAG.getNode(ISD::ZERO_EXTEND, dl, NVTs.getLo(), N->getOperand(0));
+    Lo = DAG.getNode(ISD::ZERO_EXTEND, dl, NVTs.getLo(), Op);
     Hi = DAG.getConstant(0, dl, NVTs.getHi()); // The high part is just a zero.
   } else {
     // For example, extension of an i48 to an i64.  The operand type necessarily

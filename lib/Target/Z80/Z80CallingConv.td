@@ -38,7 +38,7 @@ def CC_EZ80_C : CallingConv<[
 
 def CC_Z80_LC : CallingConv<[
   CCIfType<[i24], CCIfSplit<CCAssignToReg<[UHL, UBC]>>>,
-  CCIfType<[i24], CCAssignToRegWithShadow<[UHL, UBC], [E, A]>>,
+  CCIfType<[i24], CCAssignToRegWithShadow<[UHL, UDE, UBC], [E, L, A]>>,
   CCIfType<[i16], CCAssignToReg<[HL, DE, BC, IY]>>,
   CCIfType<[i1],  CCPromoteToType<i8>>,
   CCIfType<[i8], CCIfSplitEnd<CCAssignToReg<[E, A]>>>

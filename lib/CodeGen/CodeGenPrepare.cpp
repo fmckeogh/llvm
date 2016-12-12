@@ -4856,9 +4856,8 @@ bool CodeGenPrepare::optimizeSwitchInst(SwitchInst *SI) {
   Value *Cond = SI->getCondition();
   Type *OldType = Cond->getType();
   LLVMContext &Context = Cond->getContext();
-  MVTPair RegTypes = TLI->getRegisterTypes(Context,
-                                           TLI->getValueType(*DL, OldType));
-  unsigned RegWidth = RegTypes.getFirstSizeInBits();
+  MVT RegType = TLI->getRegisterType(Context, TLI->getValueType(*DL, OldType));
+  unsigned RegWidth = RegType.getSizeInBits();
 
   if (RegWidth <= cast<IntegerType>(OldType)->getBitWidth())
     return false;
