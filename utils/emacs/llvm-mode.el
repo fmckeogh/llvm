@@ -26,7 +26,7 @@
    ;; Unnamed variable slots
    '("%[-]?[0-9]+" . font-lock-variable-name-face)
    ;; Types
-   `(,(regexp-opt '("void" "i1" "i8" "i16" "i24" "i32" "i48" "i64" "i128" "float" "double" "type" "label" "opaque") 'symbols) . font-lock-type-face)
+   `(,(regexp-opt '("void" "i1" "i8" "i16" "i24" "i32" "i48" "i64" "i96" "i128" "float" "double" "type" "label" "opaque") 'symbols) . font-lock-type-face)
    ;; Integer literals
    '("\\b[-]?[0-9]+\\b" . font-lock-preprocessor-face)
    ;; Floating point constants

@@ -846,9 +846,9 @@ TargetLoweringBase::TargetLoweringBase(const TargetMachine &tm) : TM(tm) {
 void TargetLoweringBase::initActions() {
   // All operations default to being supported.
   memset(OpActions, 0, sizeof(OpActions));
-  // except i24, i48
+  // except i24, i48, i96
   if (TM.getPointerSize() != 3)
-    for (auto BadVT : { MVT::i24, MVT::i48 })
+    for (auto BadVT : { MVT::i24, MVT::i48, MVT::i96 })
       std::fill(std::begin(OpActions[BadVT]), std::end(OpActions[BadVT]),
                 Expand);
   memset(LoadExtActions, 0, sizeof(LoadExtActions));
@@ -868,9 +868,9 @@ void TargetLoweringBase::initActions() {
       setIndexedStoreAction(IM, VT, Expand);
     }
 
-    // Most backends don't support i24, i48
+    // Most backends don't support i24, i48, i96
     if (VT.isInteger()) {
-      for (MVT BadVT : { MVT::i24, MVT::i48 })
+      for (MVT BadVT : { MVT::i24, MVT::i48, MVT::i96 })
         if (VT.bitsLT(BadVT)) {
           setLoadExtAction(ISD::EXTLOAD, BadVT, VT, Expand);
           setLoadExtAction(ISD::ZEXTLOAD, BadVT, VT, Expand);
@@ -1328,75 +1328,34 @@ void TargetLoweringBase::computeRegisterProperties(
     assert(LargestIntReg != MVT::i1 && "No integer registers defined!");
   MVT LVT = (MVT::SimpleValueType)LargestIntReg;
 
-#if 0
   // Every integer value type larger than this largest register takes twice as
   // many registers to represent as the previous ValueType.
   for (unsigned ExpandedReg = LargestIntReg + 1;
        ExpandedReg <= MVT::LAST_INTEGER_VALUETYPE; ++ExpandedReg) {
-    NumRegistersForVT[ExpandedReg] = 2*NumRegistersForVT[ExpandedReg-1];
+    NumRegistersForVT[ExpandedReg] = 2*NumRegistersForVT[ExpandedReg-2];
     RegisterTypeForVT[ExpandedReg] = (MVT::SimpleValueType)LargestIntReg;
-    TransformToType[ExpandedReg] = (MVT::SimpleValueType)(ExpandedReg - 1);
+    TransformToType[ExpandedReg] = (MVT::SimpleValueType)(ExpandedReg-2);
     ValueTypeActions.setTypeAction((MVT::SimpleValueType)ExpandedReg,
                                    TypeExpandInteger);
   }
 
   // Inspect all of the ValueType's smaller than the largest integer
   // register to see which ones need promotion.
-  unsigned LegalIntReg = LargestIntReg;
-  for (unsigned IntReg = LargestIntReg - 1;
+  unsigned LegalIntReg = MVT::LAST_INTEGER_VALUETYPE;
+  for (unsigned IntReg = MVT::LAST_INTEGER_VALUETYPE - 1;
        IntReg >= (unsigned)MVT::i1; --IntReg) {
     MVT IVT = (MVT::SimpleValueType)IntReg;
-    if (isTypeLegal(IVT)) {
+    MVT RegVT = RegisterTypeForVT[IntReg];
+    if (isTypeLegal(RegVT) && IVT.getSizeInBits() ==
+        NumRegistersForVT[IntReg] * RegVT.getSizeInBits()) {
       LegalIntReg = IntReg;
     } else {
-      RegisterTypeForVT[IntReg] = TransformToType[IntReg] =
-        (const MVT::SimpleValueType)LegalIntReg;
+      NumRegistersForVT[IntReg] = NumRegistersForVT[LegalIntReg];
+      RegisterTypeForVT[IntReg] = RegisterTypeForVT[LegalIntReg];
+      TransformToType[IntReg] = (MVT::SimpleValueType)LegalIntReg;
       ValueTypeActions.setTypeAction(IVT, TypePromoteInteger);
     }
   }
-#elif 0
-  // Every integer value type larger than this largest register takes twice as
-  // many registers to represent as the previous ValueType.
-  for (unsigned ExpandedReg = LargestIntReg + 1;
-       ExpandedReg <= MVT::LAST_INTEGER_VALUETYPE; ++ExpandedReg) {
-    MVT EVT = (MVT::SimpleValueType)ExpandedReg;
-    unsigned NumRegs = EVT.getNumParts(LVT);
-    MVT HVT = MVT::getIntegerVT((NumRegs + 1) / 2 * LVT.getSizeInBits());
-    if (!HVT.isValid())
-      HVT = EVT.getHalfSizedIntegerVT();
-    NumRegistersForVT[ExpandedReg] = NumRegs;
-    RegisterTypeForVT[ExpandedReg] = LVT;
-    TransformToType[ExpandedReg] = LVT.bitsGT(HVT) ? LVT : HVT; // i64 -> i32 -i24-
-    ValueTypeActions.setTypeAction(EVT, TypeExpandInteger);
-  }
-
-  // Inspect all of the ValueType's to see which ones need promotion.
-  for (unsigned PromoteReg = MVT::LAST_INTEGER_VALUETYPE,
-       IntReg = PromoteReg - 1; IntReg >= (unsigned)MVT::i1; --IntReg) {
-    MVT IVT = (MVT::SimpleValueType)IntReg;
-    // Promote to the next legal type, otherwise the next power-of-two type.
-    if (isTypeLegal(IVT) || (IntReg > LargestIntReg && (!PromoteNonPow2 || IVT.isPow2Size()))) {
-      PromoteReg = IntReg;
-    } else {
-      NumRegistersForVT[IntReg] = NumRegistersForVT[PromoteReg];
-      RegisterTypeForVT[IntReg] = RegisterTypeForVT[PromoteReg];
-      TransformToType[IntReg] = (MVT::SimpleValueType)PromoteReg;
-      ValueTypeActions.setTypeAction(IVT, TypePromoteInteger);
-    }
-  }
-
-  /*if (isTypeLegal(MVT::i24)) {
-    NumRegistersForVT[MVT::i48] = 2*NumRegistersForVT[MVT::i24];
-    RegisterTypeForVT[MVT::i48] = RegisterTypeForVT[MVT::i24];
-    TransformToType[MVT::i48] = MVT::i24;
-    ValueTypeActions.setTypeAction(MVT::i48, TypeExpandInteger);
-
-    NumRegistersForVT[MVT::i64] = NumRegistersForVT[MVT::i16]
-                                + NumRegistersForVT[MVT::i48];
-    RegisterTypeForVT[MVT::i64] = MVTPair(MVT::i16, MVT::i48);
-    TransformToType[MVT::i64] = MVT::i48;
-    ValueTypeActions.setTypeAction(MVT::i64, TypeExpandInteger);
-    }*/
 
   // ppcf128 type is really two f64's.
   if (!isTypeLegal(MVT::ppcf128)) {

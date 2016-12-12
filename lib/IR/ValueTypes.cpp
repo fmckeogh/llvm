@@ -133,6 +133,7 @@ std::string EVT::getEVTString() const {
   case MVT::i32:     return "i32";
   case MVT::i48:     return "i48";
   case MVT::i64:     return "i64";
+  case MVT::i96:     return "i96";
   case MVT::i128:    return "i128";
   case MVT::f16:     return "f16";
   case MVT::f32:     return "f32";
@@ -216,6 +217,7 @@ Type *EVT::getTypeForEVT(LLVMContext &Context) const {
   case MVT::i32:     return Type::getInt32Ty(Context);
   case MVT::i48:     return IntegerType::get(Context, 48);
   case MVT::i64:     return Type::getInt64Ty(Context);
+  case MVT::i96:     return IntegerType::get(Context, 96);
   case MVT::i128:    return IntegerType::get(Context, 128);
   case MVT::f16:     return Type::getHalfTy(Context);
   case MVT::f32:     return Type::getFloatTy(Context);
