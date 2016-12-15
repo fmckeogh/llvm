@@ -141,7 +141,7 @@ std::string llvm::getQualifiedName(const Record *R) {
   if (R->getValue("Namespace"))
      Namespace = R->getValueAsString("Namespace");
   if (Namespace.empty()) return R->getName();
-  return Namespace + "::" + R->getName();
+  return Namespace + "::" + R->getName().str();
 }
 
 
@@ -160,7 +160,7 @@ CodeGenTarget::CodeGenTarget(RecordKeeper &records)
 CodeGenTarget::~CodeGenTarget() {
 }
 
-const std::string &CodeGenTarget::getName() const {
+const StringRef CodeGenTarget::getName() const {
   return TargetRec->getName();
 }
 
@@ -410,6 +410,16 @@ ComplexPattern::ComplexPattern(Record *R) {
   SelectFunc  = R->getValueAsString("SelectFunc");
   RootNodes   = R->getValueAsListOfDefs("RootNodes");
 
+  // FIXME: This is a hack to statically increase the priority of patterns which
+  // maps a sub-dag to a complex pattern. e.g. favors LEA over ADD. To get best
+  // possible pattern match we'll need to dynamically calculate the complexity
+  // of all patterns a dag can potentially map to.
+  int64_t RawComplexity = R->getValueAsInt("Complexity");
+  if (RawComplexity == -1)
+    Complexity = NumOperands * 3;
+  else
+    Complexity = RawComplexity;
+
   // Parse the properties.
   Properties = 0;
   std::vector<Record*> PropList = R->getValueAsListOfDefs("Properties");
@@ -567,8 +577,7 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R) {
       // overloaded, all the types can be specified directly.
       assert(((!TyEl->isSubClassOf("LLVMExtendedType") &&
                !TyEl->isSubClassOf("LLVMTruncatedType") &&
-               !TyEl->isSubClassOf("LLVMVectorSameWidth") &&
-               !TyEl->isSubClassOf("LLVMPointerToElt")) ||
+               !TyEl->isSubClassOf("LLVMVectorSameWidth")) ||
               VT == MVT::iAny || VT == MVT::vAny) &&
              "Expected iAny or vAny type");
     } else
@@ -601,7 +610,12 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R) {
     else if (Property->getName() == "IntrWriteMem")
       ModRef = ModRefBehavior(ModRef & ~MR_Ref);
     else if (Property->getName() == "IntrArgMemOnly")
-      ModRef = ModRefBehavior(ModRef & ~MR_Anywhere);
+      ModRef = ModRefBehavior((ModRef & ~MR_Anywhere) | MR_ArgMem);
+    else if (Property->getName() == "IntrInaccessibleMemOnly")
+      ModRef = ModRefBehavior((ModRef & ~MR_Anywhere) | MR_InaccessibleMem);
+    else if (Property->getName() == "IntrInaccessibleMemOrArgMemOnly")
+      ModRef = ModRefBehavior((ModRef & ~MR_Anywhere) | MR_ArgMem |
+                              MR_InaccessibleMem);
     else if (Property->getName() == "Commutative")
       isCommutative = true;
     else if (Property->getName() == "Throws")

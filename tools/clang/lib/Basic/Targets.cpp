@@ -465,6 +465,8 @@ protected:
       Triple.getEnvironmentVersion(Maj, Min, Rev);
       this->PlatformName = "android";
       this->PlatformMinVersion = VersionTuple(Maj, Min, Rev);
+      if (Maj)
+        Builder.defineMacro("__ANDROID_API__", Twine(Maj));
     }
     if (Opts.POSIXThreads)
       Builder.defineMacro("_REENTRANT");
@@ -807,7 +809,7 @@ public:
     this->PtrDiffType = TargetInfo::SignedInt;
     this->IntPtrType = TargetInfo::SignedInt;
     // RegParmMax is inherited from the underlying architecture.
-    this->LongDoubleFormat = &llvm::APFloat::IEEEdouble;
+    this->LongDoubleFormat = &llvm::APFloat::IEEEdouble();
     if (Triple.getArch() == llvm::Triple::arm) {
       // Handled in ARM's setABI().
     } else if (Triple.getArch() == llvm::Triple::x86) {
@@ -904,7 +906,7 @@ public:
       HasBPERMD(false), HasExtDiv(false), HasP9Vector(false) {
     SimdDefaultAlign = 128;
     LongDoubleWidth = LongDoubleAlign = 128;
-    LongDoubleFormat = &llvm::APFloat::PPCDoubleDouble;
+    LongDoubleFormat = &llvm::APFloat::PPCDoubleDouble();
   }
 
   /// \brief Flags for architecture specific defines.
@@ -1144,7 +1146,7 @@ public:
 
   bool useFloat128ManglingForLongDouble() const override {
     return LongDoubleWidth == 128 &&
-           LongDoubleFormat == &llvm::APFloat::PPCDoubleDouble &&
+           LongDoubleFormat == &llvm::APFloat::PPCDoubleDouble() &&
            getTriple().isOSBinFormatELF();
   }
 };
@@ -1648,7 +1650,7 @@ public:
 
     if (getTriple().getOS() == llvm::Triple::FreeBSD) {
       LongDoubleWidth = LongDoubleAlign = 64;
-      LongDoubleFormat = &llvm::APFloat::IEEEdouble;
+      LongDoubleFormat = &llvm::APFloat::IEEEdouble();
     }
 
     // PPC32 supports atomics up to 4 bytes.
@@ -1682,7 +1684,7 @@ public:
     switch (getTriple().getOS()) {
     case llvm::Triple::FreeBSD:
       LongDoubleWidth = LongDoubleAlign = 64;
-      LongDoubleFormat = &llvm::APFloat::IEEEdouble;
+      LongDoubleFormat = &llvm::APFloat::IEEEdouble();
       break;
     case llvm::Triple::NetBSD:
       IntMaxType = SignedLongLong;
@@ -2243,6 +2245,13 @@ public:
         return CCCR_OK;
     }
   }
+
+  // In amdgcn target the null pointer in global, constant, and generic
+  // address space has value 0 but in private and local address space has
+  // value ~0.
+  uint64_t getNullPointerValue(unsigned AS) const override {
+    return AS != LangAS::opencl_local && AS != 0 ? 0 : ~0;
+  }
 };
 
 const Builtin::Info AMDGPUTargetInfo::BuiltinInfo[] = {
@@ -2397,6 +2406,7 @@ static const char* const GCCRegNames[] = {
   "zmm8", "zmm9", "zmm10", "zmm11", "zmm12", "zmm13", "zmm14", "zmm15",
   "zmm16", "zmm17", "zmm18", "zmm19", "zmm20", "zmm21", "zmm22", "zmm23",
   "zmm24", "zmm25", "zmm26", "zmm27", "zmm28", "zmm29", "zmm30", "zmm31",
+  "k0", "k1", "k2", "k3", "k4", "k5", "k6", "k7",
 };
 
 const TargetInfo::AddlRegName AddlRegNames[] = {
@@ -2736,7 +2746,7 @@ class X86TargetInfo : public TargetInfo {
 public:
   X86TargetInfo(const llvm::Triple &Triple, const TargetOptions &)
       : TargetInfo(Triple) {
-    LongDoubleFormat = &llvm::APFloat::x87DoubleExtended;
+    LongDoubleFormat = &llvm::APFloat::x87DoubleExtended();
   }
   unsigned getFloatEvalMethod() const override {
     // X87 evaluates with 80 bits "long double" precision.
@@ -2902,6 +2912,7 @@ public:
     case CC_X86FastCall:
     case CC_X86StdCall:
     case CC_X86VectorCall:
+    case CC_X86RegCall:
     case CC_C:
     case CC_Swift:
     case CC_X86Pascal:
@@ -3349,6 +3360,12 @@ void X86TargetInfo::setFeatureEnabledImpl(llvm::StringMap<bool> &Features,
              Name == "avx512vbmi" || Name == "avx512ifma") {
     if (Enabled)
       setSSELevel(Features, AVX512F, Enabled);
+    // Enable BWI instruction if VBMI is being enabled.
+    if (Name == "avx512vbmi" && Enabled)
+      Features["avx512bw"] = true;
+    // Also disable VBMI if BWI is being disabled.
+    if (Name == "avx512bw" && !Enabled)
+      Features["avx512vbmi"] = false;
   } else if (Name == "fma") {
     if (Enabled)
       setSSELevel(Features, AVX, Enabled);
@@ -3996,6 +4013,7 @@ X86TargetInfo::validateAsmConstraint(const char *&Name,
     case 't': // Any SSE register, when SSE2 is enabled.
     case 'i': // Any SSE register, when SSE2 and inter-unit moves enabled.
     case 'm': // Any MMX register, when inter-unit moves enabled.
+    case 'k': // AVX512 arch mask registers: k1-k7.
       Info.setAllowsRegister();
       return true;
     }
@@ -4016,7 +4034,10 @@ X86TargetInfo::validateAsmConstraint(const char *&Name,
   case 'u': // Second from top of floating point stack.
   case 'q': // Any register accessible as [r]l: a, b, c, and d.
   case 'y': // Any MMX register.
+  case 'v': // Any {X,Y,Z}MM register (Arch & context dependent)
   case 'x': // Any SSE register.
+  case 'k': // Any AVX512 mask register (same as Yk, additionaly allows k0
+            // for intermideate k reg operations).
   case 'Q': // Any register accessible as [r]h: a, b, c, and d.
   case 'R': // "Legacy" registers: ax, bx, cx, dx, di, si, sp, bp.
   case 'l': // "Index" registers: any general register that can be used as an
@@ -4050,12 +4071,15 @@ bool X86TargetInfo::validateOperandSize(StringRef Constraint,
                                         unsigned Size) const {
   switch (Constraint[0]) {
   default: break;
+  case 'k':
+  // Registers k0-k7 (AVX512) size limit is 64 bit.
   case 'y':
     return Size <= 64;
   case 'f':
   case 't':
   case 'u':
     return Size <= 128;
+  case 'v':
   case 'x':
     if (SSELevel >= AVX512F)
       // 512-bit zmm registers can be used if target supports AVX512F.
@@ -4070,6 +4094,7 @@ bool X86TargetInfo::validateOperandSize(StringRef Constraint,
     default: break;
     case 'm':
       // 'Ym' is synonymous with 'y'.
+    case 'k':
       return Size <= 64;
     case 'i':
     case 't':
@@ -4101,6 +4126,20 @@ X86TargetInfo::convertConstraint(const char *&Constraint) const {
     return std::string("{st}");
   case 'u': // second from top of floating point stack.
     return std::string("{st(1)}"); // second from top of floating point stack.
+  case 'Y':
+    switch (Constraint[1]) {
+    default:
+      // Break from inner switch and fall through (copy single char),
+      // continue parsing after copying the current constraint into 
+      // the return string.
+      break;
+    case 'k':
+      // "^" hints llvm that this is a 2 letter constraint.
+      // "Constraint++" is used to promote the string iterator 
+      // to the next constraint.
+      return std::string("^") + std::string(Constraint++, 2);
+    } 
+    LLVM_FALLTHROUGH;
   default:
     return std::string(1, *Constraint);
   }
@@ -4258,7 +4297,7 @@ public:
                             const TargetOptions &Opts)
       : WindowsX86_32TargetInfo(Triple, Opts) {
     LongDoubleWidth = LongDoubleAlign = 64;
-    LongDoubleFormat = &llvm::APFloat::IEEEdouble;
+    LongDoubleFormat = &llvm::APFloat::IEEEdouble();
   }
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {
@@ -4357,7 +4396,7 @@ public:
   MCUX86_32TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : X86_32TargetInfo(Triple, Opts) {
     LongDoubleWidth = 64;
-    LongDoubleFormat = &llvm::APFloat::IEEEdouble;
+    LongDoubleFormat = &llvm::APFloat::IEEEdouble();
     resetDataLayout("e-m:e-p:32:32-i64:32-f64:32-f128:32-n8:16:32-a:0:32-S32");
     WIntType = UnsignedInt;
   }
@@ -4489,6 +4528,7 @@ public:
     case CC_X86_64Win64:
     case CC_PreserveMost:
     case CC_PreserveAll:
+    case CC_X86RegCall:
       return CCCR_OK;
     default:
       return CCCR_Warning;
@@ -4561,6 +4601,7 @@ public:
     case CC_IntelOclBicc:
     case CC_X86_64SysV:
     case CC_Swift:
+    case CC_X86RegCall:
       return CCCR_OK;
     default:
       return CCCR_Warning;
@@ -4575,7 +4616,7 @@ public:
                             const TargetOptions &Opts)
       : WindowsX86_64TargetInfo(Triple, Opts) {
     LongDoubleWidth = LongDoubleAlign = 64;
-    LongDoubleFormat = &llvm::APFloat::IEEEdouble;
+    LongDoubleFormat = &llvm::APFloat::IEEEdouble();
   }
   void getTargetDefines(const LangOptions &Opts,
                         MacroBuilder &Builder) const override {
@@ -4594,7 +4635,7 @@ public:
     // Mingw64 rounds long double size and alignment up to 16 bytes, but sticks
     // with x86 FP ops. Weird.
     LongDoubleWidth = LongDoubleAlign = 128;
-    LongDoubleFormat = &llvm::APFloat::x87DoubleExtended;
+    LongDoubleFormat = &llvm::APFloat::x87DoubleExtended();
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -5817,7 +5858,7 @@ public:
     MaxAtomicPromoteWidth = 128;
 
     LongDoubleWidth = LongDoubleAlign = SuitableAlign = 128;
-    LongDoubleFormat = &llvm::APFloat::IEEEquad;
+    LongDoubleFormat = &llvm::APFloat::IEEEquad();
 
     // {} in inline assembly are neon specifiers, not assembly variant
     // specifiers.
@@ -6176,7 +6217,7 @@ public:
     UseSignedCharForObjCBool = false;
 
     LongDoubleWidth = LongDoubleAlign = SuitableAlign = 64;
-    LongDoubleFormat = &llvm::APFloat::IEEEdouble;
+    LongDoubleFormat = &llvm::APFloat::IEEEdouble();
 
     TheCXXABI.set(TargetCXXABI::iOS64);
   }
@@ -6771,7 +6812,10 @@ public:
       PtrDiffType = SignedLong;
       break;
     }
-    MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
+    // Up to 32 bits are lock-free atomic, but we're willing to do atomic ops
+    // on up to 64 bits.
+    MaxAtomicPromoteWidth = 64;
+    MaxAtomicInlineWidth = 32;
   }
 
   void getTargetDefines(const LangOptions &Opts,
@@ -6851,7 +6895,7 @@ public:
     // aligned. The SPARCv9 SCD 2.4.1 says 16-byte aligned.
     LongDoubleWidth = 128;
     LongDoubleAlign = 128;
-    LongDoubleFormat = &llvm::APFloat::IEEEquad;
+    LongDoubleFormat = &llvm::APFloat::IEEEquad();
     MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
   }
 
@@ -6894,7 +6938,7 @@ public:
     PointerWidth = PointerAlign = 64;
     LongDoubleWidth = 128;
     LongDoubleAlign = 64;
-    LongDoubleFormat = &llvm::APFloat::IEEEquad;
+    LongDoubleFormat = &llvm::APFloat::IEEEquad();
     DefaultAlignForAttributeAligned = 64;
     MinGlobalAlign = 16;
     resetDataLayout("E-m:e-i1:8:16-i8:8:16-i64:64-f128:64-a:8:16-n32:64");
@@ -6940,9 +6984,13 @@ public:
     CPU = Name;
     bool CPUKnown = llvm::StringSwitch<bool>(Name)
       .Case("z10", true)
+      .Case("arch8", true)
       .Case("z196", true)
+      .Case("arch9", true)
       .Case("zEC12", true)
+      .Case("arch10", true)
       .Case("z13", true)
+      .Case("arch11", true)
       .Default(false);
 
     return CPUKnown;
@@ -6951,9 +6999,9 @@ public:
   initFeatureMap(llvm::StringMap<bool> &Features, DiagnosticsEngine &Diags,
                  StringRef CPU,
                  const std::vector<std::string> &FeaturesVec) const override {
-    if (CPU == "zEC12")
+    if (CPU == "zEC12" || CPU == "arch10")
       Features["transactional-execution"] = true;
-    if (CPU == "z13") {
+    if (CPU == "z13" || CPU == "arch11") {
       Features["transactional-execution"] = true;
       Features["vector"] = true;
     }
@@ -7166,11 +7214,14 @@ public:
     DoubleAlign = 32;
     LongDoubleWidth = 32;
     LongDoubleAlign = 32;
-    FloatFormat = &llvm::APFloat::IEEEsingle;
-    DoubleFormat = &llvm::APFloat::IEEEsingle;
-    LongDoubleFormat = &llvm::APFloat::IEEEsingle;
-    resetDataLayout("E-p:32:32-i8:8:32-i16:16:32-i64:32"
-                    "-f64:32-v64:32-v128:32-a:0:32-n32");
+    FloatFormat = &llvm::APFloat::IEEEsingle();
+    DoubleFormat = &llvm::APFloat::IEEEsingle();
+    LongDoubleFormat = &llvm::APFloat::IEEEsingle();
+    resetDataLayout("E-p:32:32:32-i1:8:8-i8:8:32-"
+                    "i16:16:32-i32:32:32-i64:32:32-"
+                    "f32:32:32-f64:32:32-v64:32:32-"
+                    "v128:32:32-v256:32:32-v512:32:32-"
+                    "v1024:32:32-a0:0:32-n32");
     AddrSpaceMap = &TCEOpenCLAddrSpaceMap;
     UseAddrSpaceMapMangling = true;
   }
@@ -7196,6 +7247,31 @@ public:
   ArrayRef<TargetInfo::GCCRegAlias> getGCCRegAliases() const override {
     return None;
   }
+};
+
+class TCELETargetInfo : public TCETargetInfo {
+public:
+  TCELETargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
+      : TCETargetInfo(Triple, Opts) {
+    BigEndian = false;
+
+    resetDataLayout("e-p:32:32:32-i1:8:8-i8:8:32-"
+                    "i16:16:32-i32:32:32-i64:32:32-"
+                    "f32:32:32-f64:32:32-v64:32:32-"
+                    "v128:32:32-v256:32:32-v512:32:32-"
+                    "v1024:32:32-a0:0:32-n32");
+
+  }
+
+  virtual void getTargetDefines(const LangOptions &Opts,
+                                MacroBuilder &Builder) const {
+    DefineStd(Builder, "tcele", Opts);
+    Builder.defineMacro("__TCE__");
+    Builder.defineMacro("__TCE_V1__");
+    Builder.defineMacro("__TCELE__");
+    Builder.defineMacro("__TCELE_V1__");
+  }
+
 };
 
 class BPFTargetInfo : public TargetInfo {
@@ -7350,7 +7426,7 @@ public:
   void setO32ABITypes() {
     Int64Type = SignedLongLong;
     IntMaxType = Int64Type;
-    LongDoubleFormat = &llvm::APFloat::IEEEdouble;
+    LongDoubleFormat = &llvm::APFloat::IEEEdouble();
     LongDoubleWidth = LongDoubleAlign = 64;
     LongWidth = LongAlign = 32;
     MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 32;
@@ -7362,10 +7438,10 @@ public:
 
   void setN32N64ABITypes() {
     LongDoubleWidth = LongDoubleAlign = 128;
-    LongDoubleFormat = &llvm::APFloat::IEEEquad;
+    LongDoubleFormat = &llvm::APFloat::IEEEquad();
     if (getTriple().getOS() == llvm::Triple::FreeBSD) {
       LongDoubleWidth = LongDoubleAlign = 64;
-      LongDoubleFormat = &llvm::APFloat::IEEEdouble;
+      LongDoubleFormat = &llvm::APFloat::IEEEdouble();
     }
     MaxAtomicPromoteWidth = MaxAtomicInlineWidth = 64;
     SuitableAlign = 128;
@@ -7911,7 +7987,7 @@ public:
     SimdDefaultAlign = 128;
     SigAtomicType = SignedLong;
     LongDoubleWidth = LongDoubleAlign = 128;
-    LongDoubleFormat = &llvm::APFloat::IEEEquad;
+    LongDoubleFormat = &llvm::APFloat::IEEEquad();
     SizeType = UnsignedInt;
     PtrDiffType = SignedInt;
     IntPtrType = SignedInt;
@@ -8218,7 +8294,7 @@ public:
       : LinuxTargetInfo<X86_32TargetInfo>(Triple, Opts) {
     SuitableAlign = 32;
     LongDoubleWidth = 64;
-    LongDoubleFormat = &llvm::APFloat::IEEEdouble;
+    LongDoubleFormat = &llvm::APFloat::IEEEdouble();
   }
 };
 
@@ -8227,7 +8303,7 @@ class AndroidX86_64TargetInfo : public LinuxTargetInfo<X86_64TargetInfo> {
 public:
   AndroidX86_64TargetInfo(const llvm::Triple &Triple, const TargetOptions &Opts)
       : LinuxTargetInfo<X86_64TargetInfo>(Triple, Opts) {
-    LongDoubleFormat = &llvm::APFloat::IEEEquad;
+    LongDoubleFormat = &llvm::APFloat::IEEEquad();
   }
 
   bool useFloat128ManglingForLongDouble() const override {
@@ -8683,6 +8759,9 @@ static TargetInfo *AllocateTarget(const llvm::Triple &Triple,
   case llvm::Triple::tce:
     return new TCETargetInfo(Triple, Opts);
 
+  case llvm::Triple::tcele:
+    return new TCELETargetInfo(Triple, Opts);
+
   case llvm::Triple::x86:
     if (Triple.isOSDarwin())
       return new DarwinI386TargetInfo(Triple, Opts);
@@ -8872,6 +8951,7 @@ TargetInfo::CreateTargetInfo(DiagnosticsEngine &Diags,
     return nullptr;
 
   Target->setSupportedOpenCLOpts();
+  Target->setOpenCLExtensionOpts();
 
   if (!Target->validateTarget(Diags))
     return nullptr;

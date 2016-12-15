@@ -2404,6 +2404,14 @@ static QualType getFunctionTypeWithExceptionSpec(
       Proto->getExtProtoInfo().withExceptionSpec(ESI));
 }
 
+bool ASTContext::hasSameFunctionTypeIgnoringExceptionSpec(QualType T,
+                                                          QualType U) {
+  return hasSameType(T, U) ||
+         (getLangOpts().CPlusPlus1z &&
+          hasSameType(getFunctionTypeWithExceptionSpec(*this, T, EST_None),
+                      getFunctionTypeWithExceptionSpec(*this, U, EST_None)));
+}
+
 void ASTContext::adjustExceptionSpec(
     FunctionDecl *FD, const FunctionProtoType::ExceptionSpecInfo &ESI,
     bool AsWritten) {
@@ -3360,10 +3368,9 @@ QualType ASTContext::getFunctionTypeInternal(
   return QualType(FTP, 0);
 }
 
-/// Return pipe type for the specified type.
-QualType ASTContext::getPipeType(QualType T) const {
+QualType ASTContext::getPipeType(QualType T, bool ReadOnly) const {
   llvm::FoldingSetNodeID ID;
-  PipeType::Profile(ID, T);
+  PipeType::Profile(ID, T, ReadOnly);
 
   void *InsertPos = 0;
   if (PipeType *PT = PipeTypes.FindNodeOrInsertPos(ID, InsertPos))
@@ -3373,17 +3380,25 @@ QualType ASTContext::getPipeType(QualType T) const {
   // either, so fill in the canonical type field.
   QualType Canonical;
   if (!T.isCanonical()) {
-    Canonical = getPipeType(getCanonicalType(T));
+    Canonical = getPipeType(getCanonicalType(T), ReadOnly);
 
     // Get the new insert position for the node we care about.
     PipeType *NewIP = PipeTypes.FindNodeOrInsertPos(ID, InsertPos);
     assert(!NewIP && "Shouldn't be in the map!");
     (void)NewIP;
   }
-  PipeType *New = new (*this, TypeAlignment) PipeType(T, Canonical);
+  PipeType *New = new (*this, TypeAlignment) PipeType(T, Canonical, ReadOnly);
   Types.push_back(New);
   PipeTypes.InsertNode(New, InsertPos);
   return QualType(New, 0);
+}
+
+QualType ASTContext::getReadPipeType(QualType T) const {
+  return getPipeType(T, true);
+}
+
+QualType ASTContext::getWritePipeType(QualType T) const {
+  return getPipeType(T, false);
 }
 
 #ifndef NDEBUG
@@ -4328,7 +4343,7 @@ QualType ASTContext::getDecltypeType(Expr *e, QualType UnderlyingType) const {
     DependentDecltypeType *Canon
       = DependentDecltypeTypes.FindNodeOrInsertPos(ID, InsertPos);
     if (!Canon) {
-      // Build a new, canonical typeof(expr) type.
+      // Build a new, canonical decltype(expr) type.
       Canon = new (*this, TypeAlignment) DependentDecltypeType(*this, e);
       DependentDecltypeTypes.InsertNode(Canon, InsertPos);
     }
@@ -4935,7 +4950,15 @@ QualType ASTContext::getArrayDecayedType(QualType Ty) const {
   QualType PtrTy = getPointerType(PrettyArrayType->getElementType());
 
   // int x[restrict 4] ->  int *restrict
-  return getQualifiedType(PtrTy, PrettyArrayType->getIndexTypeQualifiers());
+  QualType Result = getQualifiedType(PtrTy,
+                                     PrettyArrayType->getIndexTypeQualifiers());
+
+  // int x[_Nullable] -> int * _Nullable
+  if (auto Nullability = Ty->getNullability(*this)) {
+    Result = const_cast<ASTContext *>(this)->getAttributedType(
+        AttributedType::getNullabilityAttrKind(*Nullability), Result, Result);
+  }
+  return Result;
 }
 
 QualType ASTContext::getBaseElementType(const ArrayType *array) const {
@@ -5571,8 +5594,9 @@ std::string ASTContext::getObjCEncodingForBlock(const BlockExpr *Expr) const {
   return S;
 }
 
-bool ASTContext::getObjCEncodingForFunctionDecl(const FunctionDecl *Decl,
-                                                std::string& S) {
+std::string
+ASTContext::getObjCEncodingForFunctionDecl(const FunctionDecl *Decl) const {
+  std::string S;
   // Encode result type.
   getObjCEncodingForType(Decl->getReturnType(), S);
   CharUnits ParmOffset;
@@ -5583,8 +5607,8 @@ bool ASTContext::getObjCEncodingForFunctionDecl(const FunctionDecl *Decl,
     if (sz.isZero())
       continue;
  
-    assert (sz.isPositive() && 
-        "getObjCEncodingForFunctionDecl - Incomplete param type");
+    assert(sz.isPositive() && 
+           "getObjCEncodingForFunctionDecl - Incomplete param type");
     ParmOffset += sz;
   }
   S += charUnitsToString(ParmOffset);
@@ -5606,7 +5630,7 @@ bool ASTContext::getObjCEncodingForFunctionDecl(const FunctionDecl *Decl,
     ParmOffset += getObjCEncodingTypeSize(PType);
   }
   
-  return false;
+  return S;
 }
 
 /// getObjCEncodingForMethodParameter - Return the encoded type for a single
@@ -5628,11 +5652,11 @@ void ASTContext::getObjCEncodingForMethodParameter(Decl::ObjCDeclQualifier QT,
 
 /// getObjCEncodingForMethodDecl - Return the encoded type for this method
 /// declaration.
-bool ASTContext::getObjCEncodingForMethodDecl(const ObjCMethodDecl *Decl,
-                                              std::string& S, 
-                                              bool Extended) const {
+std::string ASTContext::getObjCEncodingForMethodDecl(const ObjCMethodDecl *Decl,
+                                                     bool Extended) const {
   // FIXME: This is not very efficient.
   // Encode return type.
+  std::string S;
   getObjCEncodingForMethodParameter(Decl->getObjCDeclQualifier(),
                                     Decl->getReturnType(), S, Extended);
   // Compute size of all parameters.
@@ -5678,7 +5702,7 @@ bool ASTContext::getObjCEncodingForMethodDecl(const ObjCMethodDecl *Decl,
     ParmOffset += getObjCEncodingTypeSize(PType);
   }
   
-  return false;
+  return S;
 }
 
 ObjCPropertyImplDecl *
@@ -5726,9 +5750,9 @@ ASTContext::getObjCPropertyImplDeclForPropertyDecl(
 /// kPropertyNonAtomic = 'N'         // property non-atomic
 /// };
 /// @endcode
-void ASTContext::getObjCEncodingForPropertyDecl(const ObjCPropertyDecl *PD,
-                                                const Decl *Container,
-                                                std::string& S) const {
+std::string
+ASTContext::getObjCEncodingForPropertyDecl(const ObjCPropertyDecl *PD,
+                                           const Decl *Container) const {
   // Collect information from the property implementation decl(s).
   bool Dynamic = false;
   ObjCPropertyImplDecl *SynthesizePID = nullptr;
@@ -5742,7 +5766,7 @@ void ASTContext::getObjCEncodingForPropertyDecl(const ObjCPropertyDecl *PD,
   }
 
   // FIXME: This is not very efficient.
-  S = "T";
+  std::string S = "T";
 
   // Encode result type.
   // GCC has some special rules regarding encoding of properties which
@@ -5791,6 +5815,7 @@ void ASTContext::getObjCEncodingForPropertyDecl(const ObjCPropertyDecl *PD,
   }
 
   // FIXME: OBJCGC: weak & strong
+  return S;
 }
 
 /// getLegacyIntegralTypeEncoding -
@@ -7739,7 +7764,7 @@ bool ASTContext::typesAreCompatible(QualType LHS, QualType RHS,
                                     bool CompareUnqualified) {
   if (getLangOpts().CPlusPlus)
     return hasSameType(LHS, RHS);
-  
+
   return !mergeTypes(LHS, RHS, false, CompareUnqualified).isNull();
 }
 
@@ -8253,21 +8278,9 @@ QualType ASTContext::mergeTypes(QualType LHS, QualType RHS,
   }
   case Type::Pipe:
   {
-    // Merge two pointer types, while trying to preserve typedef info
-    QualType LHSValue = LHS->getAs<PipeType>()->getElementType();
-    QualType RHSValue = RHS->getAs<PipeType>()->getElementType();
-    if (Unqualified) {
-      LHSValue = LHSValue.getUnqualifiedType();
-      RHSValue = RHSValue.getUnqualifiedType();
-    }
-    QualType ResultType = mergeTypes(LHSValue, RHSValue, false,
-                                     Unqualified);
-    if (ResultType.isNull()) return QualType();
-    if (getCanonicalType(LHSValue) == getCanonicalType(ResultType))
-      return LHS;
-    if (getCanonicalType(RHSValue) == getCanonicalType(ResultType))
-      return RHS;
-    return getPipeType(ResultType);
+    assert(LHS != RHS &&
+           "Equivalent pipe types should have already been handled!");
+    return QualType();
   }
   }
 
@@ -8549,6 +8562,10 @@ static QualType DecodeTypeFromStr(const char *&Str, const ASTContext &Context,
   case 'z':  // size_t.
     assert(HowLong == 0 && !Signed && !Unsigned && "Bad modifiers for 'z'!");
     Type = Context.getSizeType();
+    break;
+  case 'w':  // wchar_t.
+    assert(HowLong == 0 && !Signed && !Unsigned && "Bad modifiers for 'w'!");
+    Type = Context.getWideCharType();
     break;
   case 'F':
     Type = Context.getCFConstantStringType();
@@ -9170,18 +9187,6 @@ void ASTContext::addCopyConstructorForExceptionObject(CXXRecordDecl *RD,
       cast<CXXConstructorDecl>(CD->getFirstDecl()));
 }
 
-void ASTContext::addDefaultArgExprForConstructor(const CXXConstructorDecl *CD,
-                                                 unsigned ParmIdx, Expr *DAE) {
-  ABI->addDefaultArgExprForConstructor(
-      cast<CXXConstructorDecl>(CD->getFirstDecl()), ParmIdx, DAE);
-}
-
-Expr *ASTContext::getDefaultArgExprForConstructor(const CXXConstructorDecl *CD,
-                                                  unsigned ParmIdx) {
-  return ABI->getDefaultArgExprForConstructor(
-      cast<CXXConstructorDecl>(CD->getFirstDecl()), ParmIdx);
-}
-
 void ASTContext::addTypedefNameForUnnamedTagDecl(TagDecl *TD,
                                                  TypedefNameDecl *DD) {
   return ABI->addTypedefNameForUnnamedTagDecl(TD, DD);
@@ -9458,6 +9463,16 @@ ASTContext::ObjCMethodsAreEqual(const ObjCMethodDecl *MethodDecl,
   }
   return (MethodDecl->isVariadic() == MethodImpl->isVariadic());
   
+}
+
+uint64_t ASTContext::getTargetNullPointerValue(QualType QT) const {
+  unsigned AS;
+  if (QT->getUnqualifiedDesugaredType()->isNullPtrType())
+    AS = 0;
+  else
+    AS = QT->getPointeeType().getAddressSpace();
+
+  return getTargetInfo().getNullPointerValue(AS);
 }
 
 // Explicitly instantiate this in case a Redeclarable<T> is used from a TU that

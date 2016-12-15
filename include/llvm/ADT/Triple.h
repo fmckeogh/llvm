@@ -64,11 +64,14 @@ public:
     ppc64le,        // PPC64LE: powerpc64le
     r600,           // R600: AMD GPUs HD2XXX - HD6XXX
     amdgcn,         // AMDGCN: AMD GCN GPUs
+    riscv32,        // RISC-V (32-bit): riscv32
+    riscv64,        // RISC-V (64-bit): riscv64
     sparc,          // Sparc: sparc
     sparcv9,        // Sparcv9: Sparcv9
     sparcel,        // Sparc: (endianness = little). NB: 'Sparcle' is a CPU variant
     systemz,        // SystemZ: s390x
     tce,            // TCE (http://tce.cs.tut.fi/): tce
+    tcele,          // TCE little endian (http://tce.cs.tut.fi/): tcele
     thumb,          // Thumb (little endian): thumb, thumbv.*
     thumbeb,        // Thumb (big endian): thumbeb
     x86,            // X86: i[3-9]86

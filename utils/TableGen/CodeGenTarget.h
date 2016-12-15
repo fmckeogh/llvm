@@ -82,7 +82,7 @@ public:
   ~CodeGenTarget();
 
   Record *getTargetRecord() const { return TargetRec; }
-  const std::string &getName() const;
+  const StringRef getName() const;
 
   /// getInstNamespace - Return the target-specific instruction namespace.
   ///
@@ -200,8 +200,8 @@ class ComplexPattern {
   std::string SelectFunc;
   std::vector<Record*> RootNodes;
   unsigned Properties; // Node properties
+  unsigned Complexity;
 public:
-  ComplexPattern() : NumOperands(0) {}
   ComplexPattern(Record *R);
 
   MVT::SimpleValueType getValueType() const { return Ty; }
@@ -211,6 +211,7 @@ public:
     return RootNodes;
   }
   bool hasProperty(enum SDNP Prop) const { return Properties & (1 << Prop); }
+  unsigned getComplexity() const { return Complexity; }
 };
 
 } // End llvm namespace

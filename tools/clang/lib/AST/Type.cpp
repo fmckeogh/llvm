@@ -1057,7 +1057,7 @@ QualType simpleTransform(ASTContext &ctx, QualType type, F &&f) {
   SplitQualType splitType = type.split();
 
   // Visit the type itself.
-  SimpleTransformVisitor<F> visitor(ctx, std::move(f));
+  SimpleTransformVisitor<F> visitor(ctx, std::forward<F>(f));
   QualType result = visitor.Visit(splitType.Ty);
   if (result.isNull())
     return result;
@@ -2671,6 +2671,7 @@ StringRef FunctionType::getNameForCallConv(CallingConv CC) {
   case CC_X86VectorCall: return "vectorcall";
   case CC_X86_64Win64: return "ms_abi";
   case CC_X86_64SysV: return "sysv_abi";
+  case CC_X86RegCall : return "regcall";
   case CC_AAPCS: return "aapcs";
   case CC_AAPCS_VFP: return "aapcs-vfp";
   case CC_IntelOclBicc: return "intel_ocl_bicc";
@@ -3047,6 +3048,7 @@ bool AttributedType::isQualifier() const {
   case AttributedType::attr_fastcall:
   case AttributedType::attr_stdcall:
   case AttributedType::attr_thiscall:
+  case AttributedType::attr_regcall:
   case AttributedType::attr_pascal:
   case AttributedType::attr_swiftcall:
   case AttributedType::attr_vectorcall:
@@ -3104,6 +3106,7 @@ bool AttributedType::isCallingConv() const {
   case attr_fastcall:
   case attr_stdcall:
   case attr_thiscall:
+  case attr_regcall:
   case attr_swiftcall:
   case attr_vectorcall:
   case attr_pascal:

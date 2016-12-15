@@ -25,6 +25,7 @@
 #include "clang/Sema/PrettyDeclStackTrace.h"
 #include "clang/Sema/Scope.h"
 #include "clang/Sema/SemaDiagnostic.h"
+#include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringSwitch.h"
@@ -301,10 +302,10 @@ unsigned Parser::ParseAttributeArgsCommon(
 
     // Parse the non-empty comma-separated list of expressions.
     do {
-      std::unique_ptr<EnterExpressionEvaluationContext> Unevaluated;
-      if (attributeParsedArgsUnevaluated(*AttrName))
-        Unevaluated.reset(
-            new EnterExpressionEvaluationContext(Actions, Sema::Unevaluated));
+      bool ShouldEnter = attributeParsedArgsUnevaluated(*AttrName);
+      EnterExpressionEvaluationContext Unevaluated(
+          Actions, Sema::Unevaluated, /*LambdaContextDecl=*/nullptr,
+          /*IsDecltype=*/false, ShouldEnter);
 
       ExprResult ArgExpr(
           Actions.CorrectDelayedTyposInExpr(ParseAssignmentExpression()));
@@ -366,13 +367,13 @@ void Parser::ParseGNUAttributeArgs(IdentifierInfo *AttrName,
 
   // These may refer to the function arguments, but need to be parsed early to
   // participate in determining whether it's a redeclaration.
-  std::unique_ptr<ParseScope> PrototypeScope;
+  llvm::Optional<ParseScope> PrototypeScope;
   if (normalizeAttrName(AttrName->getName()) == "enable_if" &&
       D && D->isFunctionDeclarator()) {
     DeclaratorChunk::FunctionTypeInfo FTI = D->getFunctionTypeInfo();
-    PrototypeScope.reset(new ParseScope(this, Scope::FunctionPrototypeScope |
-                                        Scope::FunctionDeclarationScope |
-                                        Scope::DeclScope));
+    PrototypeScope.emplace(this, Scope::FunctionPrototypeScope |
+                                     Scope::FunctionDeclarationScope |
+                                     Scope::DeclScope);
     for (unsigned i = 0; i != FTI.NumParams; ++i) {
       ParmVarDecl *Param = cast<ParmVarDecl>(FTI.Params[i].Param);
       Actions.ActOnReenterCXXMethodParameter(getCurScope(), Param);
@@ -605,6 +606,7 @@ void Parser::ParseMicrosoftTypeAttributes(ParsedAttributes &attrs) {
     case tok::kw___fastcall:
     case tok::kw___stdcall:
     case tok::kw___thiscall:
+    case tok::kw___regcall:
     case tok::kw___cdecl:
     case tok::kw___vectorcall:
     case tok::kw___ptr64:
@@ -3137,6 +3139,7 @@ void Parser::ParseDeclarationSpecifiers(DeclSpec &DS,
     case tok::kw___stdcall:
     case tok::kw___fastcall:
     case tok::kw___thiscall:
+    case tok::kw___regcall:
     case tok::kw___vectorcall:
       ParseMicrosoftTypeAttributes(DS.getAttributes());
       continue;
@@ -4193,7 +4196,7 @@ void Parser::ParseEnumBody(SourceLocation StartLoc, Decl *EnumDecl) {
 
   // C does not allow an empty enumerator-list, C++ does [dcl.enum].
   if (Tok.is(tok::r_brace) && !getLangOpts().CPlusPlus)
-    Diag(Tok, diag::error_empty_enum);
+    Diag(Tok, diag::err_empty_enum);
 
   SmallVector<Decl *, 32> EnumConstantDecls;
   SmallVector<SuppressAccessChecks, 32> EnumAvailabilityDiags;
@@ -4460,6 +4463,7 @@ bool Parser::isTypeSpecifierQualifier() {
   case tok::kw___stdcall:
   case tok::kw___fastcall:
   case tok::kw___thiscall:
+  case tok::kw___regcall:
   case tok::kw___vectorcall:
   case tok::kw___w64:
   case tok::kw___ptr64:
@@ -4645,6 +4649,7 @@ bool Parser::isDeclarationSpecifier(bool DisambiguatingWithExpression) {
   case tok::kw___stdcall:
   case tok::kw___fastcall:
   case tok::kw___thiscall:
+  case tok::kw___regcall:
   case tok::kw___vectorcall:
   case tok::kw___w64:
   case tok::kw___sptr:
@@ -4883,6 +4888,7 @@ void Parser::ParseTypeQualifierListOpt(DeclSpec &DS, unsigned AttrReqs,
     case tok::kw___stdcall:
     case tok::kw___fastcall:
     case tok::kw___thiscall:
+    case tok::kw___regcall:
     case tok::kw___vectorcall:
       if (AttrReqs & AR_DeclspecAttributesParsed) {
         ParseMicrosoftTypeAttributes(DS.getAttributes());
@@ -5265,6 +5271,14 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
         // Change the declaration context for name lookup, until this function
         // is exited (and the declarator has been parsed).
         DeclScopeObj.EnterDeclaratorScope();
+      else if (getObjCDeclContext()) {
+        // Ensure that we don't interpret the next token as an identifier when
+        // dealing with declarations in an Objective-C container.
+        D.SetIdentifier(nullptr, Tok.getLocation());
+        D.setInvalidType(true);
+        ConsumeToken();
+        goto PastIdentifier;
+      }
     }
 
     // C++0x [dcl.fct]p14:
@@ -5820,6 +5834,21 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
     }
   }
 
+  // Collect non-parameter declarations from the prototype if this is a function
+  // declaration. They will be moved into the scope of the function. Only do
+  // this in C and not C++, where the decls will continue to live in the
+  // surrounding context.
+  SmallVector<NamedDecl *, 0> DeclsInPrototype;
+  if (getCurScope()->getFlags() & Scope::FunctionDeclarationScope &&
+      !getLangOpts().CPlusPlus) {
+    for (Decl *D : getCurScope()->decls()) {
+      NamedDecl *ND = dyn_cast<NamedDecl>(D);
+      if (!ND || isa<ParmVarDecl>(ND))
+        continue;
+      DeclsInPrototype.push_back(ND);
+    }
+  }
+
   // Remember that we parsed a function type, and remember the attributes.
   D.AddTypeInfo(DeclaratorChunk::getFunction(HasProto,
                                              IsAmbiguous,
@@ -5839,6 +5868,7 @@ void Parser::ParseFunctionDeclarator(Declarator &D,
                                              NoexceptExpr.isUsable() ?
                                                NoexceptExpr.get() : nullptr,
                                              ExceptionSpecTokens,
+                                             DeclsInPrototype,
                                              StartLoc, LocalEndLoc, D,
                                              TrailingReturnType),
                 FnAttrs, EndLoc);
@@ -6023,7 +6053,7 @@ void Parser::ParseParameterDeclarationClause(
 
     // DefArgToks is used when the parsing of default arguments needs
     // to be delayed.
-    CachedTokens *DefArgToks = nullptr;
+    std::unique_ptr<CachedTokens> DefArgToks;
 
     // If no parameter was specified, verify that *something* was specified,
     // otherwise we have a missing type and identifier.
@@ -6059,13 +6089,11 @@ void Parser::ParseParameterDeclarationClause(
           // If we're inside a class definition, cache the tokens
           // corresponding to the default argument. We'll actually parse
           // them when we see the end of the class definition.
-          // FIXME: Can we use a smart pointer for Toks?
-          DefArgToks = new CachedTokens;
+          DefArgToks.reset(new CachedTokens);
 
           SourceLocation ArgStartLoc = NextToken().getLocation();
           if (!ConsumeAndStoreInitializer(*DefArgToks, CIK_DefaultArgument)) {
-            delete DefArgToks;
-            DefArgToks = nullptr;
+            DefArgToks.reset();
             Actions.ActOnParamDefaultArgumentError(Param, EqualLoc);
           } else {
             Actions.ActOnParamUnparsedDefaultArgument(Param, EqualLoc,
@@ -6101,7 +6129,7 @@ void Parser::ParseParameterDeclarationClause(
 
       ParamInfo.push_back(DeclaratorChunk::ParamInfo(ParmII,
                                           ParmDeclarator.getIdentifierLoc(), 
-                                          Param, DefArgToks));
+                                          Param, std::move(DefArgToks)));
     }
 
     if (TryConsumeToken(tok::ellipsis, EllipsisLoc)) {
@@ -6251,8 +6279,7 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
 
   T.consumeClose();
 
-  ParsedAttributes attrs(AttrFactory);
-  MaybeParseCXX11Attributes(attrs);
+  MaybeParseCXX11Attributes(DS.getAttributes());
 
   // Remember that we parsed a array type, and remember its features.
   D.AddTypeInfo(DeclaratorChunk::getArray(DS.getTypeQualifiers(),
@@ -6260,7 +6287,7 @@ void Parser::ParseBracketDeclarator(Declarator &D) {
                                           NumElements.get(),
                                           T.getOpenLocation(),
                                           T.getCloseLocation()),
-                attrs, T.getCloseLocation());
+                DS.getAttributes(), T.getCloseLocation());
 }
 
 /// Diagnose brackets before an identifier.

@@ -142,6 +142,13 @@ public:
     CmpXChg, // Expand the instruction into cmpxchg; used by at least X86.
   };
 
+  /// Enum that specifies when a multiplication should be expanded.
+  enum class MulExpansionKind {
+    Always,            // Always expand the instruction.
+    OnlyLegalOrCustom, // Only expand when the resulting instructions are legal
+                       // or custom.
+  };
+
   static ISD::NodeType getExtendForContent(BooleanContent Content) {
     switch (Content) {
     case UndefinedBooleanContent:
@@ -398,6 +405,15 @@ public:
   /// (X & 8) == 8 ---> (X & 8) != 0
   virtual bool hasAndNotCompare(SDValue Y) const {
     return false;
+  }
+
+  /// Return true if the target has a bitwise and-not operation:
+  /// X = ~A & B
+  /// This can be used to simplify select or other instructions.
+  virtual bool hasAndNot(SDValue X) const {
+    // If the target has the more complex version of this operation, assume that
+    // it has this operation too.
+    return hasAndNotCompare(X);
   }
 
   /// \brief Return true if the target wants to use the optimization that
@@ -1053,6 +1069,10 @@ public:
   /// Zero if no limit.
   unsigned getMaximumJumpTableSize() const;
 
+  virtual bool isJumpTableRelative() const {
+    return TM.isPositionIndependent();
+  }
+
   /// If a physical register, this specifies the register that
   /// llvm.savestack/llvm.restorestack should save and restore.
   unsigned getStackPointerRegisterToSaveRestore() const {
@@ -1143,6 +1163,12 @@ public:
   /// Returns true if a cast between SrcAS and DestAS is a noop.
   virtual bool isNoopAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const {
     return false;
+  }
+
+  /// Returns true if a cast from SrcAS to DestAS is "cheap", such that e.g. we
+  /// are happy to sink it into basic blocks.
+  virtual bool isCheapAddrSpaceCast(unsigned SrcAS, unsigned DestAS) const {
+    return isNoopAddrSpaceCast(SrcAS, DestAS);
   }
 
   /// Return true if the pointer arguments to CI should be aligned by aligning
@@ -2098,7 +2124,7 @@ protected:
   virtual bool isExtFreeImpl(const Instruction *I) const { return false; }
 
   /// Depth that GatherAllAliases should should continue looking for chain
-  /// dependencies when trying to find a more preferrable chain. As an
+  /// dependencies when trying to find a more preferable chain. As an
   /// approximation, this should be more than the number of consecutive stores
   /// expected to be merged.
   unsigned GatherAllAliasesMaxDepth;
@@ -2988,21 +3014,24 @@ public:
   /// Hooks for building estimates in place of slower divisions and square
   /// roots.
 
-  /// Return a reciprocal square root estimate value for the input operand.
+  /// Return either a square root or its reciprocal estimate value for the input
+  /// operand.
   /// \p Enabled is a ReciprocalEstimate enum with value either 'Unspecified' or
   /// 'Enabled' as set by a potential default override attribute.
   /// If \p RefinementSteps is 'Unspecified', the number of Newton-Raphson
   /// refinement iterations required to generate a sufficient (though not
   /// necessarily IEEE-754 compliant) estimate is returned in that parameter.
   /// The boolean UseOneConstNR output is used to select a Newton-Raphson
-  /// algorithm implementation that uses one constant or two constants.
+  /// algorithm implementation that uses either one or two constants.
+  /// The boolean Reciprocal is used to select whether the estimate is for the
+  /// square root of the input operand or the reciprocal of its square root.
   /// A target may choose to implement its own refinement within this function.
   /// If that's true, then return '0' as the number of RefinementSteps to avoid
   /// any further refinement of the estimate.
   /// An empty SDValue return means no estimate sequence can be created.
-  virtual SDValue getRsqrtEstimate(SDValue Operand, SelectionDAG &DAG,
-                                   int Enabled, int &RefinementSteps,
-                                   bool &UseOneConstNR) const {
+  virtual SDValue getSqrtEstimate(SDValue Operand, SelectionDAG &DAG,
+                                  int Enabled, int &RefinementSteps,
+                                  bool &UseOneConstNR, bool Reciprocal) const {
     return SDValue();
   }
 
@@ -3025,6 +3054,22 @@ public:
   // Legalization utility functions
   //
 
+  /// Expand a MUL or [US]MUL_LOHI of n-bit values into two or four nodes,
+  /// respectively, each computing an n/2-bit part of the result.
+  /// \param Result A vector that will be filled with the parts of the result
+  ///        in little-endian order.
+  /// \param LL Low bits of the LHS of the MUL.  You can use this parameter
+  ///        if you want to control how low bits are extracted from the LHS.
+  /// \param LH High bits of the LHS of the MUL.  See LL for meaning.
+  /// \param RL Low bits of the RHS of the MUL.  See LL for meaning
+  /// \param RH High bits of the RHS of the MUL.  See LL for meaning.
+  /// \returns true if the node has been expanded, false if it has not
+  bool expandMUL_LOHI(unsigned Opcode, EVT VT, SDLoc dl, SDValue LHS,
+                      SDValue RHS, SmallVectorImpl<SDValue> &Result, EVT HiLoVT,
+                      SelectionDAG &DAG, MulExpansionKind Kind,
+                      SDValue LL = SDValue(), SDValue LH = SDValue(),
+                      SDValue RL = SDValue(), SDValue RH = SDValue()) const;
+
   /// Expand a MUL into two nodes.  One that computes the high bits of
   /// the result and one that computes the low bits.
   /// \param HiLoVT The value type to use for the Lo and Hi nodes.
@@ -3035,9 +3080,9 @@ public:
   /// \param RH High bits of the RHS of the MUL.  See LL for meaning.
   /// \returns true if the node has been expanded. false if it has not
   bool expandMUL(SDNode *N, SDValue &Lo, SDValue &Hi, EVT HiLoVT,
-                 SelectionDAG &DAG, SDValue LL = SDValue(),
-                 SDValue LH = SDValue(), SDValue RL = SDValue(),
-                 SDValue RH = SDValue()) const;
+                 SelectionDAG &DAG, MulExpansionKind Kind,
+                 SDValue LL = SDValue(), SDValue LH = SDValue(),
+                 SDValue RL = SDValue(), SDValue RH = SDValue()) const;
 
   /// Expand float(f32) to SINT(i64) conversion
   /// \param N Node to expand
@@ -3063,6 +3108,17 @@ public:
   /// Expands an unaligned store to 2 half-size stores for integer values, and
   /// possibly more for vectors.
   SDValue expandUnalignedStore(StoreSDNode *ST, SelectionDAG &DAG) const;
+
+  /// Increments memory address \p Addr according to the type of the value
+  /// \p DataVT that should be stored. If the data is stored in compressed
+  /// form, the memory address should be incremented according to the number of
+  /// the stored elements. This number is equal to the number of '1's bits
+  /// in the \p Mask.
+  /// \p DataVT is a vector type. \p Mask is a vector value.
+  /// \p DataVT and \p Mask have the same number of vector elements.
+  SDValue IncrementMemoryAddress(SDValue Addr, SDValue Mask, const SDLoc &DL,
+                                 EVT DataVT, SelectionDAG &DAG,
+                                 bool IsCompressedMemory) const;
 
   //===--------------------------------------------------------------------===//
   // Instruction Emitting Hooks

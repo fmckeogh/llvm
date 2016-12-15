@@ -42,6 +42,7 @@ class DiagnosticsEngine;
 class LangOptions;
 class CodeGenOptions;
 class MacroBuilder;
+class QualType;
 class SourceLocation;
 class SourceManager;
 
@@ -299,6 +300,12 @@ public:
   /// \brief Return the maximum width of pointers on this target.
   virtual uint64_t getMaxPointerWidth() const {
     return PointerWidth;
+  }
+
+  /// \brief Get integer value for null pointer.
+  /// \param AddrSpace address space of pointee in source language.
+  virtual uint64_t getNullPointerValue(unsigned AddrSpace) const {
+    return 0;
   }
 
   /// \brief Return the size of '_Bool' and C++ 'bool' for this target, in bits.
@@ -994,11 +1001,18 @@ public:
     return false;
   }
 
-  /// \brief Whether target allows to overalign ABI-specified prefered alignment
+  /// \brief Whether target allows to overalign ABI-specified preferred alignment
   virtual bool allowsLargerPreferedTypeAlignment() const { return true; }
 
   /// \brief Set supported OpenCL extensions and optional core features.
   virtual void setSupportedOpenCLOpts() {}
+
+  /// \brief Set supported OpenCL extensions as written on command line
+  virtual void setOpenCLExtensionOpts() {
+    for (const auto &Ext : getTargetOpts().OpenCLExtensionsAsWritten) {
+      getTargetOpts().SupportedOpenCLOptions.set(Ext);
+    }
+  }
 
   /// \brief Get supported OpenCL extensions and optional core features.
   OpenCLOptions &getSupportedOpenCLOpts() {

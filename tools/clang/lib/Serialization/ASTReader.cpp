@@ -1711,7 +1711,7 @@ void ASTReader::ReadDefinedMacros() {
     BitstreamCursor &MacroCursor = I->MacroCursor;
 
     // If there was no preprocessor block, skip this file.
-    if (!MacroCursor.getBitStreamReader())
+    if (MacroCursor.getBitcodeBytes().empty())
       continue;
 
     BitstreamCursor Cursor = MacroCursor;
@@ -1953,7 +1953,7 @@ void ASTReader::resolvePendingMacro(IdentifierInfo *II,
   }
 
   if (Latest)
-    PP.setLoadedMacroDirective(II, Latest);
+    PP.setLoadedMacroDirective(II, Earliest, Latest);
 }
 
 ASTReader::InputFileInfo
@@ -3578,7 +3578,8 @@ static bool SkipCursorToBlock(BitstreamCursor &Cursor, unsigned BlockID) {
 ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
                                             ModuleKind Type,
                                             SourceLocation ImportLoc,
-                                            unsigned ClientLoadCapabilities) {
+                                            unsigned ClientLoadCapabilities,
+                                            SmallVectorImpl<ImportedSubmodule> *Imported) {
   llvm::SaveAndRestore<SourceLocation>
     SetCurImportLocRAII(CurrentImportLoc, ImportLoc);
 
@@ -3744,6 +3745,10 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
   }
   UnresolvedModuleRefs.clear();
 
+  if (Imported)
+    Imported->append(ImportedModules.begin(),
+                     ImportedModules.end());
+
   // FIXME: How do we load the 'use'd modules? They may not be submodules.
   // Might be unnecessary as use declarations are only used to build the
   // module itself.
@@ -3798,11 +3803,12 @@ ASTReader::ASTReadResult ASTReader::ReadAST(StringRef FileName,
   return Success;
 }
 
-static ASTFileSignature readASTFileSignature(llvm::BitstreamReader &StreamFile);
+static ASTFileSignature readASTFileSignature(StringRef PCH);
 
 /// \brief Whether \p Stream starts with the AST/PCH file magic number 'CPCH'.
 static bool startsWithASTFileMagic(BitstreamCursor &Stream) {
-  return Stream.Read(8) == 'C' &&
+  return Stream.canSkipToPos(4) &&
+         Stream.Read(8) == 'C' &&
          Stream.Read(8) == 'P' &&
          Stream.Read(8) == 'C' &&
          Stream.Read(8) == 'H';
@@ -3884,8 +3890,7 @@ ASTReader::ReadASTCore(StringRef FileName,
 
   ModuleFile &F = *M;
   BitstreamCursor &Stream = F.Stream;
-  PCHContainerRdr.ExtractPCH(F.Buffer->getMemBufferRef(), F.StreamFile);
-  Stream.init(&F.StreamFile);
+  Stream = BitstreamCursor(PCHContainerRdr.ExtractPCH(*F.Buffer));
   F.SizeInBits = F.Buffer->getBufferSize() * 8;
   
   // Sniff for the signature.
@@ -4174,10 +4179,10 @@ void ASTReader::finalizeForWriting() {
   // Nothing to do for now.
 }
 
-/// \brief Reads and return the signature record from \p StreamFile's control
-/// block, or else returns 0.
-static ASTFileSignature readASTFileSignature(llvm::BitstreamReader &StreamFile){
-  BitstreamCursor Stream(StreamFile);
+/// \brief Reads and return the signature record from \p PCH's control block, or
+/// else returns 0.
+static ASTFileSignature readASTFileSignature(StringRef PCH) {
+  BitstreamCursor Stream(PCH);
   if (!startsWithASTFileMagic(Stream))
     return 0;
 
@@ -4189,8 +4194,7 @@ static ASTFileSignature readASTFileSignature(llvm::BitstreamReader &StreamFile){
   ASTReader::RecordData Record;
   while (true) {
     llvm::BitstreamEntry Entry = Stream.advanceSkippingSubblocks();
-    if (Entry.Kind == llvm::BitstreamEntry::EndBlock ||
-        Entry.Kind != llvm::BitstreamEntry::Record)
+    if (Entry.Kind != llvm::BitstreamEntry::Record)
       return 0;
 
     Record.clear();
@@ -4215,9 +4219,7 @@ std::string ASTReader::getOriginalSourceFile(
   }
 
   // Initialize the stream
-  llvm::BitstreamReader StreamFile;
-  PCHContainerRdr.ExtractPCH((*Buffer)->getMemBufferRef(), StreamFile);
-  BitstreamCursor Stream(StreamFile);
+  BitstreamCursor Stream(PCHContainerRdr.ExtractPCH(**Buffer));
 
   // Sniff for the signature.
   if (!startsWithASTFileMagic(Stream)) {
@@ -4317,9 +4319,7 @@ bool ASTReader::readASTFileControlBlock(
   }
 
   // Initialize the stream
-  llvm::BitstreamReader StreamFile;
-  PCHContainerRdr.ExtractPCH((*Buffer)->getMemBufferRef(), StreamFile);
-  BitstreamCursor Stream(StreamFile);
+  BitstreamCursor Stream(PCHContainerRdr.ExtractPCH(**Buffer));
 
   // Sniff for the signature.
   if (!startsWithASTFileMagic(Stream))
@@ -5799,15 +5799,17 @@ QualType ASTReader::readTypeRecord(unsigned Index) {
   }
 
   case TYPE_PIPE: {
-    if (Record.size() != 1) {
+    if (Record.size() != 2) {
       Error("Incorrect encoding of pipe type");
       return QualType();
     }
 
     // Reading the pipe element type.
     QualType ElementType = readType(*Loc.F, Record, Idx);
-    return Context.getPipeType(ElementType);
+    unsigned ReadOnly = Record[1];
+    return Context.getPipeType(ElementType, ReadOnly);
   }
+
   }
   llvm_unreachable("Invalid TypeCode!");
 }
@@ -8177,49 +8179,29 @@ ASTReader::ReadCXXCtorInitializers(ModuleFile &F, const RecordData &Record,
     Expr *Init = ReadExpr(F);
     SourceLocation LParenLoc = ReadSourceLocation(F, Record, Idx);
     SourceLocation RParenLoc = ReadSourceLocation(F, Record, Idx);
-    bool IsWritten = Record[Idx++];
-    unsigned SourceOrderOrNumArrayIndices;
-    SmallVector<VarDecl *, 8> Indices;
-    if (IsWritten) {
-      SourceOrderOrNumArrayIndices = Record[Idx++];
-    } else {
-      SourceOrderOrNumArrayIndices = Record[Idx++];
-      Indices.reserve(SourceOrderOrNumArrayIndices);
-      for (unsigned i = 0; i != SourceOrderOrNumArrayIndices; ++i)
-        Indices.push_back(ReadDeclAs<VarDecl>(F, Record, Idx));
-    }
 
     CXXCtorInitializer *BOMInit;
-    if (Type == CTOR_INITIALIZER_BASE) {
+    if (Type == CTOR_INITIALIZER_BASE)
       BOMInit = new (Context)
           CXXCtorInitializer(Context, TInfo, IsBaseVirtual, LParenLoc, Init,
                              RParenLoc, MemberOrEllipsisLoc);
-    } else if (Type == CTOR_INITIALIZER_DELEGATING) {
+    else if (Type == CTOR_INITIALIZER_DELEGATING)
       BOMInit = new (Context)
           CXXCtorInitializer(Context, TInfo, LParenLoc, Init, RParenLoc);
-    } else if (IsWritten) {
-      if (Member)
-        BOMInit = new (Context) CXXCtorInitializer(
-            Context, Member, MemberOrEllipsisLoc, LParenLoc, Init, RParenLoc);
-      else
-        BOMInit = new (Context)
-            CXXCtorInitializer(Context, IndirectMember, MemberOrEllipsisLoc,
-                               LParenLoc, Init, RParenLoc);
-    } else {
-      if (IndirectMember) {
-        assert(Indices.empty() && "Indirect field improperly initialized");
-        BOMInit = new (Context)
-            CXXCtorInitializer(Context, IndirectMember, MemberOrEllipsisLoc,
-                               LParenLoc, Init, RParenLoc);
-      } else {
-        BOMInit = CXXCtorInitializer::Create(
-            Context, Member, MemberOrEllipsisLoc, LParenLoc, Init, RParenLoc,
-            Indices.data(), Indices.size());
-      }
+    else if (Member)
+      BOMInit = new (Context)
+          CXXCtorInitializer(Context, Member, MemberOrEllipsisLoc, LParenLoc,
+                             Init, RParenLoc);
+    else
+      BOMInit = new (Context)
+          CXXCtorInitializer(Context, IndirectMember, MemberOrEllipsisLoc,
+                             LParenLoc, Init, RParenLoc);
+
+    if (/*IsWritten*/Record[Idx++]) {
+      unsigned SourceOrder = Record[Idx++];
+      BOMInit->setSourceOrder(SourceOrder);
     }
 
-    if (IsWritten)
-      BOMInit->setSourceOrder(SourceOrderOrNumArrayIndices);
     CtorInitializers[i] = BOMInit;
   }
 

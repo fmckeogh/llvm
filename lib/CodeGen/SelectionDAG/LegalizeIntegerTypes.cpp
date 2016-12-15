@@ -1212,7 +1212,7 @@ SDValue DAGTypeLegalizer::PromoteIntOp_MSTORE(MaskedStoreSDNode *N,
 
   return DAG.getMaskedStore(N->getChain(), dl, DataOp, N->getBasePtr(), Mask,
                             N->getMemoryVT(), N->getMemOperand(),
-                            TruncateStore);
+                            TruncateStore, N->isCompressingStore());
 }
 
 SDValue DAGTypeLegalizer::PromoteIntOp_MLOAD(MaskedLoadSDNode *N,
@@ -2174,7 +2174,9 @@ void DAGTypeLegalizer::ExpandIntRes_MUL(SDNode *N,
   GetExpandedInteger(N->getOperand(0), LL, LH);
   GetExpandedInteger(N->getOperand(1), RL, RH);
 
-  if (TLI.expandMUL(N, Lo, Hi, NVT, DAG, LL, LH, RL, RH))
+  if (TLI.expandMUL(N, Lo, Hi, NVT, DAG,
+                    TargetLowering::MulExpansionKind::OnlyLegalOrCustom,
+                    LL, LH, RL, RH))
     return;
 
   // If nothing else, we can make a libcall.
@@ -2190,7 +2192,7 @@ void DAGTypeLegalizer::ExpandIntRes_MUL(SDNode *N,
   else if (VT == MVT::i128)
     LC = RTLIB::MUL_I128;
 
-  if (LC == RTLIB::UNKNOWN_LIBCALL) {
+  if (LC == RTLIB::UNKNOWN_LIBCALL || !TLI.getLibcallName(LC)) {
     // We'll expand the multiplication by brute force because we have no other
     // options. This is a trivially-generalized version of the code from
     // Hacker's Delight (itself derived from Knuth's Algorithm M from section
@@ -2217,7 +2219,7 @@ void DAGTypeLegalizer::ExpandIntRes_MUL(SDNode *N,
     SDValue RLH = DAG.getNode(ISD::SRL, dl, NVT, RL, Shift);
 
     SDValue U = DAG.getNode(ISD::ADD, dl, NVT,
-                            DAG.getNode(ISD::MUL, dl, NVT, LLH, RLL), TL);
+                            DAG.getNode(ISD::MUL, dl, NVT, LLH, RLL), TH);
     SDValue UL = DAG.getNode(ISD::AND, dl, NVT, U, Mask);
     SDValue UH = DAG.getNode(ISD::SRL, dl, NVT, U, Shift);
 
@@ -2226,14 +2228,14 @@ void DAGTypeLegalizer::ExpandIntRes_MUL(SDNode *N,
     SDValue VH = DAG.getNode(ISD::SRL, dl, NVT, V, Shift);
 
     SDValue W = DAG.getNode(ISD::ADD, dl, NVT,
-                            DAG.getNode(ISD::MUL, dl, NVT, LL, RL),
+                            DAG.getNode(ISD::MUL, dl, NVT, LLH, RLH),
                             DAG.getNode(ISD::ADD, dl, NVT, UH, VH));
-    Lo = DAG.getNode(ISD::ADD, dl, NVT, TH,
+    Lo = DAG.getNode(ISD::ADD, dl, NVT, TL,
                      DAG.getNode(ISD::SHL, dl, NVT, V, Shift));
 
     Hi = DAG.getNode(ISD::ADD, dl, NVT, W,
                      DAG.getNode(ISD::ADD, dl, NVT,
-                                 DAG.getNode(ISD::MUL, dl, NVT, RH, LL), 
+                                 DAG.getNode(ISD::MUL, dl, NVT, RH, LL),
                                  DAG.getNode(ISD::MUL, dl, NVT, RL, LH)));
     return;
   }
