@@ -346,6 +346,8 @@ def  LD8rp : I<0x46, (outs  R8:$dst), (ins ptr:$src),
 def LD16rp : I<0x46, (outs R16:$dst), (ins ptr:$src),
                [(set R16:$dst, (load iPTR:$src))]>,
              Requires<[HaveEZ80Ops]>;
+def LD88rp : P<(outs R16:$dst), (ins ptr:$src),
+               [(set R16:$dst, (load iPTR:$src))]>;
 def LD24rp : I<0x46, (outs R24:$dst), (ins ptr:$src),
                [(set R24:$dst, (load iPTR:$src))]>,
              Requires<[HaveEZ80Ops]>;
@@ -355,6 +357,8 @@ def  LD8ro : I<0x46, (outs  R8:$dst), (ins off:$src),
 def LD16ro : I<0x46, (outs R16:$dst), (ins off:$src),
                [(set R16:$dst, (load offpat:$src))]>,
              Requires<[HaveEZ80Ops]>;
+def LD88ro : P<(outs R16:$dst), (ins off:$src),
+               [(set R16:$dst, (load offpat:$src))]>;
 def LD24ro : I<0x46, (outs R24:$dst), (ins off:$src),
                [(set R24:$dst, (load offpat:$src))]>,
              Requires<[HaveEZ80Ops]>;
@@ -372,6 +376,8 @@ def  LD8pr : I<0x32, (outs), (ins ptr:$dst,  R8:$src),
 def LD16pr : I<0x22, (outs), (ins ptr:$dst, R16:$src),
                [(store R16:$src, iPTR:$dst)]>,
              Requires<[HaveEZ80Ops]>;
+def LD88pr : P<(outs), (ins ptr:$dst, R16:$src),
+               [(store R16:$src, iPTR:$dst)]>;
 def LD24pr : I<0x22, (outs), (ins ptr:$dst, R24:$src),
                [(store R24:$src, iPTR:$dst)]>,
              Requires<[HaveEZ80Ops]>;
@@ -381,6 +387,8 @@ def  LD8or : I<0x32, (outs), (ins off:$dst,  R8:$src),
 def LD16or : I<0x22, (outs), (ins off:$dst, R16:$src),
                [(store R16:$src, offpat:$dst)]>,
              Requires<[HaveEZ80Ops]>;
+def LD88or : P<(outs), (ins off:$dst, R16:$src),
+               [(store R16:$src, offpat:$dst)]>;
 def LD24or : I<0x22, (outs), (ins off:$dst, R24:$src),
                [(store R24:$src, offpat:$dst)]>,
              Requires<[HaveEZ80Ops]>;

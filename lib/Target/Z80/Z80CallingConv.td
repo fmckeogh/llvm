@@ -12,14 +12,6 @@
 //===----------------------------------------------------------------------===//
 
 //===----------------------------------------------------------------------===//
-// Return Value Calling Conventions
-//===----------------------------------------------------------------------===//
-def RetCC_Z80_LC_L  : CallingConv<[
-  CCIfType<[i24], CCAssignToReg<[UBC]>>,
-  CCIfType<[i8], CCAssignToReg<[A]>>
-]>;
-
-//===----------------------------------------------------------------------===//
 // Z80 Argument Calling Conventions
 //===----------------------------------------------------------------------===//
 
@@ -36,36 +28,49 @@ def CC_EZ80_C : CallingConv<[
   CCIfType<[i64, f64], CCAssignToStack<9, 1>>
 ]>;
 
-def CC_Z80_LC : CallingConv<[
+def CC_EZ80_LC : CallingConv<[
   CCIfType<[i24], CCIfSplit<CCAssignToReg<[UHL, UBC]>>>,
-  CCIfType<[i24], CCAssignToRegWithShadow<[UHL, UDE, UBC], [E, L, A]>>,
-  CCIfType<[i16], CCAssignToReg<[HL, DE, BC, IY]>>,
-  CCIfType<[i1],  CCPromoteToType<i8>>,
-  CCIfType<[i8], CCIfSplitEnd<CCAssignToReg<[E, A]>>>
+  CCIfType<[i24], CCIfSplitEnd<CCAssignToReg<[UDE, UIY]>>>,
+  CCIfType<[i24], CCAssignToRegWithShadow<[UHL, UBC], [UDE, UIY]>>,
+  CCIfType<[i16], CCIfSplit<CCAssignToReg<[HL, BC]>>>,
+  CCIfType<[i16], CCIfSplitEnd<CCAssignToReg<[DE, IY]>>>,
+  CCIfType<[i16], CCAssignToRegWithShadow<[HL, BC], [DE, IY]>>
 ]>;
-def RetCC_Z80_C : CallingConv<[
-  CCDelegateTo<CC_Z80_LC>,
-  CCIfType<[i8], CCAssignToReg<[A, E]>>
-]>;
-def CC_Z80_LC_AB : CallingConv<[
-  CCDelegateTo<CC_Z80_LC>,
+def CC_EZ80_LC_AB : CallingConv<[
+  CCDelegateTo<CC_EZ80_LC>,
   CCIfType<[i8], CCAssignToReg<[A, B]>>
 ]>;
-def CC_Z80_LC_AC : CallingConv<[
-  CCDelegateTo<CC_Z80_LC>,
+def CC_EZ80_LC_AC : CallingConv<[
+  CCDelegateTo<CC_EZ80_LC>,
   CCIfType<[i8], CCAssignToReg<[A, C]>>
 ]>;
-def CC_Z80_LC_BC : CallingConv<[
-  CCDelegateTo<CC_Z80_LC>,
+def CC_EZ80_LC_BC : CallingConv<[
+  CCDelegateTo<CC_EZ80_LC>,
   CCIfType<[i8], CCAssignToReg<[B, C]>>
 ]>;
-def CC_Z80_LC_C  : CallingConv<[
-  CCDelegateTo<CC_Z80_LC>,
+def CC_EZ80_LC_C  : CallingConv<[
+  CCDelegateTo<CC_EZ80_LC>,
   CCIfType<[i8], CCAssignToReg<[C]>>
 ]>;
-def CC_Z80_LC_L  : CallingConv<[
+def CC_EZ80_LC_L  : CallingConv<[
   CCIfType<[i24], CCAssignToReg<[UBC]>>,
   CCIfType<[i8], CCAssignToReg<[A, L]>>
+]>;
+
+//===----------------------------------------------------------------------===//
+// Return Value Calling Conventions
+//===----------------------------------------------------------------------===//
+def RetCC_Z80_C : CallingConv<[
+  CCIfType<[i16], CCAssignToReg<[HL, DE, BC, IY]>>,
+  CCIfType<[i8], CCAssignToReg<[A, L, H, E, D, C, B, IYL, IYH]>>
+]>;
+def RetCC_EZ80_C : CallingConv<[
+  CCDelegateTo<CC_EZ80_LC>,
+  CCIfType<[i8], CCAssignToReg<[A, E]>>
+]>;
+def RetCC_EZ80_LC_L : CallingConv<[
+  CCIfType<[i24], CCAssignToReg<[UBC]>>,
+  CCIfType<[i8], CCAssignToReg<[A]>>
 ]>;
 
 //===----------------------------------------------------------------------===//

@@ -504,6 +504,24 @@ void Z80InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                        unsigned SrcReg, bool IsKill, int FI,
                                        const TargetRegisterClass *TRC,
                                        const TargetRegisterInfo *TRI) const {
+  unsigned Opc;
+  switch (TRC->getSize()) {
+  default:
+    llvm_unreachable("Unexpected regclass size");
+  case 1:
+    Opc = Z80::LD8or;
+    break;
+  case 2:
+    Opc = Subtarget.hasEZ80Ops() ? Z80::LD16or : Z80::LD88or;
+    break;
+  case 3:
+    assert(Subtarget.is24Bit() && "Only 24-bit should have 3 byte stack slots");
+    Opc = Z80::LD24or;
+    break;
+  }
+  BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Opc)).addFrameIndex(FI).addImm(0)
+    .addReg(SrcReg, getKillRegState(IsKill));
+  return;
   unsigned RC, LoOpc, LoIdx, HiOpc, HiIdx, HiOff;
   bool Split =
     Z80::splitReg(TRC->getSize(), Z80::LD8or, Z80::LD16or, Z80::LD24or,
@@ -531,6 +549,24 @@ void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                         unsigned DstReg, int FI,
                                         const TargetRegisterClass *TRC,
                                         const TargetRegisterInfo *TRI) const {
+  unsigned Opc;
+  switch (TRC->getSize()) {
+  default:
+    llvm_unreachable("Unexpected regclass size");
+  case 1:
+    Opc = Z80::LD8ro;
+    break;
+  case 2:
+    Opc = Subtarget.hasEZ80Ops() ? Z80::LD16ro : Z80::LD88ro;
+    break;
+  case 3:
+    assert(Subtarget.is24Bit() && "Only 24-bit should have 3 byte stack slots");
+    Opc = Z80::LD24ro;
+    break;
+  }
+  BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Opc), DstReg).addFrameIndex(FI)
+    .addImm(0);
+  return;
   unsigned RC, LoOpc, LoIdx, HiOpc, HiIdx, HiOff;
   bool Split =
     Z80::splitReg(TRC->getSize(), Z80::LD8ro, Z80::LD16ro, Z80::LD24ro,
@@ -568,6 +604,7 @@ static bool isFrameLoadOpcode(int Opcode) {
     return false;
   case Z80::LD8ro:
   case Z80::LD16ro:
+  case Z80::LD88ro:
   case Z80::LD24ro:
     return true;
   }
@@ -587,6 +624,7 @@ static bool isFrameStoreOpcode(int Opcode) {
     return false;
   case Z80::LD8or:
   case Z80::LD16or:
+  case Z80::LD88or:
   case Z80::LD24or:
     return true;
   }
@@ -601,47 +639,69 @@ unsigned Z80InstrInfo::isStoreToStackSlot(const MachineInstr &MI,
 }
 
 bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
-  MachineInstrBuilder MIB(*MI.getParent()->getParent(), MI);
+  MachineBasicBlock &MBB = *MI.getParent();
+  MachineInstrBuilder MIB(*MBB.getParent(), MI);
+  const TargetRegisterInfo *TRI = &getRegisterInfo();
+  DEBUG(dbgs() << "\nZ80InstrInfo::expandPostRAPseudo:"; MI.dump());
   switch (MI.getOpcode()) {
-  default: return false;
+  default:
+    return false;
   case Z80::RCF:
-    MIB->setDesc(get(Z80::OR8ar));
+    MI.setDesc(get(Z80::OR8ar));
     MIB.addReg(Z80::A, RegState::Undef);
-    DEBUG(MIB->dump());
-    return true;
+    break;
+  case Z80::LD88rp:
+  case Z80::LD88pr:
   case Z80::Cp16:
   case Z80::Cp24:
   case Z80::Cp016:
   case Z80::Cp024:
-    dbgs() << "Z80InstrInfo::expandPostRAPseudo:";
-    MIB->dump();
-    return false;
+    llvm_unreachable("Unimplemented");
+  case Z80::LD88ro: {
+    unsigned Reg = MI.getOperand(0).getReg();
+    MI.setDesc(get(Z80::LD8ro));
+    MI.getOperand(0).ChangeToRegister(TRI->getSubReg(Reg, Z80::sub_low), true);
+    MIB = BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Z80::LD8ro),
+                  TRI->getSubReg(Reg, Z80::sub_high))
+      .addReg(MI.getOperand(1).getReg()).addImm(MI.getOperand(2).getImm() + 1);
+    DEBUG(MI.dump());
+    break;
+  }
+  case Z80::LD88or: {
+    unsigned Reg = MI.getOperand(2).getReg();
+    MI.setDesc(get(Z80::LD8or));
+    MI.getOperand(2).ChangeToRegister(TRI->getSubReg(Reg, Z80::sub_low), false);
+    MIB = BuildMI(MBB, MI, MBB.findDebugLoc(MI), get(Z80::LD8or))
+      .addReg(MI.getOperand(0).getReg()).addImm(MI.getOperand(1).getImm() + 1)
+      .addReg(TRI->getSubReg(Reg, Z80::sub_high));
+    DEBUG(MI.dump());
+    break;
+  }
   case Z80::CALL16r:
   case Z80::CALL24r: {
-    const char *symbol;
+    const char *Symbol;
     switch (MIB->getOperand(0).getReg()) {
     default: llvm_unreachable("Unexpected indcall register");
-    case Z80::HL: case Z80::UHL: symbol = "_indcallhl"; break;
-    case Z80::IX: case Z80::UIX: symbol = "_indcallix"; break;
-    case Z80::IY: case Z80::UIY: symbol = "_indcalliy"; break;
+    case Z80::HL: case Z80::UHL: Symbol = "_indcallhl"; break;
+    case Z80::IX: case Z80::UIX: Symbol = "_indcallix"; break;
+    case Z80::IY: case Z80::UIY: Symbol = "_indcall"; break;
     }
-    MIB->setDesc(get(MI.getOpcode() == Z80::CALL24r ? Z80::CALL24i
-                                                    : Z80::CALL16i));
-    MIB->getOperand(0).ChangeToES(symbol);
-    DEBUG(MIB->dump());
-    return true;
+    MI.setDesc(get(MI.getOpcode() == Z80::CALL24r ? Z80::CALL24i
+                                                  : Z80::CALL16i));
+    MI.getOperand(0).ChangeToES(Symbol);
+    break;
   }
   case Z80::TCRETURN16i:
   case Z80::TCRETURN24i:
-    MIB->setDesc(get(Z80::JQ));
-    DEBUG(MIB->dump());
-    return true;
+    MI.setDesc(get(Z80::JQ));
+    break;
   case Z80::TCRETURN16r:
   case Z80::TCRETURN24r:
-    MIB->setDesc(get(Z80::JPr));
-    DEBUG(MIB->dump());
-    return true;
+    MI.setDesc(get(Z80::JPr));
+    break;
   }
+  DEBUG(MIB->dump());
+  return true;
 }
 
 bool Z80InstrInfo::analyzeCompare(const MachineInstr &MI,
@@ -739,7 +799,29 @@ Z80InstrInfo::foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
                                     ArrayRef<unsigned> Ops,
                                     MachineBasicBlock::iterator InsertPt,
                                     int FrameIndex, LiveIntervals *LIS) const {
-  llvm_unreachable("Unimplemented");
+  return nullptr;
+  bool Is24Bit = Subtarget.is24Bit();
+  MachineBasicBlock &MBB = *InsertPt->getParent();
+  if (Ops.size() == 1 && Ops[0] == 1 && MI.isFullCopy()) {
+    unsigned DstReg = MI.getOperand(0).getReg();
+    if (TargetRegisterInfo::isPhysicalRegister(DstReg)) {
+      unsigned Opc;
+      if (Z80::R8RegClass.contains(DstReg)) {
+        Opc = Z80::LD8ro;
+      } else {
+        assert((Is24Bit ? Z80::R24RegClass : Z80::R16RegClass)
+               .contains(DstReg) && "Unexpected physical reg");
+        Opc = Is24Bit ? Z80::LD24ro : Z80::LD16ro;
+      }
+      return BuildMI(MBB, InsertPt, MI.getDebugLoc(), get(Opc), DstReg)
+        .addFrameIndex(FrameIndex).addImm(0);
+    }
+  }
+  dbgs() << Ops.size() << ": ";
+  for (unsigned Op : Ops)
+    dbgs() << Op << ' ';
+  MI.dump();
+  return nullptr;
 }
 MachineInstr *
 Z80InstrInfo::foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
@@ -747,5 +829,6 @@ Z80InstrInfo::foldMemoryOperandImpl(MachineFunction &MF, MachineInstr &MI,
                                     MachineBasicBlock::iterator InsertPt,
                                     MachineInstr &LoadMI,
                                     LiveIntervals *LIS) const {
+  return nullptr;
   llvm_unreachable("Unimplemented");
 }

@@ -43,6 +43,23 @@ Z80RegisterInfo::getPointerRegClass(const MachineFunction &MF,
   }
 }
 
+const TargetRegisterClass *
+Z80RegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
+                                           const MachineFunction &) const {
+  const TargetRegisterClass *Super = RC;
+  TargetRegisterClass::sc_iterator I = RC->getSuperClasses();
+  do {
+    switch (Super->getID()) {
+    case Z80::R8RegClassID:
+    case Z80::R16RegClassID:
+    case Z80::R24RegClassID:
+      return Super;
+    }
+    Super = *I++;
+  } while (Super);
+  return RC;
+}
+
 const MCPhysReg *
 Z80RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   switch (MF->getFunction()->getCallingConv()) {

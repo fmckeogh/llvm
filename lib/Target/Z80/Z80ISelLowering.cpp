@@ -1437,15 +1437,15 @@ CCAssignFn *Z80TargetLowering::getCCAssignFn(CallingConv::ID CallConv) const {
   case CallingConv::C:
     return Is24Bit ? CC_EZ80_C : CC_Z80_C;
   case CallingConv::Z80_LibCall:
-    return CC_Z80_LC_AB;
+    return CC_EZ80_LC_AB;
   case CallingConv::Z80_LibCall_AC:
-    return CC_Z80_LC_AC;
+    return CC_EZ80_LC_AC;
   case CallingConv::Z80_LibCall_BC:
-    return CC_Z80_LC_BC;
+    return CC_EZ80_LC_BC;
   case CallingConv::Z80_LibCall_C:
-    return CC_Z80_LC_C;
+    return CC_EZ80_LC_C;
   case CallingConv::Z80_LibCall_L:
-    return CC_Z80_LC_L;
+    return CC_EZ80_LC_L;
   }
 }
 CCAssignFn *Z80TargetLowering::getRetCCAssignFn(CallingConv::ID CallConv) const {
@@ -1457,9 +1457,9 @@ CCAssignFn *Z80TargetLowering::getRetCCAssignFn(CallingConv::ID CallConv) const 
   case CallingConv::Z80_LibCall_AC:
   case CallingConv::Z80_LibCall_BC:
   case CallingConv::Z80_LibCall_C:
-    return RetCC_Z80_C;
+    return Is24Bit ? RetCC_EZ80_C : RetCC_Z80_C;
   case CallingConv::Z80_LibCall_L:
-    return RetCC_Z80_LC_L;
+    return RetCC_EZ80_LC_L;
   }
 }
 
@@ -1686,6 +1686,7 @@ SDValue Z80TargetLowering::LowerReturn(SDValue Chain,
                                        const SmallVectorImpl<ISD::OutputArg> &Outs,
                                        const SmallVectorImpl<SDValue> &OutVals,
                                        const SDLoc &DL, SelectionDAG &DAG) const {
+  const TargetRegisterInfo *TRI = Subtarget.getRegisterInfo();
   MachineFunction &MF = DAG.getMachineFunction();
 
   SmallVector<CCValAssign, 16> RVLocs;
@@ -1697,12 +1698,30 @@ SDValue Z80TargetLowering::LowerReturn(SDValue Chain,
   RetOps.push_back(Chain);
 
   // Copy the result values into the output registers.
+  assert(Outs.size() == RVLocs.size());
   for (unsigned I = 0, E = RVLocs.size(); I != E; ++I) {
+    const ISD::OutputArg &OA = Outs[I];
     CCValAssign &VA = RVLocs[I];
+    assert(VA.isRegLoc() && "Don't support memory returns yet");
 
-    Chain = DAG.getCopyToReg(Chain, DL, VA.getLocReg(), OutVals[I], Flag);
+    unsigned Reg = VA.getLocReg();
+    EVT RegVT = EVT::getIntegerVT(
+        *DAG.getContext(), 8*std::min(OA.VT.getStoreSize(),
+                                      OA.ArgVT.getStoreSize() - OA.PartOffset));
+    if (RegVT != OA.VT) {
+      unsigned Idx;
+      switch (RegVT.getStoreSize()) {
+      case 1: Idx = Z80::sub_low;   break;
+      case 2: Idx = Z80::sub_short; break;
+      case 3: Idx = Z80::sub_long;  break;
+      }
+      Reg = TRI->getSubReg(Reg, Idx);
+    }
+    Chain = DAG.getCopyToReg(Chain, DL, Reg,
+                             DAG.getNode(ISD::TRUNCATE, DL, RegVT, OutVals[I]),
+                             Flag);
     Flag = Chain.getValue(1);
-    RetOps.push_back(DAG.getRegister(VA.getLocReg(), VA.getLocVT()));
+    RetOps.push_back(DAG.getRegister(Reg, RegVT));
   }
 
   RetOps[0] = Chain; // Update chain.
@@ -1763,15 +1782,20 @@ SDValue Z80TargetLowering::LowerFormalArguments(
   CCInfo.AnalyzeFormalArguments(Ins, Is24Bit ? CC_EZ80_C : CC_Z80_C);
 
   SDValue ArgValue;
+  assert(Ins.size() == ArgLocs.size());
   for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
+    const ISD::InputArg &IA = Ins[I];
     CCValAssign &VA = ArgLocs[I];
     assert(VA.isMemLoc() && "Don't support register passed arguments yet");
-    int FI = MFI.CreateFixedObject(VA.getValVT().getSizeInBits()/8,
+    int FI = MFI.CreateFixedObject(VA.getValVT().getStoreSize(),
                                    VA.getLocMemOffset(), false);
     SDValue FIN = DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout()));
-    SDValue Val = DAG.getLoad(
-        VA.getValVT(), DL, Chain, FIN,
-        MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FI));
+    EVT MemVT = EVT::getIntegerVT(
+        *DAG.getContext(), 8*std::min(IA.VT.getStoreSize(),
+                                      IA.ArgVT.getStoreSize() - IA.PartOffset));
+    SDValue Val = DAG.getExtLoad(
+        ISD::EXTLOAD, DL, VA.getValVT(), Chain, FIN,
+        MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FI), MemVT);
     InVals.push_back(Val);
   }
 

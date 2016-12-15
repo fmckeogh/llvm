@@ -128,18 +128,32 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
   // to determine the end of the prologue.
   DebugLoc DL;
 
+  int StackSize = -(int)MF.getFrameInfo().getStackSize();
+  unsigned ScratchReg = Is24Bit ? Z80::UHL : Z80::HL;
+  if (MF.getFunction()->getAttributes().hasAttribute(
+          AttributeSet::FunctionIndex, Attribute::OptimizeForSize)) {
+    if (StackSize) {
+      BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
+              ScratchReg).addImm(StackSize);
+      BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::CALL24i : Z80::CALL24r))
+        .addExternalSymbol("_frameset").addReg(ScratchReg, RegState::Implicit);
+      return;
+    }
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::CALL24i : Z80::CALL24r))
+      .addExternalSymbol("_frameset0");
+    return;
+  }
   if (hasFP(MF)) {
     unsigned FrameReg = TRI->getFrameRegister(MF);
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
       .addReg(FrameReg);
-    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri), FrameReg)
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
+            FrameReg)
       .addImm(0);
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::ADD24SP : Z80::ADD16SP),
             FrameReg).addReg(FrameReg);
   }
-  int StackSize = (int)MF.getFrameInfo().getStackSize();
-  unsigned ScratchReg = Is24Bit ? Z80::UHL : Z80::HL;
-  BuildStackAdjustment(MF, MBB, MI, DL, ScratchReg, -StackSize, 0);
+  BuildStackAdjustment(MF, MBB, MI, DL, ScratchReg, StackSize, 0);
 }
 
 void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
