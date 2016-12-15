@@ -1489,9 +1489,13 @@ void TargetLoweringBase::computeRegisterProperties(
               std::end(OpActions[BadVT.SimpleTy]), Expand);
     for (MVT VT : MVT::all_valuetypes()) {
       setLoadExtAction(ISD::EXTLOAD, BadVT, VT, Expand);
+      setLoadExtAction(ISD::EXTLOAD, VT, BadVT, Expand);
       setLoadExtAction(ISD::ZEXTLOAD, BadVT, VT, Expand);
+      setLoadExtAction(ISD::ZEXTLOAD, VT, BadVT, Expand);
       setLoadExtAction(ISD::SEXTLOAD, BadVT, VT, Expand);
+      setLoadExtAction(ISD::SEXTLOAD, VT, BadVT, Expand);
       setTruncStoreAction(VT, BadVT, Expand);
+      setTruncStoreAction(BadVT, VT, Expand);
     }
   }
 }

@@ -1235,8 +1235,9 @@ bool TargetLowering::SimplifyDemandedBits(SDValue Op,
   case ISD::SUBC:
   case ISD::ADDE:
   case ISD::SUBE: {
+    // If the output flag is used, we can't simplify, so just use
+    // computeKnownBits to compute output bits.
     if (Op->getNumValues() >= 2 && Op->hasAnyUseOfValue(1)) {
-      // Just use computeKnownBits to compute output bits.
       TLO.DAG.computeKnownBits(Op, KnownZero, KnownOne, Depth);
       break;
     }
@@ -1256,7 +1257,7 @@ bool TargetLowering::SimplifyDemandedBits(SDValue Op,
         // See if the operation should be performed at a smaller bit width.
         TLO.ShrinkDemandedOp(Op, BitWidth, NewMask, dl)) {
       const SDNodeFlags *Flags = Op.getNode()->getFlags();
-      if (Flags->hasNoSignedWrap() || Flags->hasNoUnsignedWrap()) {
+      if (Flags && (Flags->hasNoSignedWrap() || Flags->hasNoUnsignedWrap())) {
         // Disable the nsw and nuw flags. We can no longer guarantee that we
         // won't wrap after simplification.
         SDNodeFlags NewFlags = *Flags;
