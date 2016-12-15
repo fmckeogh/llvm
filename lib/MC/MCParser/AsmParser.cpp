@@ -390,9 +390,9 @@ private:
     DK_DC, DK_DC_A, DK_DC_B, DK_DC_D, DK_DC_L, DK_DC_S, DK_DC_W, DK_DC_X,
     DK_DCB, DK_DCB_B, DK_DCB_D, DK_DCB_L, DK_DCB_S, DK_DCB_W, DK_DCB_X,
     DK_DS, DK_DS_B, DK_DS_D, DK_DS_L, DK_DS_P, DK_DS_S, DK_DS_W, DK_DS_X,
-    DK_SINGLE, DK_FLOAT, DK_DOUBLE, DK_TFLOAT, DK_ALIGN, DK_ALIGN32, DK_BALIGN,
-    DK_BALIGNW, DK_BALIGNL, DK_P2ALIGN, DK_P2ALIGNW, DK_P2ALIGNL, DK_ORG,
-    DK_FILL, DK_ENDR, DK_BUNDLE_ALIGN_MODE, DK_BUNDLE_LOCK, DK_BUNDLE_UNLOCK,
+    DK_SINGLE, DK_FLOAT, DK_DOUBLE, DK_ALIGN, DK_ALIGN32, DK_BALIGN, DK_BALIGNW,
+    DK_BALIGNL, DK_P2ALIGN, DK_P2ALIGNW, DK_P2ALIGNL, DK_ORG, DK_FILL, DK_ENDR,
+    DK_BUNDLE_ALIGN_MODE, DK_BUNDLE_LOCK, DK_BUNDLE_UNLOCK,
     DK_ZERO, DK_EXTERN, DK_GLOBL, DK_GLOBAL,
     DK_LAZY_REFERENCE, DK_NO_DEAD_STRIP, DK_SYMBOL_RESOLVER,
     DK_PRIVATE_EXTERN, DK_REFERENCE, DK_WEAK_DEFINITION, DK_WEAK_REFERENCE,
@@ -1762,8 +1762,6 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
     case DK_DOUBLE:
     case DK_DC_D:
       return parseDirectiveRealValue(IDVal, APFloat::IEEEdouble);
-    case DK_TFLOAT:
-      return parseDirectiveRealValue(IDVal, APFloat::x87DoubleExtended);
     case DK_ALIGN: {
       bool IsPow2 = !getContext().getAsmInfo()->getAlignmentIsInBytes();
       return parseDirectiveAlign(IsPow2, /*ExprSize=*/1);
@@ -4824,7 +4822,6 @@ void AsmParser::initializeDirectiveKindMap() {
   DirectiveKindMap[".single"] = DK_SINGLE;
   DirectiveKindMap[".float"] = DK_FLOAT;
   DirectiveKindMap[".double"] = DK_DOUBLE;
-  DirectiveKindMap[".tfloat"] = DK_TFLOAT;
   DirectiveKindMap[".align"] = DK_ALIGN;
   DirectiveKindMap[".align32"] = DK_ALIGN32;
   DirectiveKindMap[".balign"] = DK_BALIGN;

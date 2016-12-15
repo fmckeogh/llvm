@@ -374,16 +374,18 @@ bool TargetLowering::TargetLoweringOpt::ShrinkDemandedConstant(SDValue Op,
 /// Convert x+y to (VT)((SmallVT)x+(SmallVT)y) if the casts are free.
 /// This uses isZExtFree and ZERO_EXTEND for the widening cast, but it could be
 /// generalized for targets with other types of implicit widening casts.
-///// This uses ANY_EXTEND for the widening cast, because undemanded bits are
-///// undefined.
 bool TargetLowering::TargetLoweringOpt::ShrinkDemandedOp(SDValue Op,
                                                          unsigned BitWidth,
                                                          const APInt &Demanded,
                                                          const SDLoc &dl) {
-  assert(Op.getNumOperands() == 2 &&
+  assert((Op.getNumOperands() == 2 ||
+          (Op.getNumOperands() == 3 &&
+           Op->getOperand(2).getValueType() == MVT::Glue)) &&
          "ShrinkDemandedOp only supports binary operators!");
-  assert(Op.getNode()->getNumValues() == 1 &&
-         "ShrinkDemandedOp only supports nodes with one result!");
+  assert((Op->getNumValues() == 1 ||
+          (Op->getNumValues() == 2 && Op->getValueType(1) == MVT::Glue &&
+           Op.getValue(1).use_empty())) &&
+         "ShrinkDemandedOp only supports nodes with one used result!");
 
   // Early return, as this function cannot handle vector types.
   if (Op.getValueType().isVector())
@@ -391,7 +393,7 @@ bool TargetLowering::TargetLoweringOpt::ShrinkDemandedOp(SDValue Op,
 
   // Don't do this if the node has another user, which may require the
   // full value.
-  if (!Op.getNode()->hasOneUse())
+  if (!Op->hasOneUse())
     return false;
 
   // Search for the smallest integer type with free casts to and from
@@ -407,11 +409,17 @@ bool TargetLowering::TargetLoweringOpt::ShrinkDemandedOp(SDValue Op,
     if (SmallVTBits >= BitWidth)
       break;
     if (TLI.isDesirableToShrinkOp(Op.getOpcode(), Op.getValueType(), SmallVT)) {
-      SDValue X = DAG.getNode(Op.getOpcode(), dl, SmallVT,
-                              DAG.getNode(ISD::TRUNCATE, dl, SmallVT,
-                                          Op.getNode()->getOperand(0)),
-                              DAG.getNode(ISD::TRUNCATE, dl, SmallVT,
-                                          Op.getNode()->getOperand(1)));
+      SmallVector<EVT, 2> VTList;
+      VTList.push_back(SmallVT);
+      for (unsigned I = 1; I != Op->getNumValues(); ++I)
+        VTList.push_back(Op->getValueType(I));
+      SmallVector<SDValue, 3> Ops;
+      for (unsigned I = 0; I < 2; ++I)
+        Ops.push_back(DAG.getNode(ISD::TRUNCATE, dl, SmallVT,
+                                  Op->getOperand(I)));
+      for (unsigned I = 2; I != Op->getNumOperands(); ++I)
+        Ops.push_back(Op->getOperand(I));
+      SDValue X = DAG.getNode(Op.getOpcode(), dl, DAG.getVTList(VTList), Ops);
       SDValue Z = DAG.getNode(ISD::ANY_EXTEND, dl, Op.getValueType(), X);
       return CombineTo(Op, Z);
     }
@@ -1013,35 +1021,28 @@ bool TargetLowering::SimplifyDemandedBits(SDValue Op,
     break;
   }
   case ISD::BUILD_PAIR: {
-    SDValue Lo = Op.getOperand(0);
-    EVT LoVT = Lo.getValueType();
-    unsigned LoBitWidth = LoVT.getScalarSizeInBits();
+    EVT HalfVT = Op.getOperand(0).getValueType();
+    unsigned HalfBitWidth = HalfVT.getScalarSizeInBits();
 
-    SDValue Hi = Op.getOperand(1);
-    EVT HiVT = Hi.getValueType();
-    unsigned HiBitWidth = HiVT.getScalarSizeInBits();
-
-    assert(BitWidth == LoBitWidth + HiBitWidth);
-
-    APInt MaskLo = NewMask.trunc(LoBitWidth);
-    APInt MaskHi = NewMask.getHiBits(HiBitWidth).trunc(HiBitWidth);
+    APInt MaskLo = NewMask.getLoBits(HalfBitWidth).trunc(HalfBitWidth);
+    APInt MaskHi = NewMask.getHiBits(HalfBitWidth).trunc(HalfBitWidth);
 
     APInt KnownZeroLo, KnownOneLo;
     APInt KnownZeroHi, KnownOneHi;
 
-    if (SimplifyDemandedBits(Lo, MaskLo, KnownZeroLo,
+    if (SimplifyDemandedBits(Op.getOperand(0), MaskLo, KnownZeroLo,
                              KnownOneLo, TLO, Depth + 1))
       return true;
 
-    if (SimplifyDemandedBits(Hi, MaskHi, KnownZeroHi,
+    if (SimplifyDemandedBits(Op.getOperand(1), MaskHi, KnownZeroHi,
                              KnownOneHi, TLO, Depth + 1))
       return true;
 
     KnownZero = KnownZeroLo.zext(BitWidth) |
-                KnownZeroHi.zext(BitWidth).shl(LoBitWidth);
+                KnownZeroHi.zext(BitWidth).shl(HalfBitWidth);
 
     KnownOne = KnownOneLo.zext(BitWidth) |
-               KnownOneHi.zext(BitWidth).shl(LoBitWidth);
+               KnownOneHi.zext(BitWidth).shl(HalfBitWidth);
     break;
   }
   case ISD::ZERO_EXTEND: {
@@ -1216,6 +1217,17 @@ bool TargetLowering::SimplifyDemandedBits(SDValue Op,
       }
     }
     break;
+  case ISD::ADDC:
+  case ISD::SUBC:
+  case ISD::ADDE:
+  case ISD::SUBE: {
+    if (Op->getNumValues() >= 2 && Op->hasAnyUseOfValue(1)) {
+      // Just use computeKnownBits to compute output bits.
+      TLO.DAG.computeKnownBits(Op, KnownZero, KnownOne, Depth);
+      break;
+    }
+    LLVM_FALLTHROUGH;
+  }
   case ISD::ADD:
   case ISD::MUL:
   case ISD::SUB: {
@@ -3364,12 +3376,13 @@ TargetLowering::expandUnalignedLoad(LoadSDNode *LD, SelectionDAG &DAG) const {
 
     // Copy the value to a (aligned) stack slot using (unaligned) integer
     // loads and stores, then do a (aligned) load from the stack slot.
-    MVTPair RegVTs = getRegisterTypes(*DAG.getContext(), intVT);
+    MVT RegVT = getRegisterType(*DAG.getContext(), intVT);
     unsigned LoadedBytes = LoadedVT.getSizeInBits() / 8;
-    unsigned NumRegs = RegVTs.getNumPartsFor(LoadedVT);
+    unsigned RegBytes = RegVT.getSizeInBits() / 8;
+    unsigned NumRegs = (LoadedBytes + RegBytes - 1) / RegBytes;
 
     // Make sure the stack slot is also aligned for the register type.
-    SDValue StackBase = DAG.CreateStackTemporary(LoadedVT, RegVTs.getLargest());
+    SDValue StackBase = DAG.CreateStackTemporary(LoadedVT, RegVT);
 
     SmallVector<SDValue, 8> Stores;
     SDValue StackPtr = StackBase;
@@ -3378,22 +3391,20 @@ TargetLowering::expandUnalignedLoad(LoadSDNode *LD, SelectionDAG &DAG) const {
     EVT PtrVT = Ptr.getValueType();
     EVT StackPtrVT = StackPtr.getValueType();
 
+    SDValue PtrIncrement = DAG.getConstant(RegBytes, dl, PtrVT);
+    SDValue StackPtrIncrement = DAG.getConstant(RegBytes, dl, StackPtrVT);
+
     // Do all but one copies using the full register width.
-    unsigned i;
-    for (i = 0; i < NumRegs - 1; i++) {
+    for (unsigned i = 1; i < NumRegs; i++) {
       // Load one integer register's worth from the original location.
       SDValue Load = DAG.getLoad(
-          RegVTs.getPart(i), dl, Chain, Ptr,
-          LD->getPointerInfo().getWithOffset(Offset),
+          RegVT, dl, Chain, Ptr, LD->getPointerInfo().getWithOffset(Offset),
           MinAlign(LD->getAlignment(), Offset), LD->getMemOperand()->getFlags(),
           LD->getAAInfo());
       // Follow the load with a store to the stack slot.  Remember the store.
       Stores.push_back(DAG.getStore(Load.getValue(1), dl, Load, StackPtr,
                                     MachinePointerInfo()));
       // Increment the pointers.
-      unsigned RegBytes = RegVTs.getPartSizeInBits(i) / 8;
-      SDValue PtrIncrement = DAG.getConstant(RegBytes, dl, PtrVT);
-      SDValue StackPtrIncrement = DAG.getConstant(RegBytes, dl, StackPtrVT);
       Offset += RegBytes;
       Ptr = DAG.getNode(ISD::ADD, dl, PtrVT, Ptr, PtrIncrement);
       StackPtr = DAG.getNode(ISD::ADD, dl, StackPtrVT, StackPtr,
@@ -3404,7 +3415,7 @@ TargetLowering::expandUnalignedLoad(LoadSDNode *LD, SelectionDAG &DAG) const {
     EVT MemVT = EVT::getIntegerVT(*DAG.getContext(),
                                   8 * (LoadedBytes - Offset));
     SDValue Load =
-        DAG.getExtLoad(ISD::EXTLOAD, dl, RegVTs.getPart(i), Chain, Ptr,
+        DAG.getExtLoad(ISD::EXTLOAD, dl, RegVT, Chain, Ptr,
                        LD->getPointerInfo().getWithOffset(Offset), MemVT,
                        MinAlign(LD->getAlignment(), Offset),
                        LD->getMemOperand()->getFlags(), LD->getAAInfo());
@@ -3512,16 +3523,17 @@ SDValue TargetLowering::expandUnalignedStore(StoreSDNode *ST,
     // Do a (aligned) store to a stack slot, then copy from the stack slot
     // to the final destination using (unaligned) integer loads and stores.
     EVT StoredVT = ST->getMemoryVT();
-    MVTPair RegVTs =
-      getRegisterTypes(*DAG.getContext(),
-                       EVT::getIntegerVT(*DAG.getContext(),
-                                         StoredVT.getSizeInBits()));
+    MVT RegVT =
+      getRegisterType(*DAG.getContext(),
+                      EVT::getIntegerVT(*DAG.getContext(),
+                                        StoredVT.getSizeInBits()));
     EVT PtrVT = Ptr.getValueType();
     unsigned StoredBytes = StoredVT.getSizeInBits() / 8;
-    unsigned NumRegs = RegVTs.getNumPartsFor(StoredVT);
+    unsigned RegBytes = RegVT.getSizeInBits() / 8;
+    unsigned NumRegs = (StoredBytes + RegBytes - 1) / RegBytes;
 
     // Make sure the stack slot is also aligned for the register type.
-    SDValue StackPtr = DAG.CreateStackTemporary(StoredVT, RegVTs.getLargest());
+    SDValue StackPtr = DAG.CreateStackTemporary(StoredVT, RegVT);
 
     // Perform the original store, only redirected to the stack slot.
     SDValue Store = DAG.getTruncStore(Chain, dl, Val, StackPtr,
@@ -3529,24 +3541,22 @@ SDValue TargetLowering::expandUnalignedStore(StoreSDNode *ST,
 
     EVT StackPtrVT = StackPtr.getValueType();
 
+    SDValue PtrIncrement = DAG.getConstant(RegBytes, dl, PtrVT);
+    SDValue StackPtrIncrement = DAG.getConstant(RegBytes, dl, StackPtrVT);
     SmallVector<SDValue, 8> Stores;
     unsigned Offset = 0;
 
     // Do all but one copies using the full register width.
-    unsigned i;
-    for (i = 0; i < NumRegs - 1; i++) {
+    for (unsigned i = 1; i < NumRegs; i++) {
       // Load one integer register's worth from the stack slot.
-      SDValue Load = DAG.getLoad(RegVTs.getPart(i), dl, Store, StackPtr,
-                                 MachinePointerInfo());
+      SDValue Load =
+          DAG.getLoad(RegVT, dl, Store, StackPtr, MachinePointerInfo());
       // Store it to the final location.  Remember the store.
       Stores.push_back(DAG.getStore(Load.getValue(1), dl, Load, Ptr,
                                     ST->getPointerInfo().getWithOffset(Offset),
                                     MinAlign(ST->getAlignment(), Offset),
                                     ST->getMemOperand()->getFlags()));
       // Increment the pointers.
-      unsigned RegBytes = RegVTs.getPartSizeInBits(i) / 8;
-      SDValue PtrIncrement = DAG.getConstant(RegBytes, dl, PtrVT);
-      SDValue StackPtrIncrement = DAG.getConstant(RegBytes, dl, StackPtrVT);
       Offset += RegBytes;
       StackPtr = DAG.getNode(ISD::ADD, dl, StackPtrVT,
                              StackPtr, StackPtrIncrement);
@@ -3560,8 +3570,8 @@ SDValue TargetLowering::expandUnalignedStore(StoreSDNode *ST,
                                   8 * (StoredBytes - Offset));
 
     // Load from the stack slot.
-    SDValue Load = DAG.getExtLoad(ISD::EXTLOAD, dl, RegVTs.getPart(i), Store,
-                                  StackPtr, MachinePointerInfo(), MemVT);
+    SDValue Load = DAG.getExtLoad(ISD::EXTLOAD, dl, RegVT, Store, StackPtr,
+                                  MachinePointerInfo(), MemVT);
 
     Stores.push_back(
         DAG.getTruncStore(Load.getValue(1), dl, Load, Ptr,

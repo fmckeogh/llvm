@@ -188,9 +188,9 @@ private:
   SDValue WidenTargetBoolean(SDValue Bool, EVT ValVT, bool WithZeroes = false);
 
   void ReplaceValueWith(SDValue From, SDValue To);
-  void ExpandInteger(SDValue Op, SDValue &Lo, SDValue &Hi);
   void SplitInteger(SDValue Op, SDValue &Lo, SDValue &Hi);
-  void SplitInteger(SDValue Op, VTS<EVT> VTs, SDValue &Lo, SDValue &Hi);
+  void SplitInteger(SDValue Op, EVT LoVT, EVT HiVT,
+                    SDValue &Lo, SDValue &Hi);
 
   //===--------------------------------------------------------------------===//
   // Integer Promotion Support: LegalizeIntegerTypes.cpp

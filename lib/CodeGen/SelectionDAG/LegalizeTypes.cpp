@@ -815,8 +815,9 @@ void DAGTypeLegalizer::GetExpandedInteger(SDValue Op, SDValue &Lo,
 
 void DAGTypeLegalizer::SetExpandedInteger(SDValue Op, SDValue Lo,
                                           SDValue Hi) {
-  assert(VTS<EVT>(Lo.getValueType(), Hi.getValueType()) ==
-         TLI.getTypesToTransformTo(*DAG.getContext(), Op.getValueType()) &&
+  assert(Lo.getValueType() ==
+         TLI.getTypeToTransformTo(*DAG.getContext(), Op.getValueType()) &&
+         Hi.getValueType() == Lo.getValueType() &&
          "Invalid type for expanded integer");
   // Lo/Hi may have been newly allocated, if so, add nodeid's as relevant.
   AnalyzeNewValue(Lo);
@@ -841,8 +842,9 @@ void DAGTypeLegalizer::GetExpandedFloat(SDValue Op, SDValue &Lo,
 
 void DAGTypeLegalizer::SetExpandedFloat(SDValue Op, SDValue Lo,
                                         SDValue Hi) {
-  assert(VTS<EVT>(Lo.getValueType(), Hi.getValueType()) ==
-         TLI.getTypesToTransformTo(*DAG.getContext(), Op.getValueType()) &&
+  assert(Lo.getValueType() ==
+         TLI.getTypeToTransformTo(*DAG.getContext(), Op.getValueType()) &&
+         Hi.getValueType() == Lo.getValueType() &&
          "Invalid type for expanded float");
   // Lo/Hi may have been newly allocated, if so, add nodeid's as relevant.
   AnalyzeNewValue(Lo);
@@ -867,8 +869,11 @@ void DAGTypeLegalizer::GetSplitVector(SDValue Op, SDValue &Lo,
 
 void DAGTypeLegalizer::SetSplitVector(SDValue Op, SDValue Lo,
                                       SDValue Hi) {
-  assert(VTS<EVT>(Lo.getValueType(), Hi.getValueType()) ==
-         TLI.getTypesToTransformTo(*DAG.getContext(), Op.getValueType()) &&
+  assert(Lo.getValueType().getVectorElementType() ==
+         Op.getValueType().getVectorElementType() &&
+         2*Lo.getValueType().getVectorNumElements() ==
+         Op.getValueType().getVectorNumElements() &&
+         Hi.getValueType() == Lo.getValueType() &&
          "Invalid type for split vector");
   // Lo/Hi may have been newly allocated, if so, add nodeid's as relevant.
   AnalyzeNewValue(Lo);
@@ -1005,11 +1010,10 @@ SDValue DAGTypeLegalizer::DisintegrateMERGE_VALUES(SDNode *N, unsigned ResNo) {
 void DAGTypeLegalizer::GetPairElements(SDValue Pair,
                                        SDValue &Lo, SDValue &Hi) {
   SDLoc dl(Pair);
-  VTS<EVT> VTs = TLI.getTypesToTransformTo(*DAG.getContext(),
-                                           Pair.getValueType());
-  Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, VTs.getLo(), Pair,
+  EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), Pair.getValueType());
+  Lo = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, NVT, Pair,
                    DAG.getIntPtrConstant(0, dl));
-  Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, VTs.getHi(), Pair,
+  Hi = DAG.getNode(ISD::EXTRACT_ELEMENT, dl, NVT, Pair,
                    DAG.getIntPtrConstant(1, dl));
 }
 
@@ -1032,15 +1036,17 @@ SDValue DAGTypeLegalizer::GetVectorElementPointer(SDValue VecPtr, EVT EltVT,
 /// Build an integer with low bits Lo and high bits Hi.
 SDValue DAGTypeLegalizer::JoinIntegers(SDValue Lo, SDValue Hi) {
   // Arbitrarily use dlHi for result SDLoc
-  SDLoc dlLo(Lo);
   SDLoc dlHi(Hi);
-  VTS<EVT> NVTs(Lo.getValueType(), Hi.getValueType());
-  EVT NVT = NVTs.getPartsVT(*DAG.getContext());
+  SDLoc dlLo(Lo);
+  EVT LVT = Lo.getValueType();
+  EVT HVT = Hi.getValueType();
+  EVT NVT = EVT::getIntegerVT(*DAG.getContext(),
+                              LVT.getSizeInBits() + HVT.getSizeInBits());
 
   Lo = DAG.getNode(ISD::ZERO_EXTEND, dlLo, NVT, Lo);
   Hi = DAG.getNode(ISD::ANY_EXTEND, dlHi, NVT, Hi);
   Hi = DAG.getNode(ISD::SHL, dlHi, NVT, Hi,
-                   DAG.getConstant(NVTs.getLoSizeInBits(), dlHi,
+                   DAG.getConstant(LVT.getSizeInBits(), dlHi,
                                    TLI.getPointerTy(DAG.getDataLayout())));
   return DAG.getNode(ISD::OR, dlHi, NVT, Lo, Hi);
 }
@@ -1133,38 +1139,28 @@ SDValue DAGTypeLegalizer::WidenTargetBoolean(SDValue Bool, EVT ValVT,
 }
 
 /// Return the lower LoVT bits of Op in Lo and the upper HiVT bits in Hi.
-void DAGTypeLegalizer::SplitInteger(SDValue Op, VTS<EVT> VTs,
+void DAGTypeLegalizer::SplitInteger(SDValue Op,
+                                    EVT LoVT, EVT HiVT,
                                     SDValue &Lo, SDValue &Hi) {
   SDLoc dl(Op);
-  assert(VTs.getPartsSizeInBits() == Op.getValueSizeInBits() &&
-         "Invalid integer splitting!");
-  if (Op.getOpcode() == ISD::BUILD_PAIR &&
-      VTS<EVT>(Op.getOperand(0).getValueType(),
-               Op.getOperand(1).getValueType()) == VTs) {
-    Lo = Op.getOperand(0);
-    Hi = Op.getOperand(1);
-    return;
-  }
-  Lo = DAG.getNode(ISD::TRUNCATE, dl, VTs.getLo(), Op);
+  assert(LoVT.getSizeInBits() + HiVT.getSizeInBits() ==
+         Op.getValueSizeInBits() && "Invalid integer splitting!");
+  Lo = DAG.getNode(ISD::TRUNCATE, dl, LoVT, Op);
   Hi = DAG.getNode(ISD::SRL, dl, Op.getValueType(), Op,
-                   DAG.getConstant(VTs.getLoSizeInBits(), dl,
+                   DAG.getConstant(LoVT.getSizeInBits(), dl,
                                    TLI.getPointerTy(DAG.getDataLayout())));
-  Hi = DAG.getNode(ISD::TRUNCATE, dl, VTs.getHi(), Hi);
+  Hi = DAG.getNode(ISD::TRUNCATE, dl, HiVT, Hi);
 }
 
 /// Return the lower and upper halves of Op's bits in a value type half the
 /// size of Op's.
-void DAGTypeLegalizer::SplitInteger(SDValue Op, SDValue &Lo, SDValue &Hi) {
-  SplitInteger(Op, VTS<EVT>::getHalfSizedIntegerVT(*DAG.getContext(),
-                                                   Op.getValueType()), Lo, Hi);
+void DAGTypeLegalizer::SplitInteger(SDValue Op,
+                                    SDValue &Lo, SDValue &Hi) {
+  EVT HalfVT =
+      EVT::getIntegerVT(*DAG.getContext(), Op.getValueSizeInBits() / 2);
+  SplitInteger(Op, HalfVT, HalfVT, Lo, Hi);
 }
 
-/// Return the lower and upper halves of Op's bits as the target would like them
-/// expanded.
-void DAGTypeLegalizer::ExpandInteger(SDValue Op, SDValue &Lo, SDValue &Hi) {
-  SplitInteger(Op, TLI.getTypesToTransformTo(*DAG.getContext(),
-                                             Op.getValueType()), Lo, Hi);
-}
 
 //===----------------------------------------------------------------------===//
 //  Entry Point

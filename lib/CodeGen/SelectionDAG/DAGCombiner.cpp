@@ -2793,10 +2793,6 @@ SDValue DAGCombiner::SimplifyBinOpWithSameOpcodeHands(SDNode *N) {
         (!LegalTypes || TLI.isTypeDesirableForOp(N->getOpcode(), Op0VT))) ||
        (N0.getOpcode() == ISD::TRUNCATE &&
         !TLI.isDesirableToShrinkOp(N->getOpcode(), Op0VT, VT) &&
-//      (!TLI.isZExtFree(VT, Op0VT) ||
-//       !TLI.isTruncateFree(Op0VT, VT)) &&
-//      (!TLI.isTruncateFree(Op0VT, VT) ||
-//       !TLI.isTypeDesirableForOp(N0.getOpcode(), VT)) &&
         TLI.isTypeLegal(Op0VT))) &&
       !VT.isVector() &&
       Op0VT == N1.getOperand(0).getValueType() &&
@@ -5392,15 +5388,16 @@ SDValue DAGCombiner::visitSELECT(SDNode *N) {
 static
 std::pair<SDValue, SDValue> SplitVSETCC(const SDNode *N, SelectionDAG &DAG) {
   SDLoc DL(N);
-  VTS<EVT> VTs = DAG.GetSplitDestVTs(N->getValueType(0));
+  EVT LoVT, HiVT;
+  std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(N->getValueType(0));
 
   // Split the inputs.
   SDValue Lo, Hi, LL, LH, RL, RH;
   std::tie(LL, LH) = DAG.SplitVectorOperand(N, 0);
   std::tie(RL, RH) = DAG.SplitVectorOperand(N, 1);
 
-  Lo = DAG.getNode(N->getOpcode(), DL, VTs.getLo(), LL, RL, N->getOperand(2));
-  Hi = DAG.getNode(N->getOpcode(), DL, VTs.getHi(), LH, RH, N->getOperand(2));
+  Lo = DAG.getNode(N->getOpcode(), DL, LoVT, LL, RL, N->getOperand(2));
+  Hi = DAG.getNode(N->getOpcode(), DL, HiVT, LH, RH, N->getOperand(2));
 
   return std::make_pair(Lo, Hi);
 }
@@ -5484,11 +5481,16 @@ SDValue DAGCombiner::visitMSCATTER(SDNode *N) {
   SDValue MaskLo, MaskHi, Lo, Hi;
   std::tie(MaskLo, MaskHi) = SplitVSETCC(Mask.getNode(), DAG);
 
+  EVT LoVT, HiVT;
+  std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(MSC->getValueType(0));
+
   SDValue Chain = MSC->getChain();
 
+  EVT MemoryVT = MSC->getMemoryVT();
   unsigned Alignment = MSC->getOriginalAlignment();
 
-  VTS<EVT> MemVTs = DAG.GetSplitDestVTs(MSC->getMemoryVT());
+  EVT LoMemVT, HiMemVT;
+  std::tie(LoMemVT, HiMemVT) = DAG.GetSplitDestVTs(MemoryVT);
 
   SDValue DataLo, DataHi;
   std::tie(DataLo, DataHi) = DAG.SplitVector(Data, DL);
@@ -5499,7 +5501,7 @@ SDValue DAGCombiner::visitMSCATTER(SDNode *N) {
 
   MachineMemOperand *MMO = DAG.getMachineFunction().
     getMachineMemOperand(MSC->getPointerInfo(),
-                          MachineMemOperand::MOStore,  MemVTs.getLoStoreSize(),
+                          MachineMemOperand::MOStore,  LoMemVT.getStoreSize(),
                           Alignment, MSC->getAAInfo(), MSC->getRanges());
 
   SDValue OpsLo[] = { Chain, DataLo, MaskLo, BasePtr, IndexLo };
@@ -5540,9 +5542,13 @@ SDValue DAGCombiner::visitMSTORE(SDNode *N) {
     SDValue MaskLo, MaskHi, Lo, Hi;
     std::tie(MaskLo, MaskHi) = SplitVSETCC(Mask.getNode(), DAG);
 
+    EVT LoVT, HiVT;
+    std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(MST->getValueType(0));
+
     SDValue Chain = MST->getChain();
     SDValue Ptr   = MST->getBasePtr();
 
+    EVT MemoryVT = MST->getMemoryVT();
     unsigned Alignment = MST->getOriginalAlignment();
 
     // if Alignment is equal to the vector size,
@@ -5551,30 +5557,31 @@ SDValue DAGCombiner::visitMSTORE(SDNode *N) {
       (Alignment == Data->getValueType(0).getSizeInBits()/8) ?
          Alignment/2 : Alignment;
 
-    VTS<EVT> MemVTs = DAG.GetSplitDestVTs(MST->getMemoryVT());
+    EVT LoMemVT, HiMemVT;
+    std::tie(LoMemVT, HiMemVT) = DAG.GetSplitDestVTs(MemoryVT);
 
     SDValue DataLo, DataHi;
     std::tie(DataLo, DataHi) = DAG.SplitVector(Data, DL);
 
     MachineMemOperand *MMO = DAG.getMachineFunction().
       getMachineMemOperand(MST->getPointerInfo(),
-                           MachineMemOperand::MOStore,  MemVTs.getLoStoreSize(),
+                           MachineMemOperand::MOStore,  LoMemVT.getStoreSize(),
                            Alignment, MST->getAAInfo(), MST->getRanges());
 
-    Lo = DAG.getMaskedStore(Chain, DL, DataLo, Ptr, MaskLo, MemVTs.getLo(), MMO,
+    Lo = DAG.getMaskedStore(Chain, DL, DataLo, Ptr, MaskLo, LoMemVT, MMO,
                             MST->isTruncatingStore());
 
-    unsigned IncrementSize = MemVTs.getLoStoreSize();
+    unsigned IncrementSize = LoMemVT.getSizeInBits()/8;
     Ptr = DAG.getNode(ISD::ADD, DL, Ptr.getValueType(), Ptr,
                       DAG.getConstant(IncrementSize, DL, Ptr.getValueType()));
 
     MMO = DAG.getMachineFunction().
       getMachineMemOperand(MST->getPointerInfo(),
-                           MachineMemOperand::MOStore,  MemVTs.getHiStoreSize(),
+                           MachineMemOperand::MOStore,  HiMemVT.getStoreSize(),
                            SecondHalfAlignment, MST->getAAInfo(),
                            MST->getRanges());
 
-    Hi = DAG.getMaskedStore(Chain, DL, DataHi, Ptr, MaskHi, MemVTs.getHi(), MMO,
+    Hi = DAG.getMaskedStore(Chain, DL, DataHi, Ptr, MaskHi, HiMemVT, MMO,
                             MST->isTruncatingStore());
 
     AddToWorklist(Lo.getNode());
@@ -5616,12 +5623,15 @@ SDValue DAGCombiner::visitMGATHER(SDNode *N) {
   SDValue Src0Lo, Src0Hi;
   std::tie(Src0Lo, Src0Hi) = DAG.SplitVector(Src0, DL);
 
-  VTS<EVT> VTs = DAG.GetSplitDestVTs(VT);
+  EVT LoVT, HiVT;
+  std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(VT);
 
   SDValue Chain = MGT->getChain();
+  EVT MemoryVT = MGT->getMemoryVT();
   unsigned Alignment = MGT->getOriginalAlignment();
 
-  VTS<EVT> MemVTs = DAG.GetSplitDestVTs(MGT->getMemoryVT());
+  EVT LoMemVT, HiMemVT;
+  std::tie(LoMemVT, HiMemVT) = DAG.GetSplitDestVTs(MemoryVT);
 
   SDValue BasePtr = MGT->getBasePtr();
   SDValue Index = MGT->getIndex();
@@ -5630,16 +5640,16 @@ SDValue DAGCombiner::visitMGATHER(SDNode *N) {
 
   MachineMemOperand *MMO = DAG.getMachineFunction().
     getMachineMemOperand(MGT->getPointerInfo(),
-                          MachineMemOperand::MOLoad,  MemVTs.getLoStoreSize(),
+                          MachineMemOperand::MOLoad,  LoMemVT.getStoreSize(),
                           Alignment, MGT->getAAInfo(), MGT->getRanges());
 
   SDValue OpsLo[] = { Chain, Src0Lo, MaskLo, BasePtr, IndexLo };
-  Lo = DAG.getMaskedGather(DAG.getVTList(VTs.getLo(), MVT::Other), VTs.getLo(),
-                           DL, OpsLo, MMO);
+  Lo = DAG.getMaskedGather(DAG.getVTList(LoVT, MVT::Other), LoVT, DL, OpsLo,
+                            MMO);
 
   SDValue OpsHi[] = {Chain, Src0Hi, MaskHi, BasePtr, IndexHi};
-  Hi = DAG.getMaskedGather(DAG.getVTList(VTs.getHi(), MVT::Other), VTs.getHi(),
-                           DL, OpsHi, MMO);
+  Hi = DAG.getMaskedGather(DAG.getVTList(HiVT, MVT::Other), HiVT, DL, OpsHi,
+                            MMO);
 
   AddToWorklist(Lo.getNode());
   AddToWorklist(Hi.getNode());
@@ -5688,10 +5698,12 @@ SDValue DAGCombiner::visitMLOAD(SDNode *N) {
     SDValue Src0Lo, Src0Hi;
     std::tie(Src0Lo, Src0Hi) = DAG.SplitVector(Src0, DL);
 
-    VTS<EVT> VTs = DAG.GetSplitDestVTs(MLD->getValueType(0));
+    EVT LoVT, HiVT;
+    std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(MLD->getValueType(0));
 
     SDValue Chain = MLD->getChain();
     SDValue Ptr   = MLD->getBasePtr();
+    EVT MemoryVT = MLD->getMemoryVT();
     unsigned Alignment = MLD->getOriginalAlignment();
 
     // if Alignment is equal to the vector size,
@@ -5700,27 +5712,28 @@ SDValue DAGCombiner::visitMLOAD(SDNode *N) {
       (Alignment == MLD->getValueType(0).getSizeInBits()/8) ?
          Alignment/2 : Alignment;
 
-    VTS<EVT> MemVTs = DAG.GetSplitDestVTs(MLD->getMemoryVT());
+    EVT LoMemVT, HiMemVT;
+    std::tie(LoMemVT, HiMemVT) = DAG.GetSplitDestVTs(MemoryVT);
 
     MachineMemOperand *MMO = DAG.getMachineFunction().
     getMachineMemOperand(MLD->getPointerInfo(),
-                         MachineMemOperand::MOLoad,  MemVTs.getLoStoreSize(),
+                         MachineMemOperand::MOLoad,  LoMemVT.getStoreSize(),
                          Alignment, MLD->getAAInfo(), MLD->getRanges());
 
-    Lo = DAG.getMaskedLoad(VTs.getLo(), DL, Chain, Ptr, MaskLo, Src0Lo,
-                           MemVTs.getLo(), MMO, ISD::NON_EXTLOAD);
+    Lo = DAG.getMaskedLoad(LoVT, DL, Chain, Ptr, MaskLo, Src0Lo, LoMemVT, MMO,
+                           ISD::NON_EXTLOAD);
 
-    unsigned IncrementSize = MemVTs.getLoStoreSize();
+    unsigned IncrementSize = LoMemVT.getSizeInBits()/8;
     Ptr = DAG.getNode(ISD::ADD, DL, Ptr.getValueType(), Ptr,
                       DAG.getConstant(IncrementSize, DL, Ptr.getValueType()));
 
     MMO = DAG.getMachineFunction().
-    getMachineMemOperand(MLD->getPointerInfo(), MachineMemOperand::MOLoad,
-                         MemVTs.getHiStoreSize(), SecondHalfAlignment,
-                         MLD->getAAInfo(), MLD->getRanges());
+    getMachineMemOperand(MLD->getPointerInfo(),
+                         MachineMemOperand::MOLoad,  HiMemVT.getStoreSize(),
+                         SecondHalfAlignment, MLD->getAAInfo(), MLD->getRanges());
 
-    Hi = DAG.getMaskedLoad(VTs.getHi(), DL, Chain, Ptr, MaskHi, Src0Hi,
-                           MemVTs.getHi(), MMO, ISD::NON_EXTLOAD);
+    Hi = DAG.getMaskedLoad(HiVT, DL, Chain, Ptr, MaskHi, Src0Hi, HiMemVT, MMO,
+                           ISD::NON_EXTLOAD);
 
     AddToWorklist(Lo.getNode());
     AddToWorklist(Hi.getNode());
@@ -6085,8 +6098,8 @@ SDValue DAGCombiner::CombineExtLoad(SDNode *N) {
   EVT SplitDstVT = DstVT;
   while (!TLI.isLoadExtLegalOrCustom(ExtType, SplitDstVT, SplitSrcVT) &&
          SplitSrcVT.getVectorNumElements() > 1) {
-    SplitDstVT = DAG.GetSplitDestVTs(SplitDstVT).getSingle();
-    SplitSrcVT = DAG.GetSplitDestVTs(SplitSrcVT).getSingle();
+    SplitDstVT = DAG.GetSplitDestVTs(SplitDstVT).first;
+    SplitSrcVT = DAG.GetSplitDestVTs(SplitSrcVT).first;
   }
 
   if (!TLI.isLoadExtLegalOrCustom(ExtType, SplitDstVT, SplitSrcVT))

@@ -913,11 +913,11 @@ bool FastISel::lowerCallTo(CallLoweringInfo &CLI) {
 
   for (unsigned I = 0, E = RetTys.size(); I != E; ++I) {
     EVT VT = RetTys[I];
-    MVTPair RegisterVTs = TLI.getRegisterTypes(CLI.RetTy->getContext(), VT);
+    MVT RegisterVT = TLI.getRegisterType(CLI.RetTy->getContext(), VT);
     unsigned NumRegs = TLI.getNumRegisters(CLI.RetTy->getContext(), VT);
     for (unsigned i = 0; i != NumRegs; ++i) {
       ISD::InputArg MyFlags;
-      MyFlags.VT = RegisterVTs.getPart(i);
+      MyFlags.VT = RegisterVT;
       MyFlags.ArgVT = VT;
       MyFlags.Used = CLI.IsReturnValueUsed;
       if (CLI.RetSExt)

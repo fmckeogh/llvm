@@ -662,11 +662,11 @@ static void VerifySDNode(SDNode *N) {
     assert(!VT.isVector() && (VT.isInteger() || VT.isFloatingPoint()) &&
            "Wrong return type!");
     assert(N->getNumOperands() == 2 && "Wrong number of operands!");
-    EVT LoVT = N->getOperand(0).getValueType();
-    EVT HiVT = N->getOperand(1).getValueType();
-    assert(LoVT.isInteger() == VT.isInteger() &&
-           HiVT.isInteger() == VT.isInteger() && "Wrong operand type!");
-    assert(VT.getSizeInBits() == LoVT.getSizeInBits() + HiVT.getSizeInBits() &&
+    assert(N->getOperand(0).getValueType() == N->getOperand(1).getValueType() &&
+           "Mismatched operand types!");
+    assert(N->getOperand(0).getValueType().isInteger() == VT.isInteger() &&
+           "Wrong operand type!");
+    assert(VT.getSizeInBits() == 2 * N->getOperand(0).getValueSizeInBits() &&
            "Wrong return type size");
     break;
   }
@@ -2508,14 +2508,13 @@ void SelectionDAG::computeKnownBits(SDValue Op, APInt &KnownZero,
     break;
   }
   case ISD::EXTRACT_ELEMENT: {
-    computeKnownBits(Op.getOperand(0), KnownZero, KnownOne, Depth + 1);
+    computeKnownBits(Op.getOperand(0), KnownZero, KnownOne, Depth+1);
+    const unsigned Index = Op.getConstantOperandVal(1);
     const unsigned BitWidth = Op.getValueSizeInBits();
 
     // Remove low part of known bits mask
-    if (Op.getConstantOperandVal(1)) {
-      KnownZero = KnownZero.getHiBits(BitWidth);
-      KnownOne = KnownOne.getHiBits(BitWidth);
-    }
+    KnownZero = KnownZero.getHiBits(KnownZero.getBitWidth() - Index * BitWidth);
+    KnownOne = KnownOne.getHiBits(KnownOne.getBitWidth() - Index * BitWidth);
 
     // Remove high part of known bit mask
     KnownZero = KnownZero.trunc(BitWidth);
@@ -2809,13 +2808,17 @@ unsigned SelectionDAG::ComputeNumSignBits(SDValue Op, unsigned Depth) const {
     // case for targets like X86.
     break;
   case ISD::EXTRACT_ELEMENT: {
-    unsigned KnownSign = ComputeNumSignBits(Op.getOperand(0), Depth+1);
-    const unsigned TotalWidth = Op.getOperand(0).getValueSizeInBits();
-    const unsigned ElementWidth = Op.getValueSizeInBits();
-    const unsigned OtherElementWidth = TotalWidth - ElementWidth;
-    if (Op.getConstantOperandVal(1))
-      return std::min(KnownSign, ElementWidth);
-    return std::max(KnownSign, OtherElementWidth) - OtherElementWidth;
+    const int KnownSign = ComputeNumSignBits(Op.getOperand(0), Depth+1);
+    const int BitWidth = Op.getValueSizeInBits();
+    const int Items = Op.getOperand(0).getValueSizeInBits() / BitWidth;
+
+    // Get reverse index (starting from 1), Op1 value indexes elements from
+    // little end. Sign starts at big end.
+    const int rIndex = Items - 1 - Op.getConstantOperandVal(1);
+
+    // If the sign portion ends in our element the subtraction gives correct
+    // result. Otherwise it gives either negative or > bitwidth result
+    return std::max(std::min(KnownSign - rIndex * BitWidth, BitWidth), 0);
   }
   case ISD::EXTRACT_VECTOR_ELT: {
     // At the moment we keep this simple and skip tracking the specific
@@ -3843,7 +3846,7 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     assert(N2C && (unsigned)N2C->getZExtValue() < 2 && "Bad EXTRACT_ELEMENT!");
     assert(!N1.getValueType().isVector() && !VT.isVector() &&
            (N1.getValueType().isInteger() == VT.isInteger()) &&
-           N1.getValueType().bitsGT(VT) &&
+           N1.getValueType() != VT &&
            "Wrong types for EXTRACT_ELEMENT!");
 
     // EXTRACT_ELEMENT of BUILD_PAIR is often formed while legalize is expanding
@@ -3855,10 +3858,9 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
     // EXTRACT_ELEMENT of a constant int is also very common.
     if (N1C) {
       unsigned ElementSize = VT.getSizeInBits();
-      APInt Val = N1C->getAPIntValue();
-      if (N2C->getZExtValue())
-        Val = Val.getHiBits(ElementSize);
-      return getConstant(Val.trunc(ElementSize), DL, VT);
+      unsigned Shift = ElementSize * N2C->getZExtValue();
+      APInt ShiftedVal = N1C->getAPIntValue().lshr(Shift);
+      return getConstant(ShiftedVal.trunc(ElementSize), DL, VT);
     }
     break;
   case ISD::EXTRACT_SUBVECTOR:
@@ -7123,27 +7125,33 @@ unsigned SelectionDAG::InferPtrAlignment(SDValue Ptr) const {
 
 /// GetSplitDestVTs - Compute the VTs needed for the low/hi parts of a type
 /// which is split (or expanded) into two not necessarily identical pieces.
-VTS<EVT> SelectionDAG::GetSplitDestVTs(const EVT &VT) const {
+std::pair<EVT, EVT> SelectionDAG::GetSplitDestVTs(const EVT &VT) const {
   // Currently all types are split in half.
   EVT LoVT, HiVT;
-  if (!VT.isVector())
-    return TLI->getTypesToTransformTo(*getContext(), VT);
-  return VTS<EVT>::getSplitVectorVT(*getContext(), VT);
+  if (!VT.isVector()) {
+    LoVT = HiVT = TLI->getTypeToTransformTo(*getContext(), VT);
+  } else {
+    unsigned NumElements = VT.getVectorNumElements();
+    assert(!(NumElements & 1) && "Splitting vector, but not in half!");
+    LoVT = HiVT = EVT::getVectorVT(*getContext(), VT.getVectorElementType(),
+                                   NumElements/2);
+  }
+  return std::make_pair(LoVT, HiVT);
 }
 
 /// SplitVector - Split the vector with EXTRACT_SUBVECTOR and return the
 /// low/high part.
 std::pair<SDValue, SDValue>
-SelectionDAG::SplitVector(const SDValue &N, const SDLoc &DL,
-                          const VTS<EVT> &VTs) {
-  assert(VTs.getVectorPartsNumElements(2) <=
+SelectionDAG::SplitVector(const SDValue &N, const SDLoc &DL, const EVT &LoVT,
+                          const EVT &HiVT) {
+  assert(LoVT.getVectorNumElements() + HiVT.getVectorNumElements() <=
          N.getValueType().getVectorNumElements() &&
          "More vector elements requested than available!");
   SDValue Lo, Hi;
-  Lo = getNode(ISD::EXTRACT_SUBVECTOR, DL, VTs.getLo(), N,
+  Lo = getNode(ISD::EXTRACT_SUBVECTOR, DL, LoVT, N,
                getConstant(0, DL, TLI->getVectorIdxTy(getDataLayout())));
-  Hi = getNode(ISD::EXTRACT_SUBVECTOR, DL, VTs.getHi(), N,
-               getConstant(VTs.getLoVectorNumElements(), DL,
+  Hi = getNode(ISD::EXTRACT_SUBVECTOR, DL, HiVT, N,
+               getConstant(LoVT.getVectorNumElements(), DL,
                            TLI->getVectorIdxTy(getDataLayout())));
   return std::make_pair(Lo, Hi);
 }

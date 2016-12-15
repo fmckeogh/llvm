@@ -790,14 +790,11 @@ class MachineInstrSpan {
   MachineBasicBlock &MBB;
   MachineBasicBlock::iterator I, B, E;
 public:
-  explicit MachineInstrSpan(MachineBasicBlock &MBB)
-      : MBB(MBB), I(MBB.end()), B(std::prev(MBB.end())), E(MBB.end()) {}
-  explicit MachineInstrSpan(MachineInstr *MI)
-    : MachineInstrSpan(*MI->getParent(), MI) {}
-  MachineInstrSpan(MachineBasicBlock &MBB, MachineBasicBlock::iterator I)
-    : MBB(MBB), I(I),
+  MachineInstrSpan(MachineBasicBlock::iterator I)
+    : MBB(*I->getParent()),
+      I(I),
       B(I == MBB.begin() ? MBB.end() : std::prev(I)),
-      E(I == MBB.end() ? I : std::next(I)) {}
+      E(std::next(I)) {}
 
   MachineBasicBlock::iterator begin() {
     return B == MBB.end() ? MBB.begin() : std::next(B);

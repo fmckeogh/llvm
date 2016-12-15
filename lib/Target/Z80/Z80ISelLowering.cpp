@@ -84,7 +84,7 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   setStackPointerRegisterToSaveRestore(Is24Bit ? Z80::SPL : Z80::SPS);
 
   // Compute derived properties from the register classes
-  computeRegisterProperties(STI.getRegisterInfo(), false);
+  computeRegisterProperties(STI.getRegisterInfo());
 
   setBooleanContents(ZeroOrOneBooleanContent);
   setJumpIsExpensive();
@@ -1207,6 +1207,10 @@ bool Z80TargetLowering::isDesirableToShrinkOp(unsigned Opc, EVT SrcVT,
     return false;
   case ISD::ADD:
   case ISD::SUB:
+  case ISD::ADDC:
+  case ISD::SUBC:
+  case ISD::ADDE:
+  case ISD::SUBE:
     // These require a .sis suffix for i24 -> i16
     return DstVT != MVT::i16 || Subtarget.is16Bit();
   case ISD::AND:

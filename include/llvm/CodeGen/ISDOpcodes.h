@@ -178,14 +178,14 @@ namespace ISD {
     UNDEF,
 
     /// EXTRACT_ELEMENT - This is used to get the lower or upper (determined by
-    /// a Constant, which is required to be operand #1) part of the integer or
+    /// a Constant, which is required to be operand #1) half of the integer or
     /// float value specified as operand #0.  This is only for use before
     /// legalization, for values that will be broken into multiple registers.
     EXTRACT_ELEMENT,
 
     /// BUILD_PAIR - This is the opposite of EXTRACT_ELEMENT in some ways.
-    /// Given two values, this produces a value whose size is the sum of the
-    /// value sizes.  Like EXTRACT_ELEMENT, this can only be used before
+    /// Given two values of the same integer value type, this produces a value
+    /// twice as big.  Like EXTRACT_ELEMENT, this can only be used before
     /// legalization.
     BUILD_PAIR,
 

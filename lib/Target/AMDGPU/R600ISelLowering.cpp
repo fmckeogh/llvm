@@ -50,7 +50,7 @@ R600TargetLowering::R600TargetLowering(const TargetMachine &TM,
   // EXTLOAD should be the same as ZEXTLOAD. It is legal for some address
   // spaces, so it is custom lowered to handle those where it isn't.
   for (MVT VT : MVT::integer_valuetypes()) {
-    if (VT == MVT::i24)
+    if (!VT.isPow2Size())
       continue;
 
     setLoadExtAction(ISD::SEXTLOAD, VT, MVT::i1, Promote);

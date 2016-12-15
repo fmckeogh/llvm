@@ -83,10 +83,10 @@ void MCStreamer::generateCompactUnwindEncodings(MCAsmBackend *MAB) {
 /// EmitIntValue - Special case of EmitValue that avoids the client having to
 /// pass in a MCExpr for constant integers.
 void MCStreamer::EmitIntValue(uint64_t Value, unsigned Size) {
-  assert(1 <= Size && Size <= 10 && "Invalid size");
+  assert(1 <= Size && Size <= 8 && "Invalid size");
   assert((isUIntN(8 * Size, Value) || isIntN(8 * Size, Value)) &&
          "Invalid size");
-  char buf[10];
+  char buf[8];
   const bool isLittleEndian = Context.getAsmInfo()->isLittleEndian();
   for (unsigned i = 0; i != Size; ++i) {
     unsigned index = isLittleEndian ? i : (Size - i - 1);

@@ -965,15 +965,14 @@ struct RegsForValue {
 
   /// RegVTs - The value types of the registers. This is the same size as
   /// ValueVTs and it records, for each value, what the type of the assigned
-  /// register or registers are. (Individual values can be synthesized
-  /// from more than one type of register, which is represented as an MVTPair
-  /// containing the alternating MVT's)
+  /// register or registers are. (Individual values are never synthesized
+  /// from more than one type of register.)
   ///
   /// With virtual registers, the contents of RegVTs is redundant with TLI's
   /// getRegisterType member function, however when with physical registers
   /// it is necessary to have a separate record of the types.
   ///
-  SmallVector<MVTPair, 4> RegVTs;
+  SmallVector<MVT, 4> RegVTs;
 
   /// Regs - This list holds the registers assigned to the values.
   /// Each legal or promoted value requires one register, and each

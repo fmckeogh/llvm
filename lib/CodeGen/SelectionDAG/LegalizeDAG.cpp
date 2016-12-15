@@ -831,7 +831,7 @@ void SelectionDAGLegalize::LegalizeLoadOps(SDNode *Node) {
       if (!TLI.isLoadExtLegal(ISD::EXTLOAD, DestVT, SrcVT)) {
         // If the source type is not legal, see if there is a legal extload to
         // an intermediate type that we can then extend further.
-        EVT LoadVT = TLI.getRegisterTypes(SrcVT.getSimpleVT());
+        EVT LoadVT = TLI.getRegisterType(SrcVT.getSimpleVT());
         if (TLI.isTypeLegal(SrcVT) || // Same as SrcVT == LoadVT?
             TLI.isLoadExtLegal(ExtType, LoadVT, SrcVT)) {
           // If we are loading a legal type, this is a non-extload followed by a
@@ -855,7 +855,7 @@ void SelectionDAGLegalize::LegalizeLoadOps(SDNode *Node) {
         if (SrcVT.getScalarType() == MVT::f16) {
           EVT ISrcVT = SrcVT.changeTypeToInteger();
           EVT IDestVT = DestVT.changeTypeToInteger();
-          EVT LoadVT = TLI.getRegisterTypes(IDestVT.getSimpleVT());
+          EVT LoadVT = TLI.getRegisterType(IDestVT.getSimpleVT());
 
           SDValue Result = DAG.getExtLoad(ISD::ZEXTLOAD, dl, LoadVT,
                                           Chain, Ptr, ISrcVT,
@@ -1369,7 +1369,7 @@ void SelectionDAGLegalize::getSignAsIntValue(FloatSignAsInt &State,
 
   auto &DataLayout = DAG.getDataLayout();
   // Store the float to memory, then load the sign part out as an integer.
-  MVT LoadTy = TLI.getRegisterTypes(*DAG.getContext(), MVT::i8);
+  MVT LoadTy = TLI.getRegisterType(*DAG.getContext(), MVT::i8);
   // First create a temporary that is aligned for both the load and store.
   SDValue StackPtr = DAG.CreateStackTemporary(FloatVT, LoadTy);
   int FI = cast<FrameIndexSDNode>(StackPtr.getNode())->getIndex();
@@ -3123,17 +3123,20 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     break;
   }
   case ISD::EXTRACT_ELEMENT: {
-    EVT ResTy = Node->getValueType(0);
     EVT OpTy = Node->getOperand(0).getValueType();
-    unsigned OtherWidth = OpTy.getSizeInBits() - ResTy.getSizeInBits();
-    Tmp1 = Node->getOperand(0);
-    // If we are getting the high element, shift by the low width.
-    if (Node->getConstantOperandVal(1))
-      Tmp1 = DAG.getNode(ISD::SRL, dl, OpTy, Tmp1,
-                         DAG.getConstant(OtherWidth, dl,
-                                         TLI.getShiftAmountTy(OpTy,
+    if (cast<ConstantSDNode>(Node->getOperand(1))->getZExtValue()) {
+      // 1 -> Hi
+      Tmp1 = DAG.getNode(ISD::SRL, dl, OpTy, Node->getOperand(0),
+                         DAG.getConstant(OpTy.getSizeInBits() / 2, dl,
+                                         TLI.getShiftAmountTy(
+                                             Node->getOperand(0).getValueType(),
                                              DAG.getDataLayout())));
-    Tmp1 = DAG.getNode(ISD::TRUNCATE, dl, ResTy, Tmp1);
+      Tmp1 = DAG.getNode(ISD::TRUNCATE, dl, Node->getValueType(0), Tmp1);
+    } else {
+      // 0 -> Lo
+      Tmp1 = DAG.getNode(ISD::TRUNCATE, dl, Node->getValueType(0),
+                         Node->getOperand(0));
+    }
     Results.push_back(Tmp1);
     break;
   }
@@ -3527,7 +3530,7 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
     Tmp2 = DAG.getNode(ISD::ANY_EXTEND, dl, PairTy, Node->getOperand(1));
     Tmp2 = DAG.getNode(
         ISD::SHL, dl, PairTy, Tmp2,
-        DAG.getConstant(Node->getOperand(0).getValueSizeInBits(), dl,
+        DAG.getConstant(PairTy.getSizeInBits() / 2, dl,
                         TLI.getShiftAmountTy(PairTy, DAG.getDataLayout())));
     Results.push_back(DAG.getNode(ISD::OR, dl, PairTy, Tmp1, Tmp2));
     break;
@@ -3770,8 +3773,9 @@ bool SelectionDAGLegalize::ExpandNode(SDNode *Node) {
       Scalars.push_back(DAG.getNode(Node->getOpcode(), dl,
                                     VT.getScalarType(), Ex, Sh));
     }
-    Results.push_back(DAG.getNode(ISD::BUILD_VECTOR, dl, Node->getValueType(0),
-                                  Scalars));
+    SDValue Result =
+      DAG.getNode(ISD::BUILD_VECTOR, dl, Node->getValueType(0), Scalars);
+    Results.push_back(Result);
     break;
   }
   case ISD::GLOBAL_OFFSET_TABLE:

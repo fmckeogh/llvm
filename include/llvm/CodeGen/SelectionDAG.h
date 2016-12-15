@@ -1330,16 +1330,18 @@ public:
 
   /// Compute the VTs needed for the low/hi parts of a type
   /// which is split (or expanded) into two not necessarily identical pieces.
-  VTS<EVT> GetSplitDestVTs(const EVT &VT) const;
+  std::pair<EVT, EVT> GetSplitDestVTs(const EVT &VT) const;
 
   /// Split the vector with EXTRACT_SUBVECTOR using the provides
   /// VTs and return the low/high part.
   std::pair<SDValue, SDValue> SplitVector(const SDValue &N, const SDLoc &DL,
-                                          const VTS<EVT> &VTs);
+                                          const EVT &LoVT, const EVT &HiVT);
 
   /// Split the vector with EXTRACT_SUBVECTOR and return the low/high part.
   std::pair<SDValue, SDValue> SplitVector(const SDValue &N, const SDLoc &DL) {
-    return SplitVector(N, DL, GetSplitDestVTs(N.getValueType()));
+    EVT LoVT, HiVT;
+    std::tie(LoVT, HiVT) = GetSplitDestVTs(N.getValueType());
+    return SplitVector(N, DL, LoVT, HiVT);
   }
 
   /// Split the node's operand with EXTRACT_SUBVECTOR and

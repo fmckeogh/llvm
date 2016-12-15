@@ -10143,12 +10143,13 @@ static void ReplaceReductionResults(SDNode *N,
                                     SmallVectorImpl<SDValue> &Results,
                                     SelectionDAG &DAG, unsigned InterOp,
                                     unsigned AcrossOp) {
+  EVT LoVT, HiVT;
   SDValue Lo, Hi;
   SDLoc dl(N);
-  VTS<EVT> VTs = DAG.GetSplitDestVTs(N->getValueType(0));
+  std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(N->getValueType(0));
   std::tie(Lo, Hi) = DAG.SplitVectorOperand(N, 0);
-  SDValue InterVal = DAG.getNode(InterOp, dl, VTs.getLo(), Lo, Hi);
-  SDValue SplitVal = DAG.getNode(AcrossOp, dl, VTs.getLo(), InterVal);
+  SDValue InterVal = DAG.getNode(InterOp, dl, LoVT, Lo, Hi);
+  SDValue SplitVal = DAG.getNode(AcrossOp, dl, LoVT, InterVal);
   Results.push_back(SplitVal);
 }
 

@@ -274,7 +274,6 @@ MVT::SimpleValueType CodeGenTarget::getRegisterKnownVT(Record *R) const {
   return KnownVT;
 }
 
-
 void CodeGenTarget::ReadLegalValueTypes() const {
   for (const auto &RC : getRegBank().getRegClasses())
     LegalValueTypes.insert(LegalValueTypes.end(), RC.VTs.begin(), RC.VTs.end());

@@ -2307,7 +2307,7 @@ EVT X86TargetLowering::getTypeForExtReturn(LLVMContext &Context, EVT VT,
     ReturnMVT = MVT::i8;
   }
 
-  MVT MinVT = getRegisterTypes(Context, ReturnMVT);
+  EVT MinVT = getRegisterType(Context, ReturnMVT);
   return VT.bitsLT(MinVT) ? MinVT : VT;
 }
 
@@ -28604,8 +28604,8 @@ static SDValue combineShiftRightAlgebraic(SDNode *N, SelectionDAG &DAG) {
 
   // skipping types without corresponding sext/zext and
   // ShlConst that is not one of [56,48,32,24,16]
-  for (auto SVT : { MVT::i8, MVT::i16, MVT::i32, MVT::i64 }) {
-    unsigned ShiftSize = MVT(SVT).getSizeInBits();
+  for (MVT SVT : { MVT::i8, MVT::i16, MVT::i32, MVT::i64 }) {
+    unsigned ShiftSize = SVT.getSizeInBits();
     if (ShlConst != Size - ShiftSize)
       continue;
     SDLoc DL(N);

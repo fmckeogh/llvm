@@ -385,11 +385,11 @@ unsigned FunctionLoweringInfo::CreateRegs(Type *Ty) {
   unsigned FirstReg = 0;
   for (unsigned Value = 0, e = ValueVTs.size(); Value != e; ++Value) {
     EVT ValueVT = ValueVTs[Value];
-    MVTPair RegisterVTs = TLI->getRegisterTypes(Ty->getContext(), ValueVT);
+    MVT RegisterVT = TLI->getRegisterType(Ty->getContext(), ValueVT);
 
     unsigned NumRegs = TLI->getNumRegisters(Ty->getContext(), ValueVT);
     for (unsigned i = 0; i != NumRegs; ++i) {
-      unsigned R = CreateReg(RegisterVTs.getPart(i));
+      unsigned R = CreateReg(RegisterVT);
       if (!FirstReg) FirstReg = R;
     }
   }

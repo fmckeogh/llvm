@@ -112,7 +112,6 @@ public:
   /// LegalizeKind holds the legalization kind that needs to happen to EVT
   /// in order to type-legalize it.
   typedef std::pair<LegalizeTypeAction, EVT> LegalizeKind;
-  typedef std::pair<LegalizeTypeAction, VTS<EVT>> LegalizeKinds;
 
   /// Enum that describes how the target represents true/false values.
   enum BooleanContent {
@@ -550,9 +549,6 @@ public:
   EVT getTypeToTransformTo(LLVMContext &Context, EVT VT) const {
     return getTypeConversion(Context, VT).second;
   }
-  VTS<EVT> getTypesToTransformTo(LLVMContext &Context, EVT VT) const {
-    return getTypeConversions(Context, VT).second;
-  }
 
   /// For types supported by the target, this is an identity function.  For
   /// types that must be expanded (i.e. integer types that are larger than the
@@ -583,7 +579,8 @@ public:
   /// before they are promoted/expanded.
   unsigned getVectorTypeBreakdown(LLVMContext &Context, EVT VT,
                                   EVT &IntermediateVT,
-                                  unsigned &NumIntermediates, MVT &RegVT) const;
+                                  unsigned &NumIntermediates,
+                                  MVT &RegisterVT) const;
 
   struct IntrinsicInfo {
     unsigned     opc;         // target opcode
@@ -882,43 +879,19 @@ public:
   MVT getRegisterType(LLVMContext &Context, EVT VT) const {
     if (VT.isSimple()) {
       assert((unsigned)VT.getSimpleVT().SimpleTy <
-             array_lengthof(RegisterTypeForVT));
+                array_lengthof(RegisterTypeForVT));
       return RegisterTypeForVT[VT.getSimpleVT().SimpleTy];
     }
     if (VT.isVector()) {
       EVT VT1;
-      MVT RegVT;
+      MVT RegisterVT;
       unsigned NumIntermediates;
-      (void)getVectorTypeBreakdown(Context, VT, VT1, NumIntermediates, RegVT);
-      return RegVT;
+      (void)getVectorTypeBreakdown(Context, VT, VT1,
+                                   NumIntermediates, RegisterVT);
+      return RegisterVT;
     }
     if (VT.isInteger())
       return getRegisterType(Context, getTypeToTransformTo(Context, VT));
-    llvm_unreachable("Unsupported extended type!");
-  }
-
-  /// Return the types of registers that this ValueType will eventually require.
-  LLVM_ATTRIBUTE_DEPRECATED(MVTPair getRegisterTypes(MVT VT) const, "old new") {
-    assert((unsigned)VT.SimpleTy < array_lengthof(RegisterTypesForVT));
-    return RegisterTypesForVT[VT.SimpleTy];
-  }
-
-  /// Return the types of registers that this ValueType will eventually require.
-  LLVM_ATTRIBUTE_DEPRECATED(MVTPair getRegisterTypes(LLVMContext &Context, EVT VT) const, "old new") {
-    if (VT.isSimple()) {
-      assert((unsigned)VT.getSimpleVT().SimpleTy <
-                array_lengthof(RegisterTypesForVT));
-      return RegisterTypesForVT[VT.getSimpleVT().SimpleTy];
-    }
-    if (VT.isVector()) {
-      EVT VT1;
-      MVT RegVT;
-      unsigned NumIntermediates;
-      (void)getVectorTypeBreakdown(Context, VT, VT1, NumIntermediates, RegVT);
-      return RegVT;
-    }
-    if (VT.isInteger())
-      return getRegisterTypes(Context, getTypeToTransformTo(Context, VT));
     llvm_unreachable("Unsupported extended type!");
   }
 
@@ -943,7 +916,7 @@ public:
       return getVectorTypeBreakdown(Context, VT, VT1, NumIntermediates, VT2);
     }
     if (VT.isInteger())
-      return EVT(getRegisterType(Context, VT)).getNumParts(VT);
+      return VT.getNumParts(getRegisterType(Context, VT));
     llvm_unreachable("Unsupported extended type!");
   }
 
@@ -1470,7 +1443,7 @@ protected:
 
   /// Once all of the register classes are added, this allows us to compute
   /// derived properties we expose.
-  void computeRegisterProperties(const TargetRegisterInfo *TRI, bool = true);
+  void computeRegisterProperties(const TargetRegisterInfo *TRI);
 
   /// Indicate that the specified operation does not work with the specified
   /// type and indicate what to do about it.
@@ -2030,7 +2003,7 @@ private:
   const TargetRegisterClass *RegClassForVT[MVT::LAST_VALUETYPE];
   unsigned char NumRegistersForVT[MVT::LAST_VALUETYPE];
   MVT RegisterTypeForVT[MVT::LAST_VALUETYPE];
-  MVTPair RegisterTypesForVT[MVT::LAST_VALUETYPE];
+  MVT LargestIntVT;
 
   /// This indicates the "representative" register class to use for each
   /// ValueType the target supports natively. This information is used by the
@@ -2090,17 +2063,6 @@ protected:
 
 private:
   LegalizeKind getTypeConversion(LLVMContext &Context, EVT VT) const;
-  LegalizeKinds getTypeConversions(LLVMContext &Context, EVT VT) const {
-    LegalizeKind LK = getTypeConversion(Context, VT);
-    switch (LK.first) {
-    default:
-      return LegalizeKinds(LK.first, LK.second);
-    case TypeExpandInteger:
-    case TypeSplitVector:
-      return LegalizeKinds(LK.first,
-                           VTS<EVT>::getExpandedVT(Context, VT, LK.second));
-    }
-  }
 
 private:
 
@@ -2779,7 +2741,7 @@ public:
   /// conventions. The frontend should handle this and include all of the
   /// necessary information.
   virtual EVT getTypeForExtReturn(LLVMContext &Context, EVT VT,
-                                  ISD::NodeType /*ExtendKind*/) const {
+                                       ISD::NodeType /*ExtendKind*/) const {
     EVT MinVT = getRegisterType(Context, MVT::i32);
     return VT.bitsLT(MinVT) ? MinVT : VT;
   }

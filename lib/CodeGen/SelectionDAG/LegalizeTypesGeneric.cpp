@@ -92,7 +92,9 @@ void DAGTypeLegalizer::ExpandRes_BITCAST(SDNode *N, SDValue &Lo, SDValue &Hi) {
     case TargetLowering::TypeWidenVector: {
       assert(!(InVT.getVectorNumElements() & 1) && "Unsupported BITCAST");
       InOp = GetWidenedVector(InOp);
-      std::tie(Lo, Hi) = DAG.SplitVector(InOp, dl, DAG.GetSplitDestVTs(InVT));
+      EVT LoVT, HiVT;
+      std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(InVT);
+      std::tie(Lo, Hi) = DAG.SplitVector(InOp, dl, LoVT, HiVT);
       if (TLI.hasBigEndianPartOrdering(OutVT, DAG.getDataLayout()))
         std::swap(Lo, Hi);
       Lo = DAG.getNode(ISD::BITCAST, dl, NOutVT, Lo);
@@ -198,7 +200,8 @@ void DAGTypeLegalizer::ExpandRes_BUILD_PAIR(SDNode *N, SDValue &Lo,
 void DAGTypeLegalizer::ExpandRes_EXTRACT_ELEMENT(SDNode *N, SDValue &Lo,
                                                  SDValue &Hi) {
   GetExpandedOp(N->getOperand(0), Lo, Hi);
-  SDValue Part = N->getConstantOperandVal(1) ? Hi : Lo;
+  SDValue Part = cast<ConstantSDNode>(N->getOperand(1))->getZExtValue() ?
+                   Hi : Lo;
 
   assert(Part.getValueType() == N->getValueType(0) &&
          "Type twice as big as expanded type not itself expanded!");
@@ -253,22 +256,22 @@ void DAGTypeLegalizer::ExpandRes_NormalLoad(SDNode *N, SDValue &Lo,
 
   LoadSDNode *LD = cast<LoadSDNode>(N);
   EVT ValueVT = LD->getValueType(0);
-  VTS<EVT> NVTs = TLI.getTypesToTransformTo(*DAG.getContext(), ValueVT);
+  EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), ValueVT);
   SDValue Chain = LD->getChain();
   SDValue Ptr = LD->getBasePtr();
   unsigned Alignment = LD->getAlignment();
   AAMDNodes AAInfo = LD->getAAInfo();
 
-  assert(NVTs.isByteSized() && "Expanded type not byte sized!");
+  assert(NVT.isByteSized() && "Expanded type not byte sized!");
 
-  Lo = DAG.getLoad(NVTs.getLo(), dl, Chain, Ptr, LD->getPointerInfo(),
-                   Alignment, LD->getMemOperand()->getFlags(), AAInfo);
+  Lo = DAG.getLoad(NVT, dl, Chain, Ptr, LD->getPointerInfo(), Alignment,
+                   LD->getMemOperand()->getFlags(), AAInfo);
 
   // Increment the pointer to the other half.
-  unsigned IncrementSize = NVTs.getLoStoreSize();
+  unsigned IncrementSize = NVT.getSizeInBits() / 8;
   Ptr = DAG.getNode(ISD::ADD, dl, Ptr.getValueType(), Ptr,
                     DAG.getConstant(IncrementSize, dl, Ptr.getValueType()));
-  Hi = DAG.getLoad(NVTs.getHi(), dl, Chain, Ptr,
+  Hi = DAG.getLoad(NVT, dl, Chain, Ptr,
                    LD->getPointerInfo().getWithOffset(IncrementSize),
                    MinAlign(Alignment, IncrementSize),
                    LD->getMemOperand()->getFlags(), AAInfo);
@@ -405,7 +408,7 @@ SDValue DAGTypeLegalizer::ExpandOp_BUILD_VECTOR(SDNode *N) {
 SDValue DAGTypeLegalizer::ExpandOp_EXTRACT_ELEMENT(SDNode *N) {
   SDValue Lo, Hi;
   GetExpandedOp(N->getOperand(0), Lo, Hi);
-  return N->getConstantOperandVal(1) ? Hi : Lo;
+  return cast<ConstantSDNode>(N->getOperand(1))->getZExtValue() ? Hi : Lo;
 }
 
 SDValue DAGTypeLegalizer::ExpandOp_INSERT_VECTOR_ELT(SDNode *N) {
@@ -465,14 +468,14 @@ SDValue DAGTypeLegalizer::ExpandOp_NormalStore(SDNode *N, unsigned OpNo) {
 
   StoreSDNode *St = cast<StoreSDNode>(N);
   EVT ValueVT = St->getValue().getValueType();
-  VTS<EVT> NVTs = TLI.getTypesToTransformTo(*DAG.getContext(), ValueVT);
+  EVT NVT = TLI.getTypeToTransformTo(*DAG.getContext(), ValueVT);
   SDValue Chain = St->getChain();
   SDValue Ptr = St->getBasePtr();
   unsigned Alignment = St->getAlignment();
   AAMDNodes AAInfo = St->getAAInfo();
 
-  assert(NVTs.isByteSized() && "Expanded type not byte sized!");
-  unsigned IncrementSize = NVTs.getLoStoreSize();
+  assert(NVT.isByteSized() && "Expanded type not byte sized!");
+  unsigned IncrementSize = NVT.getSizeInBits() / 8;
 
   SDValue Lo, Hi;
   GetExpandedOp(St->getValue(), Lo, Hi);
@@ -545,7 +548,8 @@ void DAGTypeLegalizer::SplitRes_SELECT_CC(SDNode *N, SDValue &Lo,
 }
 
 void DAGTypeLegalizer::SplitRes_UNDEF(SDNode *N, SDValue &Lo, SDValue &Hi) {
-  VTS<EVT> VTs = DAG.GetSplitDestVTs(N->getValueType(0));
-  Lo = DAG.getUNDEF(VTs.getLo());
-  Hi = DAG.getUNDEF(VTs.getHi());
+  EVT LoVT, HiVT;
+  std::tie(LoVT, HiVT) = DAG.GetSplitDestVTs(N->getValueType(0));
+  Lo = DAG.getUNDEF(LoVT);
+  Hi = DAG.getUNDEF(HiVT);
 }
