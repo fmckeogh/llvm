@@ -121,21 +121,14 @@ bool Z80DAGToDAGISel::SelectOff(SDValue N, SDValue &Reg, SDValue &Off) {
         int64_t Val = C->getSExtValue();
         if (!isInt<8>(Val))
           continue;
-        Reg = N.getOperand(I ^ 1);
-        if (Val >= -1 && Val <= 1 && Reg.hasOneUse())
+        Reg = N.getOperand(1 - I);
+        FrameIndexSDNode *Idx = dyn_cast<FrameIndexSDNode>(Reg);
+        if (Val >= -1 && Val <= 1 && !Idx && Reg.hasOneUse())
           continue;
-        Off = CurDAG->getTargetConstant(Val, SDLoc(N), MVT::i8);
-        if (FrameIndexSDNode *Idx = dyn_cast<FrameIndexSDNode>(Reg)) {
+        if (Idx)
           Reg = CurDAG->getTargetFrameIndex(
               Idx->getIndex(), TLI->getPointerTy(CurDAG->getDataLayout()));
-        } else if (TargetIndexSDNode *Idx = dyn_cast<TargetIndexSDNode>(Reg)) {
-          EVT VT = Off.getValueType();
-          Reg = CurDAG->getRegister(Idx->getIndex(),
-                                    TLI->getPointerTy(CurDAG->getDataLayout()));
-          Off = CurDAG->getNode(ISD::ADD, SDLoc(N), VT, Off,
-                                CurDAG->getTargetConstant(Idx->getOffset(),
-                                                          SDLoc(N), VT));
-        }
+        Off = CurDAG->getTargetConstant(Val, SDLoc(N), MVT::i8);
         DEBUG(dbgs() << "Selected ADD:\n";
               N.dumpr();
               dbgs() << "becomes\n";
@@ -151,16 +144,6 @@ bool Z80DAGToDAGISel::SelectOff(SDValue N, SDValue &Reg, SDValue &Off) {
         TLI->getPointerTy(CurDAG->getDataLayout()));
     Off = CurDAG->getTargetConstant(0, SDLoc(N), MVT::i8);
     return true;
-  case ISD::TargetIndex: {
-    TargetIndexSDNode *Idx = cast<TargetIndexSDNode>(N);
-    if (isInt<8>(Idx->getOffset())) {
-      Reg = CurDAG->getRegister(Idx->getIndex(),
-                                TLI->getPointerTy(CurDAG->getDataLayout()));
-      Off = CurDAG->getTargetConstant(Idx->getOffset(), SDLoc(N), MVT::i8);
-      return true;
-    }
-    return false;
-  }
   }
 }
 

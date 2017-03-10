@@ -174,7 +174,7 @@ def S16 : Z80RC16<(add R16, AF)>;
 //def L16 : Z80RC16<(add G16, I16)>;
 //def R16 : Z80RC16<(add L16, SPS)>;
 //def S16 : Z80RC16<(add L16, AF)>;
-def C16 : Z80RC16<(add SPS)>;
+def C16 : Z80RC16<(add R16, SPS)>;
 
 def O24 : Z80RC24<(add UDE, UBC)>;
 def G24 : Z80RC24<(add UHL, O24)>;
@@ -187,7 +187,7 @@ def S24 : Z80RC24<(add R24, AF)>;
 //def L24 : Z80RC24<(add G24, I24)>;
 //def R24 : Z80RC24<(add L24, SPL)>;
 //def S24 : Z80RC24<(add L24, AF)>;
-def C24 : Z80RC24<(add SPL)>;
+def C24 : Z80RC24<(add R24, SPL)>;
 
 def A32 : Z80RC32<(add AUHL, AUIX, AUIY)>;
 def R32 : Z80RC32<(add AUHL, CUHL, BUHL, EUHL, DUHL,

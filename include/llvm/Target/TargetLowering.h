@@ -958,6 +958,12 @@ public:
     return DL.isBigEndian() || VT == MVT::ppcf128;
   }
 
+  virtual void AdjustParts(MutableArrayRef<SDValue> Parts,
+                           const DataLayout &DL) const {
+    if (DL.isBigEndian())
+      std::reverse(std::begin(Parts), std::end(Parts));
+  }
+
   /// If true, the target has custom DAG combine transformations that it can
   /// perform for the specified node.
   bool hasTargetDAGCombine(ISD::NodeType NT) const {

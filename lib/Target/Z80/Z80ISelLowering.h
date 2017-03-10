@@ -43,6 +43,9 @@ enum NodeType : unsigned {
 
   MLT,
 
+  /// This produces an all zeros/ones value from an input carry (SBC r,r).
+  SEXT,
+
   /// This operation represents an abstract Z80 call instruction, which
   /// includes a bunch of information.
   CALL,
@@ -61,7 +64,10 @@ enum NodeType : unsigned {
 
   /// SELECT - Z80 select - This selects between a true value and a false
   /// value (ops #1 and #2) based on the condition in op #0 and flag in op #3.
-  SELECT
+  SELECT,
+
+  /// Stack operations
+  POP = ISD::FIRST_TARGET_MEMORY_OPCODE, PUSH
 };
 } // end Z80ISD namespace
 
@@ -89,9 +95,14 @@ public:
 
   // Legalize Helpers
 
-  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
+  SDValue LowerAddSub(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerBitwise(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerShift(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerSignExtend(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerMul(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerLoad(LoadSDNode *Node, SelectionDAG &DAG) const;
   SDValue LowerStore(StoreSDNode *Node, SelectionDAG &DAG) const;
+  SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
 
   /// ---------------------------------------------------------------------- ///
 
@@ -209,7 +220,7 @@ public:
                   ISD::CondCode CC, const SDLoc &DL, SelectionDAG &DAG) const;
 
   SDValue LowerAddSubNew(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerAddSub(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerAddSubOld(SDValue Op, SelectionDAG &DAG) const;
 
   SDValue LowerADDSUB(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSHL(SDValue Op, SelectionDAG &DAG) const;
@@ -251,9 +262,6 @@ public:
       const SmallVectorImpl<SDValue> &OutVals,
       const SmallVectorImpl<ISD::InputArg> &Ins, SelectionDAG &DAG) const;
 
-  EVT getTypeForExtReturn(LLVMContext &Context, EVT VT,
-                          ISD::NodeType ExtendKind) const override;
-
   void AdjustAdjCallStack(MachineInstr &MI) const;
   MachineBasicBlock *EmitLoweredSub0(MachineInstr &MI,
                                      MachineBasicBlock *BB) const;
@@ -265,6 +273,8 @@ public:
                                     MachineBasicBlock *BB) const;
   MachineBasicBlock *EmitLoweredSelect(MachineInstr &MI,
                                        MachineBasicBlock *BB) const;
+  MachineBasicBlock *EmitLoweredSExt(MachineInstr &MI,
+                                     MachineBasicBlock *BB) const;
 
   SDValue combineCopyFromReg(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineStore(StoreSDNode *N, DAGCombinerInfo &DCI) const;
@@ -272,6 +282,7 @@ public:
   SDValue combineINSERT_SUBREG(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineADD(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineSUB(SDNode *N, DAGCombinerInfo &DCI) const;
+  SDValue combineMul(SDNode *N, DAGCombinerInfo &DCI) const;
 };
 } // End llvm namespace
 

@@ -81,8 +81,12 @@ bool Z80InstrInfo::analyzeBranch(MachineBasicBlock &MBB,
     if (I->getOpcode() == Z80::JPr)
       return true;
 
+    // Cannot handle tcreturn branches.
+    if (!I->getOperand(0).isMBB())
+      return true;
+
     // Handle unconditional branches.
-    if (I->getOpcode() == Z80::JQ) {
+    if (I->getOpcode() == Z80::JQ && I->getOperand(0).isMBB()) {
       UnCondBrIter = I;
 
       if (!AllowModify) {
@@ -512,7 +516,7 @@ void Z80InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
     Opc = Z80::LD8or;
     break;
   case 2:
-    Opc = Subtarget.hasEZ80Ops() ? Z80::LD16or : Z80::LD88or;
+    Opc = Subtarget.has16BitEZ80Ops() ? Z80::LD16or : Z80::LD88or;
     break;
   case 3:
     assert(Subtarget.is24Bit() && "Only 24-bit should have 3 byte stack slots");
@@ -611,7 +615,6 @@ static bool isFrameLoadOpcode(int Opcode) {
 }
 unsigned Z80InstrInfo::isLoadFromStackSlot(const MachineInstr &MI,
                                            int &FrameIndex) const {
-  return 0;
   if (isFrameLoadOpcode(MI.getOpcode()))
     if (MI.getOperand(0).getSubReg() == 0 && isFrameOperand(MI, 1, FrameIndex))
       return MI.getOperand(0).getReg();
@@ -631,7 +634,6 @@ static bool isFrameStoreOpcode(int Opcode) {
 }
 unsigned Z80InstrInfo::isStoreToStackSlot(const MachineInstr &MI,
                                           int &FrameIndex) const {
-  return 0;
   if (isFrameStoreOpcode(MI.getOpcode()))
     if (MI.getOperand(2).getSubReg() == 0 && isFrameOperand(MI, 0, FrameIndex))
       return MI.getOperand(2).getReg();

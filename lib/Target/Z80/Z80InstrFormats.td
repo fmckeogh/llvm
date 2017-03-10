@@ -21,6 +21,7 @@ def DDCBPre : Prefix<3>;
 def EDPre   : Prefix<4>;
 def FDPre   : Prefix<5>;
 def FDCBPre : Prefix<6>;
+def IdxPre  : Prefix<7>;
 
 class Z80Inst<Prefix prfx, bits<8> opcod, dag outs, dag ins, list<dag> pattern,
               string asm = "", string con = "">

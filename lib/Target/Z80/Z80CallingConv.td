@@ -17,13 +17,15 @@
 
 def CC_Z80_C : CallingConv<[
   CCIfByVal<CCPassByVal<2, 1>>,
-  CCIfType<[i1, i8, i16], CCAssignToStack<2, 1>>,
+  CCIfType<[i1, i8], CCPromoteToType<i16>>,
+  CCIfType<[i16], CCAssignToStack<2, 1>>,
   CCIfType<[i32, f32], CCAssignToStack<4, 1>>,
   CCIfType<[i64, f64], CCAssignToStack<8, 1>>
 ]>;
 def CC_EZ80_C : CallingConv<[
   CCIfByVal<CCPassByVal<3, 1>>,
-  CCIfType<[i1, i8, i16, i24], CCAssignToStack<3, 1>>,
+  CCIfType<[i1, i8, i16], CCPromoteToType<i24>>,
+  CCIfType<[i24], CCAssignToStack<3, 1>>,
   CCIfType<[i32, f32, i48], CCAssignToStack<6, 1>>,
   CCIfType<[i64, f64], CCAssignToStack<9, 1>>
 ]>;

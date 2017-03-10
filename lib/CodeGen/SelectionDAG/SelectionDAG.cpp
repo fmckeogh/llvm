@@ -3394,7 +3394,7 @@ SDValue SelectionDAG::getNode(unsigned Opcode, const SDLoc &DL, EVT VT,
       return getNode(OpOpcode, DL, VT, Operand.getNode()->getOperand(0));
     else if (OpOpcode == ISD::UNDEF)
       return getUNDEF(VT);
-
+    break;
     // (ext (trunx x)) -> x
     if (OpOpcode == ISD::TRUNCATE) {
       SDValue OpOp = Operand.getNode()->getOperand(0);

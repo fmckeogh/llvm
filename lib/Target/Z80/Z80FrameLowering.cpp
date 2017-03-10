@@ -187,15 +187,12 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
     assert((Z80::A16RegClass.contains(ScratchReg) ||
             Z80::A24RegClass.contains(ScratchReg)) &&
            "Expected last operand to be the scratch reg.");
-    if (I->getOpcode() == TII.getCallFrameSetupOpcode()) {
-      Amount = -Amount;
-    } else {
-      assert(I->getOpcode() == TII.getCallFrameDestroyOpcode());
+    if (I->getOpcode() == TII.getCallFrameDestroyOpcode()) {
       Amount -= I->getOperand(1).getImm();
+      assert(TargetRegisterInfo::isPhysicalRegister(ScratchReg) &&
+             "Reg alloc should have already happened.");
+      BuildStackAdjustment(MF, MBB, I, I->getDebugLoc(), ScratchReg, Amount);
     }
-    assert(TargetRegisterInfo::isPhysicalRegister(ScratchReg) &&
-           "Reg alloc should have already happened.");
-    BuildStackAdjustment(MF, MBB, I, I->getDebugLoc(), ScratchReg, Amount);
   }
 
   return MBB.erase(I);

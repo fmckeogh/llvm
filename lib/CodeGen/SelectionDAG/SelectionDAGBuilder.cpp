@@ -372,6 +372,10 @@ static SDValue getCopyFromPartsVector(SelectionDAG &DAG, const SDLoc &DL,
   return DAG.getNode(ISD::BUILD_VECTOR, DL, ValueVT, Val);
 }
 
+static void getCopyToPartsHelper(SelectionDAG &DAG, const SDLoc &DL,
+                                 SDValue Val, SDValue *Parts, unsigned NumParts,
+                                 MVT PartVT, const Value *V,
+                                 ISD::NodeType ExtendKind = ISD::ANY_EXTEND);
 static void getCopyToPartsVector(SelectionDAG &DAG, const SDLoc &dl,
                                  SDValue Val, SDValue *Parts, unsigned NumParts,
                                  MVT PartVT, const Value *V);
@@ -383,6 +387,22 @@ static void getCopyToParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
                            SDValue *Parts, unsigned NumParts, MVT PartVT,
                            const Value *V,
                            ISD::NodeType ExtendKind = ISD::ANY_EXTEND) {
+  getCopyToPartsHelper(DAG, DL, Val, Parts, NumParts, PartVT, V, ExtendKind);
+#if 0
+  // If we are any extending, no need to use the full highest part.
+  if (ExtendKind == ISD::ANY_EXTEND)
+    Parts[NumParts-1] = DAG.getNode(
+        ISD::TRUNCATE, DL, EVT::getIntegerVT(
+            *DAG.getContext(), ValueVT.getSizeInBits() - (NumParts-1)*PartBits),
+        Parts[NumParts-1]);
+#endif
+  DAG.getTargetLoweringInfo().AdjustParts({Parts, NumParts},
+                                          DAG.getDataLayout());
+}
+static void getCopyToPartsHelper(SelectionDAG &DAG, const SDLoc &DL,
+                                 SDValue Val, SDValue *Parts, unsigned NumParts,
+                                 MVT PartVT, const Value *V,
+                                 ISD::NodeType ExtendKind) {
   EVT ValueVT = Val.getValueType();
 
   // Handle the vector case separately.
@@ -390,7 +410,6 @@ static void getCopyToParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
     return getCopyToPartsVector(DAG, DL, Val, Parts, NumParts, PartVT, V);
 
   unsigned PartBits = PartVT.getSizeInBits();
-  unsigned OrigNumParts = NumParts;
   assert(DAG.getTargetLoweringInfo().isTypeLegal(PartVT) &&
          "Copying to an illegal type!");
 
@@ -466,11 +485,8 @@ static void getCopyToParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
     unsigned OddParts = NumParts - RoundParts;
     SDValue OddVal = DAG.getNode(ISD::SRL, DL, ValueVT, Val,
                                  DAG.getIntPtrConstant(RoundBits, DL));
-    getCopyToParts(DAG, DL, OddVal, Parts + RoundParts, OddParts, PartVT, V);
-
-    if (DAG.getDataLayout().isBigEndian())
-      // The odd parts were reversed by getCopyToParts - unreverse them.
-      std::reverse(Parts + RoundParts, Parts + NumParts);
+    getCopyToPartsHelper(DAG, DL, OddVal, Parts + RoundParts,
+                         OddParts, PartVT, V);
 
     NumParts = RoundParts;
     ValueVT = EVT::getIntegerVT(*DAG.getContext(), NumParts * PartBits);
@@ -502,9 +518,6 @@ static void getCopyToParts(SelectionDAG &DAG, const SDLoc &DL, SDValue Val,
       }
     }
   }
-
-  if (DAG.getDataLayout().isBigEndian())
-    std::reverse(Parts, Parts + OrigNumParts);
 }
 
 
@@ -600,7 +613,7 @@ static void getCopyToPartsVector(SelectionDAG &DAG, const SDLoc &DL,
     // If the register was not expanded, promote or copy the value,
     // as appropriate.
     for (unsigned i = 0; i != NumParts; ++i)
-      getCopyToParts(DAG, DL, Ops[i], &Parts[i], 1, PartVT, V);
+      getCopyToPartsHelper(DAG, DL, Ops[i], &Parts[i], 1, PartVT, V);
   } else if (NumParts > 0) {
     // If the intermediate type was expanded, split each the value into
     // legal parts.
@@ -609,7 +622,8 @@ static void getCopyToPartsVector(SelectionDAG &DAG, const SDLoc &DL,
            "Must expand into a divisible number of parts!");
     unsigned Factor = NumParts / NumIntermediates;
     for (unsigned i = 0; i != NumIntermediates; ++i)
-      getCopyToParts(DAG, DL, Ops[i], &Parts[i*Factor], Factor, PartVT, V);
+      getCopyToPartsHelper(DAG, DL, Ops[i], &Parts[i*Factor],
+                           Factor, PartVT, V);
   }
 }
 

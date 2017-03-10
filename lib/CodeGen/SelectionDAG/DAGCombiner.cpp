@@ -7521,14 +7521,22 @@ SDValue DAGCombiner::visitSIGN_EXTEND_INREG(SDNode *N) {
     return DAG.getNode(ISD::SIGN_EXTEND_INREG, SDLoc(N), VT,
                        N0.getOperand(0), N1);
 
-  // fold (sext_in_reg (sext x)) -> (sext x)
   // fold (sext_in_reg (aext x)) -> (sext x)
+  // if x already has enough sign bits.
+  if (N0.getOpcode() == ISD::ANY_EXTEND) {
+    SDValue N00 = N0.getOperand(0);
+    if (N00.getScalarValueSizeInBits()-DAG.ComputeNumSignBits(N00) < EVTBits &&
+        (!LegalOperations || TLI.isOperationLegal(ISD::SIGN_EXTEND, VT)))
+      return DAG.getNode(ISD::SIGN_EXTEND, SDLoc(N), VT, N00);
+  }
+
+  // fold (sext_in_reg (sext x)) -> (sext x)
   // if x is small enough.
-  if (N0.getOpcode() == ISD::SIGN_EXTEND || N0.getOpcode() == ISD::ANY_EXTEND) {
+  if (N0.getOpcode() == ISD::SIGN_EXTEND) {
     SDValue N00 = N0.getOperand(0);
     if (N00.getScalarValueSizeInBits() <= EVTBits &&
         (!LegalOperations || TLI.isOperationLegal(ISD::SIGN_EXTEND, VT)))
-      return DAG.getNode(ISD::SIGN_EXTEND, SDLoc(N), VT, N00, N1);
+      return DAG.getNode(ISD::SIGN_EXTEND, SDLoc(N), VT, N00);
   }
 
   // fold (sext_in_reg (zext x)) -> (sext x)
@@ -7537,7 +7545,7 @@ SDValue DAGCombiner::visitSIGN_EXTEND_INREG(SDNode *N) {
     SDValue N00 = N0.getOperand(0);
     if (N00.getScalarValueSizeInBits() == EVTBits &&
         (!LegalOperations || TLI.isOperationLegal(ISD::SIGN_EXTEND, VT)))
-      return DAG.getNode(ISD::SIGN_EXTEND, SDLoc(N), VT, N00, N1);
+      return DAG.getNode(ISD::SIGN_EXTEND, SDLoc(N), VT, N00);
   }
 
   // fold (sext_in_reg x) -> (zext_in_reg x) if the sign bit is known zero.
