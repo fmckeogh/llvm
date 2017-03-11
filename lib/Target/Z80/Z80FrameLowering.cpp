@@ -135,11 +135,11 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
     if (StackSize) {
       BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
               ScratchReg).addImm(StackSize);
-      BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::CALL24i : Z80::CALL24r))
+      BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::CALL24i : Z80::CALL16i))
         .addExternalSymbol("_frameset").addReg(ScratchReg, RegState::Implicit);
       return;
     }
-    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::CALL24i : Z80::CALL24r))
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::CALL24i : Z80::CALL16i))
       .addExternalSymbol("_frameset0");
     return;
   }
