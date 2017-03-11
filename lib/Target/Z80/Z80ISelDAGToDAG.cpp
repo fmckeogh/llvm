@@ -77,14 +77,7 @@ void Z80DAGToDAGISel::Select(SDNode *Node) {
   }
 
   // Select the default instruction
-  SDNode *ResNode = SelectCode(Node);
-
-  DEBUG(dbgs() << "=> ";
-        if (ResNode == nullptr || ResNode == Node)
-          Node->dump(CurDAG);
-        else
-          ResNode->dump(CurDAG);
-        dbgs() << '\n');
+  SelectCode(Node);
 }
 
 bool Z80DAGToDAGISel::SelectMem(SDValue N, SDValue &Mem) {

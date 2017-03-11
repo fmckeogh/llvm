@@ -387,6 +387,13 @@ namespace RTLIB {
     MEMSET,
     MEMMOVE,
 
+    // ELEMENT-WISE ATOMIC MEMORY
+    MEMCPY_ELEMENT_ATOMIC_1,
+    MEMCPY_ELEMENT_ATOMIC_2,
+    MEMCPY_ELEMENT_ATOMIC_4,
+    MEMCPY_ELEMENT_ATOMIC_8,
+    MEMCPY_ELEMENT_ATOMIC_16,
+
     // EXCEPTION HANDLING
     UNWIND_RESUME,
 
@@ -557,6 +564,10 @@ namespace RTLIB {
   /// Return the SYNC_FETCH_AND_* value for the given opcode and type, or
   /// UNKNOWN_LIBCALL if there is none.
   Libcall getSYNC(unsigned Opc, MVT VT);
+
+  /// getMEMCPY_ELEMENT_ATOMIC - Return MEMCPY_ELEMENT_ATOMIC_* value for the
+  /// given element size or UNKNOW_LIBCALL if there is none.
+  Libcall getMEMCPY_ELEMENT_ATOMIC(uint64_t ElementSize);
 }
 }
 
