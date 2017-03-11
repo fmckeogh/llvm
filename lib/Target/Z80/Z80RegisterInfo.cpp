@@ -102,11 +102,10 @@ BitVector Z80RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   Reserved.set(Z80::PC);
 
   // Set the frame-pointer register and its aliases as reserved if needed.
-  if (TFI->hasFP(MF)) {
-    for (MCSubRegIterator I(Z80::UIX, this, /*IncludesSelf=*/true); I.isValid();
-         ++I)
-      Reserved.set(*I);
-  }
+  //if (TFI->hasFP(MF))
+  for (MCSubRegIterator I(Z80::UIX, this, /*IncludesSelf=*/true); I.isValid();
+       ++I)
+    Reserved.set(*I);
 
   return Reserved;
 }

@@ -30,13 +30,8 @@ Z80FrameLowering::Z80FrameLowering(const Z80Subtarget &STI)
 /// pointer register.  This is true if the function has variable sized allocas
 /// or if frame pointer elimination is disabled.
 bool Z80FrameLowering::hasFP(const MachineFunction &MF) const {
-  return true;
-  const MachineFrameInfo &MFI = MF.getFrameInfo();
-
   return MF.getTarget().Options.DisableFramePointerElim(MF) ||
-    MFI.hasVarSizedObjects() || MFI.isFrameAddressTaken()
-    // TODO
-    || !MF.getFunction()->arg_empty();
+    MF.getFrameInfo().hasStackObjects();
 }
 
 void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
@@ -130,20 +125,20 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
 
   int StackSize = -(int)MF.getFrameInfo().getStackSize();
   unsigned ScratchReg = Is24Bit ? Z80::UHL : Z80::HL;
-  if (MF.getFunction()->getAttributes().hasAttribute(
-          AttributeSet::FunctionIndex, Attribute::OptimizeForSize)) {
-    if (StackSize) {
-      BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
-              ScratchReg).addImm(StackSize);
+  if (hasFP(MF)) {
+    if (MF.getFunction()->getAttributes().hasAttribute(
+            AttributeSet::FunctionIndex, Attribute::OptimizeForSize)) {
+      if (StackSize) {
+        BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
+                ScratchReg).addImm(StackSize);
+        BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::CALL24i : Z80::CALL16i))
+          .addExternalSymbol("_frameset").addReg(ScratchReg, RegState::Implicit);
+        return;
+      }
       BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::CALL24i : Z80::CALL16i))
-        .addExternalSymbol("_frameset").addReg(ScratchReg, RegState::Implicit);
+        .addExternalSymbol("_frameset0");
       return;
     }
-    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::CALL24i : Z80::CALL16i))
-      .addExternalSymbol("_frameset0");
-    return;
-  }
-  if (hasFP(MF)) {
     unsigned FrameReg = TRI->getFrameRegister(MF);
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
       .addReg(FrameReg);
