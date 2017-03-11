@@ -46,6 +46,9 @@ public:
   getLargestLegalSuperClass(const TargetRegisterClass *RC,
                             const MachineFunction &) const override;
 
+  unsigned getRegPressureLimit(const TargetRegisterClass *RC,
+                               MachineFunction &MF) const override;
+
   /// getCalleeSavedRegs - Return a null-terminated list of all of the
   /// callee-save registers on this target.
   const MCPhysReg *getCalleeSavedRegs(const MachineFunction *MF) const override;

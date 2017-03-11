@@ -60,6 +60,19 @@ Z80RegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
   return RC;
 }
 
+unsigned Z80RegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC,
+                                              MachineFunction &MF) const {
+  const Z80FrameLowering *TFI = getFrameLowering(MF);
+
+  switch (RC->getID()) {
+  default:
+    return 0;
+  case Z80::R16RegClassID:
+  case Z80::R24RegClassID:
+    return 2;
+  }
+}
+
 const MCPhysReg *
 Z80RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   switch (MF->getFunction()->getCallingConv()) {

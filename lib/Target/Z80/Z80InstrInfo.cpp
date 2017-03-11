@@ -180,8 +180,7 @@ unsigned Z80InstrInfo::removeBranch(MachineBasicBlock &MBB,
     if (I->isDebugValue())
       continue;
     if (I->getOpcode() != Z80::JQ &&
-        I->getOpcode() != Z80::JQCC &&
-        I->getOpcode() != Z80::JPr)
+        I->getOpcode() != Z80::JQCC)
       break;
     // Remove the branch.
     I->eraseFromParent();
@@ -216,12 +215,20 @@ unsigned Z80InstrInfo::insertBranch(MachineBasicBlock &MBB,
   ++Count;
 
   // If FBB is null, it is implied to be a fall-through block.
-  if (!FBB) {
+  if (FBB) {
     // Two-way Conditional branch. Insert the second branch.
     BuildMI(&MBB, DL, get(Z80::JQ)).addMBB(FBB);
     ++Count;
   }
   return Count;
+}
+
+bool Z80InstrInfo::
+reverseBranchCondition(SmallVectorImpl<MachineOperand> &Cond) const {
+  assert(Cond.size() == 1 && "Invalid Z80 branch condition!");
+  Z80::CondCode CC = static_cast<Z80::CondCode>(Cond[0].getImm());
+  Cond[0].setImm(GetOppositeBranchCondition(CC));
+  return false;
 }
 
 bool Z80::splitReg(
@@ -711,6 +718,14 @@ bool Z80InstrInfo::analyzeCompare(const MachineInstr &MI,
                                   int &CmpMask, int &CmpValue) const {
   switch (MI.getOpcode()) {
   default: return false;
+  case Z80::OR8ar:
+    SrcReg = Z80::A;
+    if (MI.getOperand(1).getReg() != SrcReg)
+      return false;
+    SrcReg2 = 0;
+    CmpMask = ~0;
+    CmpValue = 0;
+    break;
   case Z80::CP8ai:
   case Z80::SUB8ai:
     SrcReg = Z80::A;
