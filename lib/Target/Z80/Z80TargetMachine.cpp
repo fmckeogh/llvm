@@ -17,6 +17,7 @@
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/CodeGen/TargetLoweringObjectFileImpl.h"
 #include "llvm/Support/TargetRegistry.h"
+#include "llvm/Transforms/Scalar.h"
 using namespace llvm;
 
 extern "C" void LLVMInitializeZ80Target() {
@@ -67,7 +68,7 @@ Z80TargetMachine::Z80TargetMachine(const Target &T, const Triple &TT,
                                    CodeModel::Model CM, CodeGenOpt::Level OL)
   : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
                       getEffectiveRelocModel(RM), CM, OL),
-    TLOF(make_unique<TargetLoweringObjectFileELF>()) {
+    TLOF(make_unique<TargetLoweringObjectFileOMF>()) {
   initAsmInfo();
 }
 
@@ -116,6 +117,7 @@ public:
     return getTM<Z80TargetMachine>();
   }
 
+  void addCodeGenPrepare() override;
   bool addInstSelector() override;
   void addPreRegAlloc() override;
   bool addPreRewrite() override;
@@ -125,6 +127,11 @@ public:
 
 TargetPassConfig *Z80TargetMachine::createPassConfig(PassManagerBase &PM) {
   return new Z80PassConfig(this, PM);
+}
+
+void Z80PassConfig::addCodeGenPrepare() {
+  addPass(createLowerSwitchPass());
+  TargetPassConfig::addCodeGenPrepare();
 }
 
 bool Z80PassConfig::addInstSelector() {

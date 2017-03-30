@@ -14,16 +14,18 @@
 #ifndef LLVM_LIB_TARGET_Z80_MCTARGETDESC_Z80MCASMINFO_H
 #define LLVM_LIB_TARGET_Z80_MCTARGETDESC_Z80MCASMINFO_H
 
-#include "llvm/MC/MCAsmInfoELF.h"
+#include "llvm/MC/MCAsmInfoOMF.h"
 
 namespace llvm {
 class Triple;
 
-class Z80ELFMCAsmInfo : public MCAsmInfoELF {
+class Z80MCAsmInfo : public MCAsmInfoOMF {
   void anchor() override;
 
 public:
-  explicit Z80ELFMCAsmInfo(const Triple &Triple);
+  explicit Z80MCAsmInfo(const Triple &Triple);
+
+  bool shouldOmitSectionDirective(StringRef SectionName) const override;
 };
 } // End llvm namespace
 

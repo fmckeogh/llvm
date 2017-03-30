@@ -4,4 +4,6 @@ add_llvm_library(LLVMZ80Desc
   Z80MCCodeEmitter.cpp
   Z80MCTargetDesc.cpp
   Z80MCAsmInfo.cpp
+  Z80OMFObjectWriter.cpp
+  Z80TargetStreamer.cpp
   )

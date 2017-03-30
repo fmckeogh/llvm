@@ -81,11 +81,9 @@ void Z80InstPrinterBase::printOff(const MCInst *MI, unsigned Op,
 void Z80InstPrinterBase::printAddr(const MCInst *MI, unsigned Op,
                                    raw_ostream &OS) {
   printOperand(MI, Op, OS);
-  if (auto off = MI->getOperand(Op+1).getImm()) {
-    if (off >= 0) {
-      OS << " + " <<  off;
-    } else {
-      OS << " - " << -off;
-    }
-  }
+  auto Off = MI->getOperand(Op+1).getImm();
+  if (Off >= 0)
+    OS << " + " <<  Off;
+  else
+    OS << " - " << -Off;
 }

@@ -1250,6 +1250,8 @@ static bool isNoCommonDefault(const llvm::Triple &Triple) {
   case llvm::Triple::xcore:
   case llvm::Triple::wasm32:
   case llvm::Triple::wasm64:
+  case llvm::Triple::z80:
+  case llvm::Triple::ez80:
     return true;
   }
 }

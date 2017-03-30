@@ -15,6 +15,7 @@
 #include "InstPrinter/Z80InstPrinter.h"
 #include "InstPrinter/EZ80InstPrinter.h"
 #include "Z80MCAsmInfo.h"
+#include "Z80TargetStreamer.h"
 #include "llvm/MC/MCInstrInfo.h"
 #include "llvm/MC/MCRegisterInfo.h"
 #include "llvm/MC/MCSubtargetInfo.h"
@@ -67,7 +68,7 @@ static MCRegisterInfo *createZ80MCRegisterInfo(const Triple &TT) {
 
 static MCAsmInfo *createZ80MCAsmInfo(const MCRegisterInfo &MRI,
                                      const Triple &TheTriple) {
-  return new Z80ELFMCAsmInfo(TheTriple);
+  return new Z80MCAsmInfo(TheTriple);
 }
 
 static MCInstPrinter *createZ80MCInstPrinter(const Triple &TT,
@@ -75,11 +76,18 @@ static MCInstPrinter *createZ80MCInstPrinter(const Triple &TT,
                                              const MCAsmInfo &MAI,
                                              const MCInstrInfo &MII,
                                              const MCRegisterInfo &MRI) {
-  if (SyntaxVariant == 0)
-    return new Z80InstPrinter(MAI, MII, MRI);
-  if (SyntaxVariant == 1)
-    return new Z80EInstPrinter(MAI, MII, MRI);
-  return nullptr;
+  switch (SyntaxVariant) {
+  default: return nullptr;
+  case 0: return new Z80InstPrinter(MAI, MII, MRI);
+  case 1: return new Z80EInstPrinter(MAI, MII, MRI);
+  }
+}
+
+static MCTargetStreamer *createAsmTargetStreamer(MCStreamer &S,
+                                                 formatted_raw_ostream &OS,
+                                                 MCInstPrinter */*InstPrint*/,
+                                                 bool /*isVerboseAsm*/) {
+  return new Z80TargetAsmStreamer(S, OS);
 }
 
 // Force static initialization.
@@ -100,6 +108,9 @@ extern "C" void LLVMInitializeZ80TargetMC() {
 
     // Register the MCInstPrinter.
     TargetRegistry::RegisterMCInstPrinter(*T, createZ80MCInstPrinter);
+
+    // Register the asm target streamer.
+    TargetRegistry::RegisterAsmTargetStreamer(*T, createAsmTargetStreamer);
   }
 
   TargetRegistry::RegisterMCAsmBackend(TheZ80Target, createZ80AsmBackend);

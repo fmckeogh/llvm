@@ -17,6 +17,7 @@
 #include "Z80FrameLowering.h"
 #include "Z80ISelLowering.h"
 #include "Z80InstrInfo.h"
+#include "Z80SelectionDAGInfo.h"
 #include "llvm/Target/TargetSubtargetInfo.h"
 
 #define GET_SUBTARGETINFO_HEADER
@@ -47,6 +48,7 @@ class Z80Subtarget final : public Z80GenSubtargetInfo {
   /// True if target has index half registers (HasUndocOps || HasEZ80Ops).
   bool HasIdxHalfRegs;
 
+  Z80SelectionDAGInfo TSInfo;
   // Ordering here is important. Z80InstrInfo initializes Z80RegisterInfo which
   // Z80TargetLowering needs.
   Z80InstrInfo InstrInfo;
@@ -59,6 +61,9 @@ public:
   Z80Subtarget(const Triple &TT, const std::string &CPU, const std::string &FS,
                const Z80TargetMachine &TM);
 
+  const Z80SelectionDAGInfo *getSelectionDAGInfo() const override {
+    return &TSInfo;
+  }
   const Z80TargetLowering *getTargetLowering() const override {
     return &TLInfo;
   }

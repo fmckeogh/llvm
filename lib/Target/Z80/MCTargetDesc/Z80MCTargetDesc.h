@@ -53,6 +53,9 @@ MCAsmBackend *createEZ80AsmBackend(const Target &T, const MCRegisterInfo &MRI,
                                    const Triple &TT, StringRef CPU,
                                    const MCTargetOptions &Options);
 
+/// Construct a Z80 OMF object writer.
+MCObjectWriter *createZ80OMFObjectWriter(raw_pwrite_stream &OS);
+
 /// Construct a Z80 ELF object writer.
 MCObjectWriter *createZ80ELFObjectWriter(raw_pwrite_stream &OS,
                                          uint8_t OSABI = 0);

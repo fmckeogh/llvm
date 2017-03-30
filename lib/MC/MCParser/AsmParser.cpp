@@ -596,8 +596,9 @@ AsmParser::AsmParser(SourceMgr &SM, MCContext &Ctx, MCStreamer &Out,
   case MCObjectFileInfo::IsELF:
     PlatformParser.reset(createELFAsmParser());
     break;
+  case MCObjectFileInfo::IsOMF:
   case MCObjectFileInfo::IsWasm:
-    llvm_unreachable("Wasm parsing not supported yet");
+    llvm_unreachable("Parsing not supported yet");
     break;
   }
 

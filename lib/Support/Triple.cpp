@@ -519,6 +519,7 @@ static Triple::ObjectFormatType parseFormat(StringRef EnvironmentName) {
     .EndsWith("coff", Triple::COFF)
     .EndsWith("elf", Triple::ELF)
     .EndsWith("macho", Triple::MachO)
+    .EndsWith("omf", Triple::OMF)
     .EndsWith("wasm", Triple::Wasm)
     .Default(Triple::UnknownObjectFormat);
 }
@@ -593,6 +594,7 @@ static StringRef getObjectFormatTypeName(Triple::ObjectFormatType Kind) {
   case Triple::COFF: return "coff";
   case Triple::ELF: return "elf";
   case Triple::MachO: return "macho";
+  case Triple::OMF: return "omf";
   case Triple::Wasm: return "wasm";
   }
   llvm_unreachable("unknown object format type");
@@ -653,8 +655,6 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
   case Triple::wasm32:
   case Triple::wasm64:
   case Triple::xcore:
-  case Triple::z80:
-  case Triple::ez80:
     return Triple::ELF;
 
   case Triple::ppc:
@@ -662,6 +662,10 @@ static Triple::ObjectFormatType getDefaultFormat(const Triple &T) {
     if (T.isOSDarwin())
       return Triple::MachO;
     return Triple::ELF;
+
+  case Triple::z80:
+  case Triple::ez80:
+    return Triple::OMF;
   }
   llvm_unreachable("unknown architecture");
 }

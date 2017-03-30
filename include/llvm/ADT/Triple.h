@@ -209,6 +209,7 @@ public:
     COFF,
     ELF,
     MachO,
+    OMF,
     Wasm,
   };
 
@@ -579,6 +580,11 @@ public:
   /// Tests whether the environment is MachO.
   bool isOSBinFormatMachO() const {
     return getObjectFormat() == Triple::MachO;
+  }
+
+  /// Tests whether the OS uses the OMF binary format.
+  bool isOSBinFormatOMF() const {
+    return getObjectFormat() == Triple::OMF;
   }
 
   /// Tests whether the OS uses the Wasm binary format.

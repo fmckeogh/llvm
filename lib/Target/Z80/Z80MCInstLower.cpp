@@ -19,6 +19,8 @@
 #include "llvm/MC/MCStreamer.h"
 using namespace llvm;
 
+#define DEBUG_TYPE "z80-mclower"
+
 namespace {
   /// Z80MCInstLower - This class is used to lower a MachineInstr into an MCInst.
   class Z80MCInstLower {
@@ -59,12 +61,10 @@ Z80MCInstLower::GetExternalSymbolSymbol(const MachineOperand &MO) const {
 
 MCOperand Z80MCInstLower::LowerSymbolOperand(const MachineOperand &MO,
                                              MCSymbol *Sym) const {
-  // FIXME: We would like an efficient form for this, so we don't have to do a
-  // lot of extra uniquing.
-  const MCExpr *Expr = MCSymbolRefExpr::create(Sym, Ctx);
-
   assert(!MO.getTargetFlags() && "Unknown target flag on GV operand");
-
+  const MCExpr *Expr = MCSymbolRefExpr::create(Sym, Ctx);
+  if (auto Off = MO.getOffset())
+    Expr = MCBinaryExpr::createAdd(Expr, MCConstantExpr::create(Off, Ctx), Ctx);
   return MCOperand::createExpr(Expr);
 }
 
@@ -73,9 +73,7 @@ Z80MCInstLower::LowerMachineOperand(const MachineInstr *MI,
                                     const MachineOperand &MO) const {
   switch (MO.getType()) {
   default:
-#ifndef NDEBUG
-    MI->dump();
-#endif
+    DEBUG(MI->dump());
     llvm_unreachable("unknown operand type");
   case MachineOperand::MO_Register:
     return MCOperand::createReg(MO.getReg());
@@ -98,8 +96,8 @@ void Z80MCInstLower::Lower(const MachineInstr *MI, MCInst &OutMI) const {
 
   MCOperand MCOp;
   for (const MachineOperand &MO : MI->operands())
-    if (auto MaybeMCOp = LowerMachineOperand(MI, MO))
-      OutMI.addOperand(MaybeMCOp.getValue());
+    if (auto PossibleMCOp = LowerMachineOperand(MI, MO))
+      OutMI.addOperand(*PossibleMCOp);
 }
 
 void Z80AsmPrinter::EmitInstruction(const MachineInstr *MI) {
