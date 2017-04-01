@@ -834,10 +834,10 @@ void MCObjectFileInfo::initWasmMCObjectFileInfo(const Triple &T) {
 }
 
 void MCObjectFileInfo::initOMFMCObjectFileInfo(const Triple &T) {
-  TextSection = Ctx->getOMFSection("CODE");
-  DataSection = Ctx->getOMFSection("DATA");
-  BSSSection = Ctx->getOMFSection("BSS");
-  ReadOnlySection = Ctx->getOMFSection("TEXT");
+  TextSection = Ctx->getOMFSection("CODE", SectionKind::getText());
+  DataSection = Ctx->getOMFSection("DATA", SectionKind::getData());
+  BSSSection = Ctx->getOMFSection("BSS", SectionKind::getBSS());
+  ReadOnlySection = Ctx->getOMFSection("TEXT", SectionKind::getReadOnly());
 }
 
 void MCObjectFileInfo::InitMCObjectFileInfo(const Triple &TheTriple, bool PIC,

@@ -123,7 +123,8 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
   // to determine the end of the prologue.
   DebugLoc DL;
 
-  int StackSize = -(int)MF.getFrameInfo().getStackSize();
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  int StackSize = -int(MFI.getStackSize() - MFI.getMaxCallFrameSize());
   unsigned ScratchReg = Is24Bit ? Z80::UHL : Z80::HL;
   if (hasFP(MF)) {
     if (MF.getFunction()->getAttributes().hasAttribute(
@@ -157,7 +158,7 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
   DebugLoc DL = MBB.findDebugLoc(MI);
 
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  int StackSize = (int)MFI.getStackSize();
+  int StackSize = int(MFI.getStackSize() - MFI.getMaxCallFrameSize());
   if (hasFP(MF)) {
     unsigned FrameReg = TRI->getFrameRegister(MF);
     if (StackSize || MFI.hasVarSizedObjects())
@@ -176,7 +177,7 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
 MachineBasicBlock::iterator Z80FrameLowering::
 eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
                               MachineBasicBlock::iterator I) const {
-  if (!hasReservedCallFrame(MF)) {
+  //if (!hasReservedCallFrame(MF)) {
     unsigned Amount = I->getOperand(0).getImm();
     unsigned ScratchReg = I->getOperand(I->getNumOperands() - 1).getReg();
     assert((Z80::A16RegClass.contains(ScratchReg) ||
@@ -188,7 +189,7 @@ eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
              "Reg alloc should have already happened.");
       BuildStackAdjustment(MF, MBB, I, I->getDebugLoc(), ScratchReg, Amount);
     }
-  }
+    //}
 
   return MBB.erase(I);
 }

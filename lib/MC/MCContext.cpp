@@ -564,8 +564,7 @@ MCSectionWasm *MCContext::getWasmSection(const Twine &Section, unsigned Type,
   return Result;
 }
 
-MCSectionOMF *MCContext::getOMFSection(const Twine &Section) {
-  SectionKind Kind = SectionKind::getText();
+MCSectionOMF *MCContext::getOMFSection(const Twine &Section, SectionKind Kind) {
   MCSymbol *Begin = nullptr;
   return new (OMFAllocator.Allocate()) MCSectionOMF(Section, Kind, Begin);
 }

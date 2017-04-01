@@ -24,8 +24,6 @@ class Z80MCAsmInfo : public MCAsmInfoOMF {
 
 public:
   explicit Z80MCAsmInfo(const Triple &Triple);
-
-  bool shouldOmitSectionDirective(StringRef SectionName) const override;
 };
 } // End llvm namespace
 

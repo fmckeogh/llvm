@@ -183,7 +183,7 @@ protected:
   /// These directives are used to output some unit of integer data to the
   /// current section.  If a data directive is set to null, smaller data
   /// directives will be used to emit the large sizes.  Defaults to "\t.byte\t",
-  /// "\t.short\t", "\t.long\t", "\t.quad\t"
+  /// "\t.short\t", nullptr, "\t.long\t", "\t.quad\t"
   const char *Data8bitsDirective;
   const char *Data16bitsDirective;
   const char *Data24bitsDirective;

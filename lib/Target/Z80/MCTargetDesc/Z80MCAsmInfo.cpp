@@ -19,31 +19,26 @@ using namespace llvm;
 void Z80MCAsmInfo::anchor() { }
 
 Z80MCAsmInfo::Z80MCAsmInfo(const Triple &T) {
-  bool is24Bit = T.getArch() == Triple::ez80;
-  AssemblerDialect = is24Bit;
-  PointerSize = is24Bit ? 3 : 2;
-  CalleeSaveStackSlotSize = is24Bit ? 3 : 2;
+  bool Is16Bit = T.isArch16Bit() || T.getEnvironment() == Triple::CODE16;
+  PointerSize = CalleeSaveStackSlotSize = Is16Bit ? 2 : 3;
   MaxInstLength = 6;
   DollarIsPC = true;
-  SeparatorString = "\\";
+  SeparatorString = nullptr;
   CommentString = ";";
-  InlineAsmStart = InlineAsmEnd = "";
-  Code16Directive = ".assume\tADL=0";
-  Code24Directive = ".assume\tADL=1";
+  Code16Directive = ".assume\tadl = 0";
+  Code24Directive = ".assume\tadl = 1";
   Code32Directive = Code64Directive = nullptr;
+  AssemblerDialect = !Is16Bit;
   SupportsQuotedNames = false;
   ZeroDirective = "\t.block\t";
+  AscizDirective = nullptr;
   Data16bitsDirective = "\t.word\t";
-  Data24bitsDirective = "\t.long\t";
-  Data32bitsDirective = Data64bitsDirective = nullptr;
-  GlobalDirective = "\tXDEF\t";
+  Data24bitsDirective = "\t.word24\t";
+  Data64bitsDirective = nullptr;
+  GlobalDirective = "\t.global\t";
   HasDotTypeDotSizeDirective = false;
-  HasIdentDirective = false;
   WeakDirective = nullptr;
-  UseIntegratedAssembler = true;
+  UseIntegratedAssembler = false;
+  WeakDirective = nullptr;
   UseLogicalShr = false;
-}
-
-bool Z80MCAsmInfo::shouldOmitSectionDirective(StringRef SectionName) const {
-  return false;
 }

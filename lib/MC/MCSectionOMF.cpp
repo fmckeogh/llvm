@@ -21,25 +21,9 @@ MCSectionOMF::MCSectionOMF(const Twine &Section, SectionKind K, MCSymbol *Begin)
 
 MCSectionOMF::~MCSectionOMF() {} // anchor.
 
-// Decides whether a '.section' directive
-// should be printed before the section name.
-bool MCSectionOMF::ShouldOmitSectionDirective(StringRef Name,
-                                              const MCAsmInfo &MAI) const {
-  return MAI.shouldOmitSectionDirective(Name);
-}
-
 void MCSectionOMF::PrintSwitchToSection(const MCAsmInfo &MAI, const Triple &T,
                                          raw_ostream &OS,
                                          const MCExpr *Subsection) const {
   assert(!Subsection && "Unimplemented!");
-  if (ShouldOmitSectionDirective(SectionName, MAI)) {
-    OS << '\t' << getSectionName() << '\n';
-    return;
-  }
-
   OS << "\tSEGMENT\t" << getSectionName() << '\n';
 }
-
-bool MCSectionOMF::UseCodeAlign() const { return false; }
-
-bool MCSectionOMF::isVirtualSection() const { return false; }

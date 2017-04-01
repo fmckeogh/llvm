@@ -520,7 +520,8 @@ public:
 
   /// dump - Print the current MachineFunction to cerr, useful for debugger use.
   ///
-  void dump(const SlotIndexes *Indexes = nullptr) const;
+  void dump() const;
+  void dump(const SlotIndexes *Indexes) const;
 
   /// Run the current MachineFunction through the machine code verifier, useful
   /// for debugger use.

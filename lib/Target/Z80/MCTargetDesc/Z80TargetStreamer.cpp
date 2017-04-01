@@ -22,14 +22,25 @@ Z80TargetStreamer::Z80TargetStreamer(MCStreamer &S)
 
 Z80TargetAsmStreamer::Z80TargetAsmStreamer(MCStreamer &S,
                                            formatted_raw_ostream &OS)
-    : Z80TargetStreamer(S), OS(OS) {}
+    : Z80TargetStreamer(S), MAI(S.getContext().getAsmInfo()), OS(OS) {}
+
+void Z80TargetAsmStreamer::emitAlign(unsigned ByteAlignment) {
+  if (ByteAlignment > 1)
+    OS << "\t.align\t" << ByteAlignment << '\n';
+}
+
+void Z80TargetAsmStreamer::emitGlobal(MCSymbol *Symbol) {
+  OS << "\t.global\t";
+  Symbol->print(OS, MAI);
+  OS << '\n';
+}
 
 void Z80TargetAsmStreamer::emitExtern(MCSymbol *Symbol) {
-  OS << "\tXREF\t";
-  Symbol->print(OS, getStreamer().getContext().getAsmInfo());
+  OS << "\t.extern\t";
+  Symbol->print(OS, MAI);
   OS << '\n';
 }
 
 void Z80TargetAsmStreamer::emitEnd() {
-  OS << "\tEND\n";
+  OS << "\t.end\n";
 }

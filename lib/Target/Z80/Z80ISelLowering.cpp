@@ -44,23 +44,33 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
       setOperationAction(Opc, VT, Custom);
   }
   for (MVT VT : { MVT::i8, MVT::i16, MVT::i24, MVT::i32 }) {
-    for (unsigned Opc : { ISD::SHL, ISD::SRA, ISD::SRL })
+    for (unsigned Opc : { ISD::SHL, ISD::SRA, ISD::SRL,
+                          ISD::BR_CC, ISD::SELECT_CC })
       setOperationAction(Opc, VT, Custom);
     for (unsigned Opc : { ISD::MUL,
                           ISD::SDIV,    ISD::UDIV,
                           ISD::SREM,    ISD::UREM,
                           ISD::SDIVREM, ISD::UDIVREM })
       setOperationAction(Opc, VT, LibCall);
-    for (unsigned Opc : { ISD::SHL_PARTS, ISD::SRA_PARTS, ISD::SRL_PARTS,
+    for (unsigned Opc : { ISD::SIGN_EXTEND_INREG,
+                          ISD::SHL_PARTS, ISD::SRA_PARTS, ISD::SRL_PARTS,
                           ISD::SMUL_LOHI, ISD::UMUL_LOHI,
                           ISD::SMULO,     ISD::UMULO,
                           ISD::MULHU,     ISD::MULHS,
-                          ISD::SELECT })
+                          ISD::SELECT,    ISD::SETCC,     ISD::SETCCE })
       setOperationAction(Opc, VT, Expand);
-    for (unsigned Opc : { ISD::BR_CC, ISD::SETCC, ISD::SELECT_CC })
-      setOperationAction(Opc, VT, Custom);
+    for (unsigned Opc : { ISD::EXTLOAD, ISD::SEXTLOAD, ISD::ZEXTLOAD })
+      setLoadExtAction(Opc, VT, MVT::i1, Promote);
+    for (MVT MemVT : { MVT::i8, MVT::i16, MVT::i24 }) {
+      if (MemVT == VT)
+        continue;
+      for (unsigned Opc : { ISD::EXTLOAD, ISD::SEXTLOAD, ISD::ZEXTLOAD })
+        setLoadExtAction(Opc, VT, MemVT, Expand);
+      setTruncStoreAction(VT, MemVT, Expand);
+    }
   }
-  setOperationAction(ISD::BRCOND, MVT::Other, Expand);
+  for (unsigned Opc : { ISD::BRCOND, ISD::BR_JT })
+    setOperationAction(Opc, MVT::Other, Expand);
   if (HasEZ80Ops)
     for (MVT VT : { MVT::i8, MVT::i16, MVT::i24 })
       setOperationAction(ISD::MUL, VT, Custom);
@@ -73,14 +83,6 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
     //setOperationAction(ISD::LOAD, MVT::i32, Custom);
     //setOperationAction(ISD::STORE, MVT::i32, Custom);
   }
-  for (MVT ValVT : MVT::integer_valuetypes()) {
-    for (MVT MemVT : MVT::integer_valuetypes()) {
-      setLoadExtAction(ISD:: EXTLOAD, ValVT, MemVT, Expand);
-      setLoadExtAction(ISD::ZEXTLOAD, ValVT, MemVT, Expand);
-      setLoadExtAction(ISD::SEXTLOAD, ValVT, MemVT, Expand);
-      setTruncStoreAction(ValVT, MemVT, Expand);
-    }
-  }
   if (Is24Bit)
     setLoadExtAction(ISD::EXTLOAD, MVT::i24, MVT::i16, Custom);
   setOperationAction(ISD::DYNAMIC_STACKALLOC, PtrVT, Expand);
@@ -90,8 +92,7 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   // Compute derived properties from the register classes
   computeRegisterProperties(STI.getRegisterInfo());
 
-  setBooleanContents(ZeroOrOneBooleanContent);
-  setJumpIsExpensive();
+  setBooleanContents(UndefinedBooleanContent);
 
   setLibcallName(RTLIB::ZEXT_I16_I24, "_stoiu");
   setLibcallCallingConv(RTLIB::ZEXT_I16_I24, CallingConv::Z80_LibCall);
@@ -466,7 +467,7 @@ SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
   default: llvm_unreachable("Don't know how to lower this operation.");
   case ISD::BR_CC:       return LowerBR_CC(Op, DAG);
-  case ISD::SETCC:       return LowerSETCC(Op, DAG);
+//case ISD::SETCC:       return LowerSETCC(Op, DAG);
   case ISD::SELECT_CC:   return LowerSELECT_CC(Op, DAG);
 //case ISD::ADD:
 //case ISD::SUB:         return LowerAddSub(Op, DAG);
@@ -491,13 +492,16 @@ SDValue Z80TargetLowering::EmitCmp(SDValue LHS, SDValue RHS, SDValue &TargetCC,
   EVT VT = LHS.getValueType();
   assert(VT == RHS.getValueType() && "Types should match");
   assert(VT.isScalarInteger() && "Unhandled type");
+  if (isa<ConstantSDNode>(LHS)) {
+    std::swap(LHS, RHS);
+    CC = getSetCCSwappedOperands(CC);
+  }
   ConstantSDNode *Const = dyn_cast<ConstantSDNode>(RHS);
   int32_t SignVal = 1 << (VT.getSizeInBits() - 1), ConstVal;
   if (Const)
     ConstVal = Const->getSExtValue();
   Z80::CondCode TCC = Z80::COND_INVALID;
   unsigned Opc = Z80ISD::SUB;
-  assert(!isa<ConstantSDNode>(LHS) && "Unexpected constant lhs");
   switch (CC) {
   default: llvm_unreachable("Invalid integer condition");
   case ISD::SETEQ:
@@ -952,7 +956,7 @@ SDValue Z80TargetLowering::LowerBR_CC(SDValue Op, SelectionDAG &DAG) const {
   SDValue TargetCC;
   SDValue Flags = EmitCmp(LHS, RHS, TargetCC, CC, DL, DAG);
 
-  return DAG.getNode(Z80ISD::BRCOND, DL, Op.getValueType(),
+  return DAG.getNode(Z80ISD::BRCOND, DL, MVT::Other,
                      Chain, Dest, TargetCC, Flags);
 }
 
@@ -1114,6 +1118,11 @@ SDValue Z80TargetLowering::LowerLibCall(
   for (unsigned I = 0, E = Op.getNumOperands(); I != E; ++I)
     Ops.push_back(Op.getOperand(I));
   return makeLibCall(DAG, LC, Op.getValueType(), Ops, false, SDLoc(Op)).first;
+}
+
+bool Z80TargetLowering::isOffsetFoldingLegal(
+    const GlobalAddressSDNode */*GA*/) const {
+  return true;
 }
 
 /// Return true if the addressing mode represented by AM is legal for this
@@ -1364,6 +1373,8 @@ bool Z80TargetLowering::isTypeDesirableForOp(unsigned Opc, EVT VT) const {
 /// Return true if x op y -> (SrcVT)((DstVT)x op (DstVT)y) is beneficial.
 bool Z80TargetLowering::isDesirableToShrinkOp(unsigned Opc, EVT SrcVT,
                                               EVT DstVT) const {
+  if (!isTypeLegal(DstVT))
+    return false;
   switch (Opc) {
   default:
     return false;
@@ -1602,17 +1613,18 @@ MachineBasicBlock *Z80TargetLowering::EmitLoweredSExt(
     Reg = Z80::A;
     break;
   case Z80::SExt16:
-    Opc = Z80::SBC16ar;
+    Opc = Z80::SBC16aa;
     Reg = Z80::HL;
     break;
   case Z80::SExt24:
-    Opc = Z80::SBC24ar;
+    Opc = Z80::SBC24aa;
     Reg = Z80::UHL;
     break;
   }
   MachineInstrBuilder MIB = BuildMI(*BB, MI, DL, TII->get(Opc));
   MIB->findRegisterUseOperand(Reg)->setIsUndef();
-  MIB.addReg(Reg, RegState::Undef);
+  if (Reg == Z80::A)
+    MIB.addReg(Reg, RegState::Undef);
   MI.eraseFromParent();
   return BB;
 }
@@ -1628,6 +1640,7 @@ CCAssignFn *Z80TargetLowering::getCCAssignFn(CallingConv::ID CallConv) const {
   switch (CallConv) {
   default: llvm_unreachable("Unsupported calling convention!");
   case CallingConv::C:
+  case CallingConv::Fast:
     return Is24Bit ? CC_EZ80_C : CC_Z80_C;
   case CallingConv::Z80_LibCall:
     return CC_EZ80_LC_AB;
@@ -1646,6 +1659,7 @@ CCAssignFn *Z80TargetLowering::getRetCCAssignFn(CallingConv::ID CallConv) const 
   switch (CallConv) {
   default: llvm_unreachable("Unsupported calling convention!");
   case CallingConv::C:
+  case CallingConv::Fast:
   case CallingConv::Z80_LibCall:
   case CallingConv::Z80_LibCall_AC:
   case CallingConv::Z80_LibCall_BC:
@@ -2043,7 +2057,8 @@ SDValue Z80TargetLowering::LowerFormalArguments(
   MachineFrameInfo &MFI = MF.getFrameInfo();
   bool Is24Bit = Subtarget.is24Bit();
 
-  assert(CallConv == CallingConv::C && "Unsupported calling convention");
+  assert((CallConv == CallingConv::C || CallConv == CallingConv::Fast) &&
+         "Unsupported calling convention");
   assert(!IsVarArg && "Var args not supported yet");
 
   // Assign locations to all of the incoming arguments.
@@ -2117,5 +2132,5 @@ EVT Z80TargetLowering::getSetCCResultType(const DataLayout &DL,
                                           LLVMContext &Context,
                                           EVT VT) const {
   assert(!VT.isVector() && "No default SetCC type for vectors!");
-  return MVT::i1;
+  return MVT::i8;
 }

@@ -62,6 +62,7 @@ Z80RegisterInfo::getLargestLegalSuperClass(const TargetRegisterClass *RC,
 
 unsigned Z80RegisterInfo::getRegPressureLimit(const TargetRegisterClass *RC,
                                               MachineFunction &MF) const {
+  return 3;
   const Z80FrameLowering *TFI = getFrameLowering(MF);
 
   switch (RC->getID()) {
@@ -78,6 +79,7 @@ Z80RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   switch (MF->getFunction()->getCallingConv()) {
   default: llvm_unreachable("Unsupported calling convention");
   case CallingConv::C:
+  case CallingConv::Fast:
     return Is24Bit ? CSR_EZ80_C_SaveList : CSR_Z80_C_SaveList;
   case CallingConv::Z80_LibCall:
     return Is24Bit ? CSR_EZ80_LC_SaveList : CSR_Z80_LC_SaveList;
@@ -90,6 +92,7 @@ Z80RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
   switch (CC) {
   default: llvm_unreachable("Unsupported calling convention");
   case CallingConv::C:
+  case CallingConv::Fast:
     return Is24Bit ? CSR_EZ80_C_RegMask : CSR_Z80_C_RegMask;
   case CallingConv::Z80_LibCall:
   case CallingConv::Z80_LibCall_AC:
@@ -144,9 +147,27 @@ void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   Offset += MI.getOperand(FIOperandNum + 1).getImm();
   MI.getOperand(FIOperandNum).ChangeToRegister(BasePtr, false);
   MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
+  DEBUG(MI.dump());
 }
 
 unsigned Z80RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
   return getFrameLowering(MF)->hasFP(MF) ? (Is24Bit ? Z80::UIX : Z80::IX)
                                          : (Is24Bit ? Z80::SPL : Z80::SPS);
+}
+
+bool Z80RegisterInfo::shouldCoalesce(MachineInstr *MI,
+                                     const TargetRegisterClass *SrcRC,
+                                     unsigned SubReg,
+                                     const TargetRegisterClass *DstRC,
+                                     unsigned DstSubReg,
+                                     const TargetRegisterClass *NewRC) const {
+  const TargetRegisterInfo &TRI = *MI->getParent()->getParent()->getRegInfo()
+    .getTargetRegisterInfo();
+  (void)TRI;
+  DEBUG(dbgs() << TRI.getRegClassName(SrcRC) << ':'
+        << (SubReg ? TRI.getSubRegIndexName(SubReg) : "") << " -> "
+        << TRI.getRegClassName(DstRC) << ':'
+        << (DstSubReg ? TRI.getSubRegIndexName(DstSubReg) : "") << ' '
+        << TRI.getRegClassName(NewRC) << '\n');
+  return true;
 }

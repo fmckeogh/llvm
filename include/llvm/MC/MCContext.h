@@ -487,7 +487,7 @@ namespace llvm {
 
     void renameWasmSection(MCSectionWasm *Section, StringRef Name);
 
-    MCSectionOMF *getOMFSection(const Twine &Section);
+    MCSectionOMF *getOMFSection(const Twine &Section, SectionKind Kind);
 
     // Create and save a copy of STI and return a reference to the copy.
     MCSubtargetInfo &getSubtargetCopy(const MCSubtargetInfo &STI);

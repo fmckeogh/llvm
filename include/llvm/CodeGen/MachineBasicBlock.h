@@ -689,7 +689,8 @@ public:
                                               unsigned Neighborhood=10) const;
 
   // Debugging methods.
-  void dump(const SlotIndexes *Indexes = nullptr) const;
+  void dump() const;
+  void dump(const SlotIndexes *Indexes) const;
   void print(raw_ostream &OS, const SlotIndexes* = nullptr) const;
   void print(raw_ostream &OS, ModuleSlotTracker &MST,
              const SlotIndexes* = nullptr) const;

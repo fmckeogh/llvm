@@ -18,6 +18,7 @@
 #include "llvm/MC/MCContext.h"
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/Support/TargetRegistry.h"
+#include "llvm/Target/TargetLoweringObjectFile.h"
 using namespace llvm;
 
 //===----------------------------------------------------------------------===//
@@ -38,6 +39,51 @@ void Z80AsmPrinter::EmitEndOfAsmFile(Module &M) {
     if (!Symbol.second->isDefined())
       TS->emitExtern(Symbol.second);
   TS->emitEnd();
+}
+
+void Z80AsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
+  Z80TargetStreamer *TS =
+    static_cast<Z80TargetStreamer *>(OutStreamer->getTargetStreamer());
+
+  if (GV->hasInitializer()) {
+    // Check to see if this is a special global used by LLVM, if so, emit it.
+    if (EmitSpecialLLVMGlobal(GV))
+      return;
+  }
+
+  MCSymbol *GVSym = getSymbol(GV);
+
+  if (!GV->hasInitializer())   // External globals require no extra code.
+    return;
+
+  GVSym->redefineIfPossible();
+  if (GVSym->isDefined() || GVSym->isVariable())
+    report_fatal_error("symbol '" + Twine(GVSym->getName()) +
+                       "' is already defined");
+
+  SectionKind GVKind = TargetLoweringObjectFile::getKindForGlobal(GV, TM);
+
+  const DataLayout &DL = GV->getParent()->getDataLayout();
+  uint64_t Size = DL.getTypeAllocSize(GV->getType()->getElementType());
+
+  // If the alignment is specified, we *must* obey it.  Overaligning a global
+  // with a specified alignment is a prompt way to break globals emitted to
+  // sections and expected to be contiguous (e.g. ObjC metadata).
+  unsigned Align = DL.getPreferredAlignment(GV);
+
+  // Determine to which section this global should be emitted.
+  MCSection *TheSection = getObjFileLowering().SectionForGlobal(GV, GVKind, TM);
+
+  OutStreamer->SwitchSection(TheSection);
+  TS->emitAlign(Align);
+  if (!GV->hasLocalLinkage())
+    TS->emitGlobal(GVSym);
+  OutStreamer->EmitLabel(GVSym);
+  if (GVKind.isBSS())
+    OutStreamer->emitFill(Size, 0);
+  else
+    EmitGlobalConstant(DL, GV->getInitializer());
+  OutStreamer->AddBlankLine();
 }
 
 // Force static initialization.

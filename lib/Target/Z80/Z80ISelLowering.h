@@ -126,6 +126,8 @@ public:
                        SDValue Op, SelectionDAG &DAG) const;
   SDValue NarrowOperation(SDValue Op, SelectionDAG &DAG) const;
 
+  bool isOffsetFoldingLegal(const GlobalAddressSDNode *GA) const override;
+
   /// Return true if the addressing mode represented by AM is legal for this
   /// target, for a load/store of the specified type.
   bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM,

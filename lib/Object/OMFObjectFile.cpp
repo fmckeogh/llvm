@@ -613,13 +613,13 @@ bool OMFObjectFile::isSectionCompressed(DataRefImpl Sec) const {
 
 bool OMFObjectFile::isSectionText(DataRefImpl Sec) const {
   return StringSwitch<bool>(Sections[Sec.p].Name)
-    .Cases("TEXT", "CODE", true)
+    .Case("CODE", true)
     .Default(false);
 }
 
 bool OMFObjectFile::isSectionData(DataRefImpl Sec) const {
   return StringSwitch<bool>(Sections[Sec.p].Name)
-    .Cases("DATA", "STRSECT", true)
+    .Cases("DATA", "STRSECT", "TEXT", true)
     .Default(false);
 }
 

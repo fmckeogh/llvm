@@ -236,27 +236,27 @@ let usesCustomInserter = 1 in {
                    Requires<[In24BitMode]>;
   let Defs = [HL, F], Uses = [HL] in {
     def Sub016 : P<(outs), (ins), [(set  HL, F, (Z80sub_flag  HL, 0))]>;
-    def Sub16  : P<(outs), (ins G16:$src),
-                   [(set  HL, F, (Z80sub_flag  HL, G16:$src))]>;
+    def Sub16  : P<(outs), (ins O16:$src),
+                   [(set  HL, F, (Z80sub_flag  HL, O16:$src))]>;
   }
   let Defs = [UHL, F], Uses = [UHL] in {
     def Sub024 : P<(outs), (ins), [(set UHL, F, (Z80sub_flag UHL, 0))]>,
                  Requires<[In24BitMode]>;
-    def Sub24 :  P<(outs), (ins G24:$src),
-                   [(set UHL, F, (Z80sub_flag UHL, G24:$src))]>,
+    def Sub24 :  P<(outs), (ins O24:$src),
+                   [(set UHL, F, (Z80sub_flag UHL, O24:$src))]>,
                  Requires<[In24BitMode]>;
   }
   let Defs = [F] in {
     let Uses = [HL] in {
       def Cp016 : P<(outs), (ins), [(set F, (Z80cp_flag HL, 0))]>;
-      def Cp16  : P<(outs), (ins G16:$src),
-                   [(set F, (Z80cp_flag HL, G16:$src))]>;
+      def Cp16  : P<(outs), (ins O16:$src),
+                   [(set F, (Z80cp_flag HL, O16:$src))]>;
     }
     let Uses = [UHL] in {
       def Cp024 : P<(outs), (ins), [(set F, (Z80cp_flag UHL, 0))]>,
                   Requires<[In24BitMode]>;
-      def Cp24  : P<(outs), (ins G24:$src),
-                    [(set F, (Z80cp_flag UHL, G24:$src))]>,
+      def Cp24  : P<(outs), (ins O24:$src),
+                    [(set F, (Z80cp_flag UHL, O24:$src))]>,
                   Requires<[In24BitMode]>;
     }
   }
@@ -266,10 +266,10 @@ let usesCustomInserter = 1 in {
     let Defs = [UHL] in def SExt24 : P<(outs), (ins), [(set UHL, (Z80sext F))]>;
   }
 }
-def : Pat<(sub   HL, G16:$src), (Sub16 G16:$src)>;
-def : Pat<(subc  HL, G16:$src), (Sub16 G16:$src)>;
-def : Pat<(sub  UHL, G24:$src), (Sub24 G24:$src)>;
-def : Pat<(subc UHL, G24:$src), (Sub24 G24:$src)>;
+def : Pat<(sub   HL, O16:$src), (Sub16 O16:$src)>;
+def : Pat<(subc  HL, O16:$src), (Sub16 O16:$src)>;
+def : Pat<(sub  UHL, O24:$src), (Sub24 O24:$src)>;
+def : Pat<(subc UHL, O24:$src), (Sub24 O24:$src)>;
 
 let AsmString = "nop", hasSideEffects = 0 in
 def NOP : I<0x00, (outs), (ins), []>;
@@ -317,7 +317,7 @@ let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1 in {
 }
 
 let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
-  let AsmString = "jq\t$target" in
+  let AsmString = "jp\t$target" in
   def JQ : I<?, (outs), (ins jmptarget:$target), [(br bb:$target)]>;
   let AsmString = "jr\t$target" in
   def JR : I<0x18, (outs), (ins jmptargetoff:$target)>;
@@ -328,7 +328,7 @@ let isBranch = 1, isTerminator = 1, isBarrier = 1 in {
   }
 }
 let isBranch = 1, isTerminator = 1, Uses = [F] in {
-  let AsmString = "jq\t$cc, $target" in
+  let AsmString = "jp\t$cc, $target" in
   def JQCC : I<?, (outs), (ins jmptarget:$target, cc:$cc),
                [(Z80brcond bb:$target, imm:$cc, F)]>;
   let AsmString = "jr\t$cc, $target" in
@@ -359,10 +359,11 @@ let AsmString = "ld\ta, $src", Defs = [A] in
 def LD8am : I<0x3A, (outs), (ins mem:$src),
               [(set A, (load mempat:$src))]>;
 let AsmString = "ld\t$dst, $src" in {
-def LD8rp : I<0x46, (outs R8:$dst), (ins ptr:$src),
-              [(set R8:$dst, (load iPTR:$src))]>;
-def LD8ro : PI<IdxPre, 0x46, (outs  R8:$dst), (ins off:$src),
-               [(set R8:$dst, (load offpat:$src))]>;
+def LD8gp : I<0x46, (outs G8:$dst), (ins ptr:$src),
+              [(set G8:$dst, (load iPTR:$src))]>;
+def LD8go : PI<IdxPre, 0x46, (outs  G8:$dst), (ins off:$src),
+               [(set G8:$dst, (load offpat:$src))]>;
+def LD8ro : P<(outs R8:$dst), (ins off:$src)>;
 }
 
 def LD16rm : LDS<EDPre, 0x4B, (outs R16:$dst), (ins mem:$src),
@@ -392,10 +393,11 @@ let AsmString = "ld\t$dst, a", Uses = [A] in
 def LD8ma : I<0x32, (outs), (ins mem:$dst),
               [(store  A, mempat:$dst)]>;
 let AsmString = "ld\t$dst, $src" in {
-def LD8pr : I<0x70, (outs), (ins ptr:$dst, R8:$src),
-              [(store R8:$src, iPTR:$dst)]>;
-def LD8or : PI<IdxPre, 0x70, (outs), (ins off:$dst, R8:$src),
-               [(store R8:$src, offpat:$dst)]>;
+def LD8pg : I<0x70, (outs), (ins ptr:$dst, G8:$src),
+              [(store G8:$src, iPTR:$dst)]>;
+def LD8og : PI<IdxPre, 0x70, (outs), (ins off:$dst, G8:$src),
+               [(store G8:$src, offpat:$dst)]>;
+def LD8or : P<(outs), (ins off:$dst, R8:$src)>;
 def LD8pi : I<0x36, (outs), (ins ptr:$dst, i8imm:$src),
               [(store (i8 imm:$src), iPTR:$dst)]>;
 def LD8oi : PI<IdxPre, 0x36, (outs), (ins off:$dst, i8imm:$src),
@@ -415,14 +417,18 @@ def LD88pr : P<(outs), (ins ptr:$dst, R16:$src),
 def LD24pr : LDL<EDPre, 0x0F, (outs), (ins ptr:$dst, R24:$src),
                  [(store R24:$src, iPTR:$dst)]>;
 
-def LD16or : LDS<IdxPre, 0x0F, (outs), (ins off:$dst, R16:$src),
-                 [(store R16:$src, offpat:$dst)]>,
+def LD16or : LDS<IdxPre, 0x0F, (outs), (ins off:$dst, R16:$src)>,
              Requires<[HaveEZ80Ops]>;
 def LD88or : P<(outs), (ins off:$dst, R16:$src),
                [(store R16:$src, offpat:$dst)]>;
-def LD24or : LDL<IdxPre, 0x0F, (outs), (ins off:$dst, R24:$src),
-                 [(store R24:$src, offpat:$dst)]>;
+def LD24or : LDL<IdxPre, 0x0F, (outs), (ins off:$dst, R24:$src)>;
 }
+// LD16/24or encodes R16/24:$src, but there aren't enough index registers for
+// regalloc to use it, since one of the index registers is reserved as the frame
+// pointer and the other is used in offpat:$dst, so just pattern match on
+// G16/24:$src.
+def : Pat<(store G16:$src, offpat:$dst), (LD16or off:$dst, R16:$src)>;
+def : Pat<(store G24:$src, offpat:$dst), (LD24or off:$dst, R24:$src)>;
 
 let isMoveImm = 1, isReMaterializable = 1 in {
 def  LD8ri : BI<NoPre, 0x06, "ld", "$dst, $src", "",
@@ -658,10 +664,14 @@ def ADC16SP : SI<EDPre, 0x7A, "adc", "hl, sp", "", (outs), (ins),
                  [(set  HL, F, (Z80adc_flag HL, SPS, F))]>;
 }
 let Uses = [HL, F] in {
-def SBC16ar : SI<EDPre, 0x42, "sbc", "hl, $src", "", (outs), (ins G16:$src),
-                 [(set  HL, F, (Z80sbc_flag  HL, G16:$src, F))]>;
-def ADC16ar : SI<EDPre, 0x4A, "adc", "hl, $src", "", (outs), (ins G16:$src),
-                 [(set  HL, F, (Z80adc_flag  HL, G16:$src, F))]>;
+def SBC16aa : LI<EDPre, 0x42, "sbc", "hl, hl", "", (outs), (ins),
+                 [(set  HL, F, (Z80sbc_flag  HL, HL,       F))]>;
+def ADC16aa : LI<EDPre, 0x4A, "adc", "hl, hl", "", (outs), (ins),
+                 [(set  HL, F, (Z80adc_flag  HL, HL,       F))]>;
+def SBC16ar : SI<EDPre, 0x42, "sbc", "hl, $src", "", (outs), (ins O16:$src),
+                 [(set  HL, F, (Z80sbc_flag  HL, O16:$src, F))]>;
+def ADC16ar : SI<EDPre, 0x4A, "adc", "hl, $src", "", (outs), (ins O16:$src),
+                 [(set  HL, F, (Z80adc_flag  HL, O16:$src, F))]>;
 }
 }
 let Defs = [UHL, F] in {
@@ -672,16 +682,20 @@ def ADC24SP : LI<EDPre, 0x7A, "adc", "hl, sp", "", (outs), (ins),
                  [(set UHL, F, (Z80adc_flag UHL, SPL, F))]>;
 }
 let Uses = [UHL, F] in {
-def SBC24ar : LI<EDPre, 0x42, "sbc", "hl, $src", "", (outs), (ins G24:$src),
-                 [(set UHL, F, (Z80sbc_flag UHL, G24:$src, F))]>;
-def ADC24ar : LI<EDPre, 0x4A, "adc", "hl, $src", "", (outs), (ins G24:$src),
-                 [(set UHL, F, (Z80adc_flag UHL, G24:$src, F))]>;
+def SBC24aa : LI<EDPre, 0x42, "sbc", "hl, hl", "", (outs), (ins),
+                 [(set UHL, F, (Z80sbc_flag UHL, UHL, F))]>;
+def ADC24aa : LI<EDPre, 0x4A, "adc", "hl, hl", "", (outs), (ins),
+                 [(set UHL, F, (Z80adc_flag UHL, UHL, F))]>;
+def SBC24ar : LI<EDPre, 0x42, "sbc", "hl, $src", "", (outs), (ins O24:$src),
+                 [(set UHL, F, (Z80sbc_flag UHL, O24:$src, F))]>;
+def ADC24ar : LI<EDPre, 0x4A, "adc", "hl, $src", "", (outs), (ins O24:$src),
+                 [(set UHL, F, (Z80adc_flag UHL, O24:$src, F))]>;
 }
 }
-def : Pat<(sube  HL, G16:$src), (SBC16ar G16:$src)>;
-def : Pat<(adde  HL, G16:$src), (ADC16ar G16:$src)>;
-def : Pat<(sube UHL, G24:$src), (SBC24ar G24:$src)>;
-def : Pat<(adde UHL, G24:$src), (ADC24ar G24:$src)>;
+def : Pat<(sube  HL, O16:$src), (SBC16ar O16:$src)>;
+def : Pat<(adde  HL, O16:$src), (ADC16ar O16:$src)>;
+def : Pat<(sube UHL, O24:$src), (SBC24ar O24:$src)>;
+def : Pat<(adde UHL, O24:$src), (ADC24ar O24:$src)>;
 
 let Defs = [F] in {
 def INC16r : SI<NoPre, 0x03, "inc", "$dst", "$dst = $imp",

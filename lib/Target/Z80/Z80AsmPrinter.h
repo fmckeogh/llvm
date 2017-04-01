@@ -31,6 +31,7 @@ public:
 
   void EmitStartOfAsmFile(Module &M) override;
   void EmitEndOfAsmFile(Module &M) override;
+  void EmitGlobalVariable(const GlobalVariable *GV) override;
   void EmitInstruction(const MachineInstr *MI) override;
 };
 } // End llvm namespace

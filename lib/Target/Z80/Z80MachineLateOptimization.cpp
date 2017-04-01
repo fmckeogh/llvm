@@ -93,12 +93,13 @@ bool Z80MachineLateOptimization::runOnMachineFunction(MachineFunction &MF) {
           }
           break;
         case Z80::LD24ri: // ld hl, -1/0 -> set-cf \ sbc hl, hl
-          if (I->getOperand(0).getReg() == Z80::UHL) {
+          if (I->getOperand(0).getReg() == Z80::UHL &&
+              I->getOperand(1).isImm()) {
             int Imm = I->getOperand(1).getImm();
             if (Imm == 0 || Imm == -1) {
-              I->setDesc(TII->get(Z80::SBC24ar));
-              I->RemoveOperand(1);
-              I->getOperand(0).setIsUse();
+              while (I->getNumOperands())
+                I->RemoveOperand(0);
+              I->setDesc(TII->get(Z80::SBC24aa));
               I->addImplicitDefUseOperands(MF);
               for (auto &Op : I->uses())
                 Op.setIsUndef();
@@ -132,10 +133,9 @@ bool Z80MachineLateOptimization::runOnMachineFunction(MachineFunction &MF) {
               I->addOperand(P->getOperand(0));
               I->addImplicitDefUseOperands(MF);
               I->findRegisterDefOperand(Z80::F)->setIsDead();
-              while (P->getNumOperands() != P->getNumExplicitOperands())
-                P->RemoveOperand(P->getNumExplicitOperands());
-              P->setDesc(TII->get(Z80::SBC24ar));
-              P->getOperand(0).setReg(Z80::UHL);
+              while (P->getNumOperands())
+                P->RemoveOperand(0);
+              P->setDesc(TII->get(Z80::SBC24aa));
               P->addImplicitDefUseOperands(MF);
               for (auto &Op : P->uses())
                 Op.setIsUndef();

@@ -68,6 +68,14 @@ public:
 
   // Debug information queries.
   unsigned getFrameRegister(const MachineFunction &MF) const override;
+
+  /// \brief SrcRC and DstRC will be morphed into NewRC if this returns true.
+  bool shouldCoalesce(MachineInstr *MI,
+                      const TargetRegisterClass *SrcRC,
+                      unsigned SubReg,
+                      const TargetRegisterClass *DstRC,
+                      unsigned DstSubReg,
+                      const TargetRegisterClass *NewRC) const override;
 };
 } // End llvm namespace
 

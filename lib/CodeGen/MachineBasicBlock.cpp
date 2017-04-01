@@ -223,8 +223,10 @@ bool MachineBasicBlock::hasEHPadSuccessor() const {
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
-LLVM_DUMP_METHOD
-void MachineBasicBlock::dump(const SlotIndexes *Indexes) const {
+LLVM_DUMP_METHOD void MachineBasicBlock::dump() const {
+  dump(nullptr);
+}
+LLVM_DUMP_METHOD void MachineBasicBlock::dump(const SlotIndexes *Indexes) const {
   print(dbgs(), Indexes);
 }
 #endif

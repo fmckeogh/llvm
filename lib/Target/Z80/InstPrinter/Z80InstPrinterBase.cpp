@@ -81,9 +81,7 @@ void Z80InstPrinterBase::printOff(const MCInst *MI, unsigned Op,
 void Z80InstPrinterBase::printAddr(const MCInst *MI, unsigned Op,
                                    raw_ostream &OS) {
   printOperand(MI, Op, OS);
-  auto Off = MI->getOperand(Op+1).getImm();
-  if (Off >= 0)
-    OS << " + " <<  Off;
-  else
-    OS << " - " << -Off;
+  int8_t Off = MI->getOperand(Op+1).getImm();
+  assert(Off == MI->getOperand(Op+1).getImm() && "Offset out of range!");
+  OS << " + " << int(MI->getOperand(Op+1).getImm());
 }

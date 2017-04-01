@@ -414,6 +414,9 @@ const char *MachineFunction::createExternalSymbolName(StringRef Name) {
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
+LLVM_DUMP_METHOD void MachineFunction::dump() const {
+  dump(nullptr);
+}
 LLVM_DUMP_METHOD void MachineFunction::dump(const SlotIndexes *Indexes) const {
   print(dbgs(), Indexes);
 }
