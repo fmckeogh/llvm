@@ -575,7 +575,7 @@ void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
     Opc = Z80::LD8ro;
     break;
   case 2:
-    Opc = Subtarget.hasEZ80Ops() ? Z80::LD16ro : Z80::LD88ro;
+    Opc = Subtarget.has16BitEZ80Ops() ? Z80::LD16ro : Z80::LD88ro;
     break;
   case 3:
     assert(Subtarget.is24Bit() && "Only 24-bit should have 3 byte stack slots");

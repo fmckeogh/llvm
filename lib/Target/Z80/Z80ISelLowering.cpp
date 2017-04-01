@@ -558,7 +558,7 @@ SDValue Z80TargetLowering::EmitCmp(SDValue LHS, SDValue RHS, SDValue &TargetCC,
       ConstVal ^= SignVal;
     else
       RHS = EmitFlipSign(DL, RHS, DAG);
-    TCC = Z80::COND_NC;
+    TCC = Z80::COND_C;
     break;
   }
   switch (TCC) {
