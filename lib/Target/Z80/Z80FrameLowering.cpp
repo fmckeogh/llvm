@@ -124,7 +124,7 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
   DebugLoc DL;
 
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  int StackSize = -int(MFI.getStackSize() - MFI.getMaxCallFrameSize());
+  int StackSize = -int(MFI.getStackSize());
   unsigned ScratchReg = Is24Bit ? Z80::UHL : Z80::HL;
   if (hasFP(MF)) {
     if (MF.getFunction()->getAttributes().hasAttribute(
@@ -158,7 +158,7 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
   DebugLoc DL = MBB.findDebugLoc(MI);
 
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  int StackSize = int(MFI.getStackSize() - MFI.getMaxCallFrameSize());
+  int StackSize = int(MFI.getStackSize());
   if (hasFP(MF)) {
     unsigned FrameReg = TRI->getFrameRegister(MF);
     if (StackSize || MFI.hasVarSizedObjects())

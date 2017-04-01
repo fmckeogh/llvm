@@ -55,6 +55,7 @@ class MCAsmStreamer final : public MCStreamer {
   unsigned ShowInst : 1;
   unsigned UseDwarfDirectory : 1;
 
+  void PrintQuotedString(StringRef Data);
   void EmitRegisterName(int64_t Register);
   void EmitCFIStartProcImpl(MCDwarfFrameInfo &Frame) override;
   void EmitCFIEndProcImpl(MCDwarfFrameInfo &Frame) override;
@@ -722,7 +723,7 @@ void MCAsmStreamer::EmitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
 
 static inline char toOctal(int X) { return (X&7)+'0'; }
 
-static void PrintQuotedString(StringRef Data, raw_ostream &OS) {
+void MCAsmStreamer::PrintQuotedString(StringRef Data) {
   OS << '"';
 
   for (unsigned i = 0, e = Data.size(); i != e; ++i) {
@@ -743,6 +744,12 @@ static void PrintQuotedString(StringRef Data, raw_ostream &OS) {
       case '\n': OS << "\\n"; break;
       case '\r': OS << "\\r"; break;
       case '\t': OS << "\\t"; break;
+      case '\0':
+        if (MAI->shouldAvoidAsciiNull()) {
+          OS << "\\400";
+          break;
+        }
+        LLVM_FALLTHROUGH;
       default:
         OS << '\\';
         OS << toOctal(C >> 6);
@@ -776,7 +783,7 @@ void MCAsmStreamer::EmitBytes(StringRef Data) {
     OS << MAI->getAsciiDirective();
   }
 
-  PrintQuotedString(Data, OS);
+  PrintQuotedString(Data);
   EmitEOL();
 }
 
@@ -1031,7 +1038,7 @@ void MCAsmStreamer::emitValueToOffset(const MCExpr *Offset,
 void MCAsmStreamer::EmitFileDirective(StringRef Filename) {
   assert(MAI->hasSingleParameterDotFile());
   OS << "\t.file\t";
-  PrintQuotedString(Filename, OS);
+  PrintQuotedString(Filename);
   EmitEOL();
 }
 
@@ -1064,10 +1071,10 @@ unsigned MCAsmStreamer::EmitDwarfFileDirective(unsigned FileNo,
 
   OS << "\t.file\t" << FileNo << ' ';
   if (!Directory.empty()) {
-    PrintQuotedString(Directory, OS);
+    PrintQuotedString(Directory);
     OS << ' ';
   }
-  PrintQuotedString(Filename, OS);
+  PrintQuotedString(Filename);
   EmitEOL();
 
   return FileNo;
@@ -1123,7 +1130,7 @@ bool MCAsmStreamer::EmitCVFileDirective(unsigned FileNo, StringRef Filename) {
 
   OS << "\t.cv_file\t" << FileNo << ' ';
 
-  PrintQuotedString(Filename, OS);
+  PrintQuotedString(Filename);
   EmitEOL();
   return true;
 }
@@ -1210,7 +1217,7 @@ void MCAsmStreamer::EmitCVDefRangeDirective(
     Range.second->print(OS, MAI);
   }
   OS << ", ";
-  PrintQuotedString(FixedSizePortion, OS);
+  PrintQuotedString(FixedSizePortion);
   EmitEOL();
   this->MCStreamer::EmitCVDefRangeDirective(Ranges, FixedSizePortion);
 }
@@ -1228,7 +1235,7 @@ void MCAsmStreamer::EmitCVFileChecksumsDirective() {
 void MCAsmStreamer::EmitIdent(StringRef IdentString) {
   assert(MAI->hasIdentDirective() && ".ident directive not supported");
   OS << "\t.ident\t";
-  PrintQuotedString(IdentString, OS);
+  PrintQuotedString(IdentString);
   EmitEOL();
 }
 
