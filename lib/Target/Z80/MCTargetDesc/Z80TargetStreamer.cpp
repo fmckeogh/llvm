@@ -40,7 +40,3 @@ void Z80TargetAsmStreamer::emitExtern(MCSymbol *Symbol) {
   Symbol->print(OS, MAI);
   OS << '\n';
 }
-
-void Z80TargetAsmStreamer::emitEnd() {
-  OS << "\t.end\n";
-}

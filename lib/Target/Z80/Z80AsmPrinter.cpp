@@ -38,7 +38,6 @@ void Z80AsmPrinter::EmitEndOfAsmFile(Module &M) {
   for (const auto &Symbol : OutContext.getSymbols())
     if (!Symbol.second->isDefined())
       TS->emitExtern(Symbol.second);
-  TS->emitEnd();
 }
 
 void Z80AsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
