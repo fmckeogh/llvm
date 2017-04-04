@@ -462,7 +462,7 @@ let Defs = [SPL] in
 def LD24SP : LI<NoPre, 0xF9, "ld", "sp, $src", "", (outs), (ins A24:$src)>;
 }
 
-let AsmString = "ex af, af'" in
+let AsmString = "ex\taf, af'" in
 def EXAF : I<0x08, (outs), (ins)>;
 let AsmString = "exx" in
 def EXX  : I<0xD9, (outs), (ins)>;
