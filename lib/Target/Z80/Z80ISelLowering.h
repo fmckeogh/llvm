@@ -54,6 +54,9 @@ enum NodeType : unsigned {
   /// 1 is the number of bytes of stack to pop.
   RET_FLAG,
 
+  /// Return from interrupt.
+  RETN_FLAG, RETI_FLAG,
+
   /// Tail call return.
   TC_RETURN,
 

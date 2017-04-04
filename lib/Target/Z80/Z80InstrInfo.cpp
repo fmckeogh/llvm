@@ -774,6 +774,10 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.getOperand(0).ChangeToES(Symbol);
     break;
   }
+  case Z80::EI_RETI:
+    BuildMI(MBB, MI, DL, get(Z80::EI));
+    MI.setDesc(get(Z80::RETI));
+    break;
   case Z80::TCRETURN16i:
   case Z80::TCRETURN24i:
     MI.setDesc(get(Z80::JQ));

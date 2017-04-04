@@ -1641,6 +1641,7 @@ CCAssignFn *Z80TargetLowering::getCCAssignFn(CallingConv::ID CallConv) const {
   default: llvm_unreachable("Unsupported calling convention!");
   case CallingConv::C:
   case CallingConv::Fast:
+  case CallingConv::PreserveAll:
     return Is24Bit ? CC_EZ80_C : CC_Z80_C;
   case CallingConv::Z80_LibCall:
     return CC_EZ80_LC_AB;
@@ -1660,6 +1661,7 @@ CCAssignFn *Z80TargetLowering::getRetCCAssignFn(CallingConv::ID CallConv) const 
   default: llvm_unreachable("Unsupported calling convention!");
   case CallingConv::C:
   case CallingConv::Fast:
+  case CallingConv::PreserveAll:
   case CallingConv::Z80_LibCall:
   case CallingConv::Z80_LibCall_AC:
   case CallingConv::Z80_LibCall_BC:
@@ -1963,6 +1965,7 @@ SDValue Z80TargetLowering::LowerReturn(SDValue Chain,
                                        const SDLoc &DL, SelectionDAG &DAG) const {
   const TargetRegisterInfo *TRI = Subtarget.getRegisterInfo();
   MachineFunction &MF = DAG.getMachineFunction();
+  const Function *F = MF.getFunction();
 
   SmallVector<CCValAssign, 16> RVLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, RVLocs, *DAG.getContext());
@@ -2020,7 +2023,11 @@ SDValue Z80TargetLowering::LowerReturn(SDValue Chain,
   if (Flag.getNode())
     RetOps.push_back(Flag);
 
-  return DAG.getNode(Z80ISD::RET_FLAG, DL, MVT::Other, RetOps);
+  unsigned Opc = Z80ISD::RET_FLAG;
+  if (F->hasFnAttribute("interrupt"))
+    Opc = F->getFnAttribute("interrupt").getValueAsString() == "NMI" ?
+      Z80ISD::RETN_FLAG : Z80ISD::RETI_FLAG;
+  return DAG.getNode(Opc, DL, MVT::Other, RetOps);
 }
 
 /// Lower the result values of a call into the appropriate copies out of
@@ -2057,14 +2064,12 @@ SDValue Z80TargetLowering::LowerFormalArguments(
   MachineFrameInfo &MFI = MF.getFrameInfo();
   bool Is24Bit = Subtarget.is24Bit();
 
-  assert((CallConv == CallingConv::C || CallConv == CallingConv::Fast) &&
-         "Unsupported calling convention");
   assert(!IsVarArg && "Var args not supported yet");
 
   // Assign locations to all of the incoming arguments.
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
-  CCInfo.AnalyzeFormalArguments(Ins, Is24Bit ? CC_EZ80_C : CC_Z80_C);
+  CCInfo.AnalyzeFormalArguments(Ins, getCCAssignFn(CallConv));
 
   SDValue ArgValue;
   for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {
@@ -2119,6 +2124,8 @@ const char *Z80TargetLowering::getTargetNodeName(unsigned Opcode) const {
   case Z80ISD::SEXT:         return "Z80ISD::SEXT";
   case Z80ISD::CALL:         return "Z80ISD::CALL";
   case Z80ISD::RET_FLAG:     return "Z80ISD::RET_FLAG";
+  case Z80ISD::RETN_FLAG:    return "Z80ISD::RETN_FLAG";
+  case Z80ISD::RETI_FLAG:    return "Z80ISD::RETI_FLAG";
   case Z80ISD::TC_RETURN:    return "Z80ISD::TC_RETURN";
   case Z80ISD::BRCOND:       return "Z80ISD::BRCOND";
   case Z80ISD::SELECT:       return "Z80ISD::SELECT";

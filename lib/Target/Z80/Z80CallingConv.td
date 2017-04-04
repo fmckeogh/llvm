@@ -79,8 +79,8 @@ def RetCC_EZ80_LC_L : CallingConv<[
 // Callee-saved Registers.
 //===----------------------------------------------------------------------===//
 
-def CSR_NoRegs  : CalleeSavedRegs<(add)>;
-def CSR_Z80_C   : CalleeSavedRegs<(add IX)>;
-def CSR_EZ80_C  : CalleeSavedRegs<(add UIX)>;
-def CSR_Z80_LC  : CalleeSavedRegs<(add S16, SPS)>;
-def CSR_EZ80_LC : CalleeSavedRegs<(add S24, SPL)>;
+def CSR_NoRegs       : CalleeSavedRegs<(add)>;
+def CSR_Z80_C        : CalleeSavedRegs<(add IX)>;
+def CSR_EZ80_C       : CalleeSavedRegs<(add UIX)>;
+def CSR_Z80_AllRegs  : CalleeSavedRegs<(add S16)>;
+def CSR_EZ80_AllRegs : CalleeSavedRegs<(add S24)>;

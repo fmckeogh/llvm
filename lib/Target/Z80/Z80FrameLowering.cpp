@@ -18,12 +18,13 @@
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
+#include "llvm/CodeGen/MachineRegisterInfo.h"
 using namespace llvm;
 
 Z80FrameLowering::Z80FrameLowering(const Z80Subtarget &STI)
     : TargetFrameLowering(StackGrowsDown, 1, STI.is24Bit() ? -3 : -2),
       STI(STI), TII(*STI.getInstrInfo()), TRI(STI.getRegisterInfo()),
-      Is24Bit(STI.is24Bit()) {
+      Is24Bit(STI.is24Bit()), SlotSize(Is24Bit ? 3 : 2) {
 }
 
 /// hasFP - Return true if the specified function should have a dedicated frame
@@ -126,6 +127,16 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
   MachineFrameInfo &MFI = MF.getFrameInfo();
   int StackSize = -int(MFI.getStackSize());
   unsigned ScratchReg = Is24Bit ? Z80::UHL : Z80::HL;
+
+  while (MI != MBB.end() && MI->getFlag(MachineInstr::FrameSetup)) {
+    unsigned Opc = MI->getOpcode();
+    if (Opc == Z80::PUSH24r || Opc == Z80::PUSH16r || Opc == Z80::EXAF)
+      StackSize += SlotSize;
+    else if (Opc == Z80::EXX)
+      StackSize += SlotSize * 3;
+    ++MI;
+  }
+
   if (hasFP(MF)) {
     if (MF.getFunction()->getAttributes().hasAttribute(
             AttributeSet::FunctionIndex, Attribute::OptimizeForSize)) {
@@ -159,6 +170,19 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
 
   MachineFrameInfo &MFI = MF.getFrameInfo();
   int StackSize = int(MFI.getStackSize());
+
+  while (MI != MBB.begin()) {
+    MachineBasicBlock::iterator PI = std::prev(MI);
+    unsigned Opc = PI->getOpcode();
+    if (!PI->getFlag(MachineInstr::FrameDestroy))
+      break;
+    if (Opc == Z80::POP24r || Opc == Z80::POP16r || Opc == Z80::EXAF)
+      StackSize -= SlotSize;
+    else if (Opc == Z80::EXX)
+      StackSize -= SlotSize * 3;
+    --MI;
+  }
+
   if (hasFP(MF)) {
     unsigned FrameReg = TRI->getFrameRegister(MF);
     if (StackSize || MFI.hasVarSizedObjects())
@@ -174,14 +198,111 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
   }
 }
 
+// Only non-nested non-nmi interrupts can use shadow registers.
+static bool shouldUseShadow(const MachineFunction &MF) {
+  const Function &F = *MF.getFunction();
+  return F.getFnAttribute("interrupt").getValueAsString() == "Generic";
+}
+
+void Z80FrameLowering::shadowCalleeSavedRegisters(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, DebugLoc DL,
+    MachineInstr::MIFlag Flag, const std::vector<CalleeSavedInfo> &CSI) const {
+  assert(shouldUseShadow(*MBB.getParent()) &&
+         "Can't use shadow registers in this function.");
+  bool SaveAF = false, SaveG = false;
+  for (unsigned i = 0, e = CSI.size(); i != e; ++i) {
+    unsigned Reg = CSI[i].getReg();
+    if (Reg == Z80::AF)
+      SaveAF = true;
+    else if (Z80::G24RegClass.contains(Reg) ||
+             Z80::G16RegClass.contains(Reg))
+      SaveG = true;
+  }
+  if (SaveAF)
+    BuildMI(MBB, MI, DL, TII.get(Z80::EXAF))
+      .setMIFlag(Flag);
+  if (SaveG)
+    BuildMI(MBB, MI, DL, TII.get(Z80::EXX))
+      .setMIFlag(Flag);
+}
+
+bool Z80FrameLowering::spillCalleeSavedRegisters(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+    const std::vector<CalleeSavedInfo> &CSI,
+    const TargetRegisterInfo *TRI) const {
+  const MachineFunction &MF = *MBB.getParent();
+  const MachineRegisterInfo &MRI = MF.getRegInfo();
+  bool UseShadow = shouldUseShadow(MF);
+  DebugLoc DL = MBB.findDebugLoc(MI);
+  if (UseShadow)
+    shadowCalleeSavedRegisters(MBB, MI, DL, MachineInstr::FrameSetup, CSI);
+  unsigned Opc = Is24Bit ? Z80::PUSH24r : Z80::PUSH16r;
+  for (unsigned i = CSI.size(); i != 0; --i) {
+    unsigned Reg = CSI[i - 1].getReg();
+
+    // Non-index registers can be spilled to shadow registers.
+    if (UseShadow && !Z80::I24RegClass.contains(Reg) &&
+                     !Z80::I16RegClass.contains(Reg))
+      continue;
+
+    bool isLiveIn = MRI.isLiveIn(Reg);
+    if (!isLiveIn)
+      MBB.addLiveIn(Reg);
+
+    // Decide whether we can add a kill flag to the use.
+    bool CanKill = !isLiveIn;
+    // Check if any subregister is live-in
+    if (CanKill) {
+      for (MCRegAliasIterator AReg(Reg, TRI, false); AReg.isValid(); ++AReg) {
+        if (MRI.isLiveIn(*AReg)) {
+          CanKill = false;
+          break;
+        }
+      }
+    }
+
+    // Do not set a kill flag on values that are also marked as live-in. This
+    // happens with the @llvm-returnaddress intrinsic and with arguments
+    // passed in callee saved registers.
+    // Omitting the kill flags is conservatively correct even if the live-in
+    // is not used after all.
+    BuildMI(MBB, MI, DL, TII.get(Opc)).addReg(Reg, getKillRegState(CanKill))
+      .setMIFlag(MachineInstr::FrameSetup);
+  }
+  return true;
+}
+bool Z80FrameLowering::restoreCalleeSavedRegisters(
+    MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
+    const std::vector<CalleeSavedInfo> &CSI,
+    const TargetRegisterInfo *TRI) const {
+  const MachineFunction &MF = *MBB.getParent();
+  bool UseShadow = shouldUseShadow(MF);
+  DebugLoc DL = MBB.findDebugLoc(MI);
+  unsigned Opc = Is24Bit ? Z80::POP24r : Z80::POP16r;
+  for (unsigned i = 0, e = CSI.size(); i != e; ++i) {
+    unsigned Reg = CSI[i].getReg();
+
+    // Non-index registers can be spilled to shadow registers.
+    if (UseShadow && !Z80::I24RegClass.contains(Reg) &&
+                     !Z80::I16RegClass.contains(Reg))
+      continue;
+
+    BuildMI(MBB, MI, DL, TII.get(Opc), Reg)
+      .setMIFlag(MachineInstr::FrameDestroy);
+  }
+  if (UseShadow)
+    shadowCalleeSavedRegisters(MBB, MI, DL, MachineInstr::FrameDestroy, CSI);
+  return true;
+}
+
 MachineBasicBlock::iterator Z80FrameLowering::
 eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
                               MachineBasicBlock::iterator I) const {
   //if (!hasReservedCallFrame(MF)) {
     unsigned Amount = I->getOperand(0).getImm();
     unsigned ScratchReg = I->getOperand(I->getNumOperands() - 1).getReg();
-    assert((Z80::A16RegClass.contains(ScratchReg) ||
-            Z80::A24RegClass.contains(ScratchReg)) &&
+    assert((Z80::A24RegClass.contains(ScratchReg) ||
+            Z80::A16RegClass.contains(ScratchReg)) &&
            "Expected last operand to be the scratch reg.");
     if (I->getOpcode() == TII.getCallFrameDestroyOpcode()) {
       Amount -= I->getOperand(1).getImm();

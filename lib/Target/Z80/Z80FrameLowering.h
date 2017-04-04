@@ -26,6 +26,7 @@ class Z80FrameLowering : public TargetFrameLowering {
   const Z80RegisterInfo *TRI;
 
   bool Is24Bit;
+  unsigned SlotSize;
 
 public:
   explicit Z80FrameLowering(const Z80Subtarget &STI);
@@ -35,7 +36,6 @@ public:
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 
-  /*
   bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI,
                                  const std::vector<CalleeSavedInfo> &CSI,
@@ -44,7 +44,6 @@ public:
                                    MachineBasicBlock::iterator MI,
                                    const std::vector<CalleeSavedInfo> &CSI,
                                    const TargetRegisterInfo *TRI) const override;
-  */
 
   MachineBasicBlock::iterator eliminateCallFramePseudoInstr(
     MachineFunction &MF, MachineBasicBlock &MBB,
@@ -57,6 +56,10 @@ private:
                             MachineBasicBlock::iterator MBBI, DebugLoc DL,
                             unsigned ScratchReg, int Offset,
                             int FPOffset = -1) const;
+
+  void shadowCalleeSavedRegisters(
+      MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, DebugLoc DL,
+      MachineInstr::MIFlag Flag, const std::vector<CalleeSavedInfo> &CSI) const;
 };
 } // End llvm namespace
 

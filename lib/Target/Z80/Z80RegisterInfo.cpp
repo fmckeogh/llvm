@@ -81,8 +81,13 @@ Z80RegisterInfo::getCalleeSavedRegs(const MachineFunction *MF) const {
   case CallingConv::C:
   case CallingConv::Fast:
     return Is24Bit ? CSR_EZ80_C_SaveList : CSR_Z80_C_SaveList;
+  case CallingConv::PreserveAll:
   case CallingConv::Z80_LibCall:
-    return Is24Bit ? CSR_EZ80_LC_SaveList : CSR_Z80_LC_SaveList;
+  case CallingConv::Z80_LibCall_AC:
+  case CallingConv::Z80_LibCall_BC:
+  case CallingConv::Z80_LibCall_C:
+  case CallingConv::Z80_LibCall_L:
+    return Is24Bit ? CSR_EZ80_AllRegs_SaveList : CSR_Z80_AllRegs_SaveList;
   }
 }
 
@@ -94,12 +99,13 @@ Z80RegisterInfo::getCallPreservedMask(const MachineFunction &MF,
   case CallingConv::C:
   case CallingConv::Fast:
     return Is24Bit ? CSR_EZ80_C_RegMask : CSR_Z80_C_RegMask;
+  case CallingConv::PreserveAll:
   case CallingConv::Z80_LibCall:
   case CallingConv::Z80_LibCall_AC:
   case CallingConv::Z80_LibCall_BC:
   case CallingConv::Z80_LibCall_C:
   case CallingConv::Z80_LibCall_L:
-    return Is24Bit ? CSR_EZ80_LC_RegMask : CSR_Z80_LC_RegMask;
+    return Is24Bit ? CSR_EZ80_AllRegs_RegMask : CSR_Z80_AllRegs_RegMask;
   }
 }
 const uint32_t *Z80RegisterInfo::getNoPreservedMask() const {

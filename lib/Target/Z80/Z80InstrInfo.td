@@ -92,6 +92,10 @@ def Z80mlt           : SDNode<"Z80ISD::MLT",     SDT_Z80mlt>;
 def Z80sext          : SDNode<"Z80ISD::SEXT",    SDT_Z80sext>;
 def Z80retflag       : SDNode<"Z80ISD::RET_FLAG", SDTNone,
                               [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+def Z80retnflag      : SDNode<"Z80ISD::RETN_FLAG", SDTNone,
+                              [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
+def Z80retiflag      : SDNode<"Z80ISD::RETI_FLAG", SDTNone,
+                              [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 def Z80tcret         : SDNode<"Z80ISD::TC_RETURN", SDT_Z80TCRet,
                               [SDNPHasChain, SDNPOptInGlue, SDNPVariadic]>;
 def Z80call          : SDNode<"Z80ISD::CALL", SDT_Z80Call,
@@ -274,6 +278,9 @@ def : Pat<(subc UHL, O24:$src), (Sub24 O24:$src)>;
 let AsmString = "nop", hasSideEffects = 0 in
 def NOP : I<0x00, (outs), (ins), []>;
 
+let AsmString = "di" in def DI : I<0xF3>;
+let AsmString = "ei" in def EI : I<0xFB>;
+
 //===----------------------------------------------------------------------===//
 //  Control Flow Instructions.
 //
@@ -298,8 +305,14 @@ let isCall = 1 in {
                 Requires<[In24BitMode]>;
 }
 
-let AsmString = "ret", isTerminator = 1, isReturn = 1, isBarrier = 1 in {
+let isTerminator = 1, isReturn = 1, isBarrier = 1 in {
+  let AsmString = "ret" in
   def RET : I<0xC9, (outs), (ins), [(Z80retflag)]>;
+  let AsmString = "retn" in
+  def RETN : PI<EDPre, 0x45, (outs), (ins), [(Z80retnflag)]>;
+  let AsmString = "reti" in
+  def RETI : PI<EDPre, 0x4D, (outs), (ins)>;
+  def EI_RETI : P<(outs), (ins), [(Z80retiflag)]>;
 }
 let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1 in {
   let Uses = [SPS] in {
@@ -448,6 +461,11 @@ def LD16SP : SI<NoPre, 0xF9, "ld", "sp, $src", "", (outs), (ins A16:$src)>;
 let Defs = [SPL] in
 def LD24SP : LI<NoPre, 0xF9, "ld", "sp, $src", "", (outs), (ins A24:$src)>;
 }
+
+let AsmString = "ex af, af'" in
+def EXAF : I<0x08, (outs), (ins)>;
+let AsmString = "exx" in
+def EXX  : I<0xD9, (outs), (ins)>;
 
 let Defs = [DE, HL], Uses = [DE, HL] in
 def EX16DE : SI<NoPre, 0xEB, "ex", "de, hl", "", (outs), (ins)>;

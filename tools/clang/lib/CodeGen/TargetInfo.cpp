@@ -8426,8 +8426,31 @@ class Z80TargetCodeGenInfo : public TargetCodeGenInfo {
 public:
   Z80TargetCodeGenInfo(CodeGen::CodeGenTypes &CGT)
     : TargetCodeGenInfo(new Z80ABIInfo(CGT)) {}
+  void setTargetAttributes(const Decl *D, llvm::GlobalValue *GV,
+                           CodeGen::CodeGenModule &CGM) const override;
 };
 
+}
+
+void Z80TargetCodeGenInfo::setTargetAttributes(
+    const Decl *D, llvm::GlobalValue *GV, CodeGen::CodeGenModule &CGM) const {
+    const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(D);
+    if (!FD) return;
+
+    const AnyZ80InterruptAttr *Attr = FD->getAttr<AnyZ80InterruptAttr>();
+    if (!Attr)
+      return;
+
+    const char *Kind;
+    switch (Attr->getInterrupt()) {
+    case AnyZ80InterruptAttr::Generic: Kind = "Generic"; break;
+    case AnyZ80InterruptAttr::Nested:  Kind = "Nested"; break;
+    case AnyZ80InterruptAttr::NMI:     Kind = "NMI"; break;
+    }
+
+    llvm::Function *Fn = cast<llvm::Function>(GV);
+    Fn->setCallingConv(llvm::CallingConv::PreserveAll);
+    Fn->addFnAttr("interrupt", Kind);
 }
 
 //===----------------------------------------------------------------------===//
