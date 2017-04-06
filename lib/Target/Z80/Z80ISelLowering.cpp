@@ -38,10 +38,14 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
     addRegisterClass(MVT::i24, &Z80::R24RegClass);
     //addRegisterClass(MVT::i32, &Z80::R24RegClass);
   }
+  for (unsigned Opc : { ISD::ROTL, ISD::ROTR })
+    setOperationAction(Opc, MVT::i8, Custom);
   for (MVT VT : { MVT::i16, MVT::i24, MVT::i32 }) {
     for (unsigned Opc : { //ISD::ADD, ISD::SUB,
                           ISD::AND, ISD::OR, ISD::XOR, ISD::SIGN_EXTEND })
       setOperationAction(Opc, VT, Custom);
+    for (unsigned Opc : { ISD::ROTL, ISD::ROTR })
+      setOperationAction(Opc, VT, Expand);
   }
   for (MVT VT : { MVT::i8, MVT::i16, MVT::i24, MVT::i32 }) {
     for (unsigned Opc : { ISD::SHL, ISD::SRA, ISD::SRL,
@@ -251,6 +255,19 @@ SDValue Z80TargetLowering::EmitFlipSign(const SDLoc &DL, SDValue Op,
                          APInt::getSignBit(VT.getSizeInBits()), DL, VT));
 }
 
+SDValue Z80TargetLowering::EmitPair(const SDLoc &DL, SDValue Hi, SDValue Lo,
+                                    SelectionDAG &DAG) const {
+  assert(Hi.getValueType() == MVT::i8 && Lo.getValueType() == MVT::i8 &&
+         "Can only emit a pair of i8 to i16");
+  SDValue Ops[] = {
+    DAG.getTargetConstant(Z80::G16RegClassID, DL, MVT::i32),
+    Hi, DAG.getTargetConstant(Z80::sub_high, DL, MVT::i32),
+    Lo, DAG.getTargetConstant(Z80::sub_low, DL, MVT::i32),
+  };
+  SDNode *Res = DAG.getMachineNode(TargetOpcode::REG_SEQUENCE, DL, MVT::i16, Ops);
+  return SDValue(Res, 0);
+}
+
 // Legalize Types Helpers
 
 void Z80TargetLowering::ReplaceNodeResults(SDNode *N,
@@ -266,7 +283,7 @@ SDValue Z80TargetLowering::LowerAddSub(SDValue Op, SelectionDAG &DAG) const {
   unsigned Opc = Op.getOpcode();
   EVT VT = Op.getValueType();
   SDValue LHS = Op.getOperand(0), RHS = Op.getOperand(1);
-  ConstantSDNode *ConstLHS = dyn_cast<ConstantSDNode>(RHS);
+  ConstantSDNode *ConstLHS = dyn_cast<ConstantSDNode>(LHS);
   bool OptSize = DAG.getMachineFunction().getFunction()->getAttributes()
     .hasAttribute(AttributeSet::FunctionIndex, Attribute::OptimizeForSize);
   if (OptSize && Opc == ISD::SUB && VT.bitsGT(MVT::i8) && ConstLHS &&
@@ -295,25 +312,19 @@ SDValue Z80TargetLowering::LowerBitwise(SDValue Op, SelectionDAG &DAG) const {
     return DAG.getNode(ISD::ADD, DL, VT, LHS, RHS);
   }
   if (VT == MVT::i16) {
-    SDValue RHSLo, RHSHi;
+    SDValue RHSHi, RHSLo;
     if (ConstRHS) {
-      RHSLo = DAG.getConstant(ConstRHS->getZExtValue() & 0xFF, DL, MVT::i8);
       RHSHi = DAG.getConstant(ConstRHS->getZExtValue() >> 8, DL, MVT::i8);
+      RHSLo = DAG.getConstant(ConstRHS->getZExtValue() & 0xFF, DL, MVT::i8);
     } else {
-      RHSLo = DAG.getTargetExtractSubreg(Z80::sub_low, DL, MVT::i8, RHS);
       RHSHi = DAG.getTargetExtractSubreg(Z80::sub_high, DL, MVT::i8, RHS);
+      RHSLo = DAG.getTargetExtractSubreg(Z80::sub_low, DL, MVT::i8, RHS);
     }
-    SDValue LHSLo = DAG.getTargetExtractSubreg(Z80::sub_low, DL, MVT::i8, LHS);
-    SDValue ResLo = DAG.getNode(Opc, DL, MVT::i8, LHSLo, RHSLo);
     SDValue LHSHi = DAG.getTargetExtractSubreg(Z80::sub_high, DL, MVT::i8, LHS);
     SDValue ResHi = DAG.getNode(Opc, DL, MVT::i8, LHSHi, RHSHi);
-    SDValue OutOps[] = {
-      DAG.getTargetConstant(Z80::G16RegClassID, DL, MVT::i32),
-      ResLo, DAG.getTargetConstant(Z80::sub_low, DL, MVT::i32),
-      ResHi, DAG.getTargetConstant(Z80::sub_high, DL, MVT::i32)
-    };
-    SDNode *Res = DAG.getMachineNode(TargetOpcode::REG_SEQUENCE, DL, MVT::i16, OutOps);
-    return SDValue(Res, 0);
+    SDValue LHSLo = DAG.getTargetExtractSubreg(Z80::sub_low, DL, MVT::i8, LHS);
+    SDValue ResLo = DAG.getNode(Opc, DL, MVT::i8, LHSLo, RHSLo);
+    return EmitPair(DL, ResHi, ResLo, DAG);
   }
   return SDValue();
 }
@@ -321,23 +332,61 @@ SDValue Z80TargetLowering::LowerBitwise(SDValue Op, SelectionDAG &DAG) const {
 SDValue Z80TargetLowering::LowerShift(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
   unsigned Opc = Op.getOpcode();
+  assert((Opc == ISD::SHL || Opc == ISD::SRL || Opc == ISD::SRA ||
+          Opc == ISD::ROTL || Opc == ISD::ROTR) &&
+         "Unexpected opcode!");
   EVT VT = Op.getValueType();
+  assert((VT == MVT::i8 || (Opc != ISD::ROTL && Opc != ISD::ROTR)) &&
+         "Unsupported operation!");
+  bool Is24Bit = Subtarget.is24Bit();
+  bool OptSize = DAG.getMachineFunction().getFunction()->getAttributes()
+    .hasAttribute(AttributeSet::FunctionIndex, Attribute::OptimizeForSize);
   if (ConstantSDNode *Shift = dyn_cast<ConstantSDNode>(Op.getOperand(1))) {
     unsigned Amt = Shift->getZExtValue();
     SDValue Val = Op->getOperand(0);
-    if (VT == MVT::i16) {
-      if (Amt >= 8) {
-        if (Opc == ISD::SHL) {
-          Val = DAG.getNode(ISD::TRUNCATE, DL, MVT::i8, Val);
-          Val = DAG.getTargetInsertSubreg(Z80::sub_high, DL, VT,
-                                          DAG.getConstant(0, DL, VT), Val);
-        } else {
-          Val = DAG.getTargetExtractSubreg(Z80::sub_high, DL, MVT::i8, Val);
-          Val = DAG.getNode(Opc == ISD::SRL ? ISD::ZERO_EXTEND
-                                            : ISD::SIGN_EXTEND, DL, VT, Val);
-        }
-        return DAG.getNode(Opc, DL, VT, Val, DAG.getConstant(Amt - 8, DL, VT));
+    switch (VT.getSizeInBits()) {
+    case 8:
+      if (Amt >= 4 && (Opc == ISD::ROTL || Opc == ISD::ROTR)) {
+        Opc = Opc == ISD::ROTL ? ISD::ROTR : ISD::ROTL;
+        Amt = 8 - Amt;
       }
+      if (OptSize && Amt > 2 + Is24Bit)
+        break;
+      switch (Opc) {
+      default: llvm_unreachable("Unexpected opcode!");
+      case ISD::SHL: Opc = Z80ISD::SLA; break;
+      case ISD::SRA: Opc = Z80ISD::SRA; break;
+      case ISD::SRL: Opc = Z80ISD::SRL; break;
+      case ISD::ROTL: Opc = Z80ISD::RLC; break;
+      case ISD::ROTR: Opc = Z80ISD::RRC; break;
+      }
+      while (Amt--)
+        Val = DAG.getNode(Opc, DL, DAG.getVTList(MVT::i8, MVT::i8), Val);
+      return Val;
+    case 16:
+      if (Amt >= 8) {
+        Val = DAG.getTargetExtractSubreg(
+            Opc == ISD::SHL ? Z80::sub_low : Z80::sub_high, DL, MVT::i8, Val);
+        Val = DAG.getNode(Opc, DL, MVT::i8, Val,
+                          DAG.getConstant(Amt - 8, DL, MVT::i8));
+        if (Opc == ISD::SHL)
+          return EmitPair(DL, Val, DAG.getConstant(0, DL, MVT::i8), DAG);
+        return DAG.getNode(Opc == ISD::SRL ? ISD::ZERO_EXTEND
+                                           : ISD::SIGN_EXTEND, DL, VT, Val);
+      }
+      LLVM_FALLTHROUGH;
+    case 24:
+      if (Opc == ISD::SHL) {
+        if (OptSize && Amt > 5 + Is24Bit)
+          break;
+        MVT PtrVT = getPointerTy(DAG.getDataLayout());
+        Val = DAG.getNode(ISD::ANY_EXTEND, DL, PtrVT, Val);
+        while (Amt--)
+          Val = DAG.getNode(Z80ISD::ADD, DL,
+                            DAG.getVTList(PtrVT, MVT::i8), Val, Val);
+        return DAG.getNode(ISD::TRUNCATE, DL, VT, Val);
+      }
+      break;
     }
   }
   return SDValue();
@@ -476,7 +525,9 @@ SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::XOR:         return LowerBitwise(Op, DAG);
   case ISD::SHL:
   case ISD::SRA:
-  case ISD::SRL:         return LowerShift(Op, DAG);
+  case ISD::SRL:
+  case ISD::ROTL:
+  case ISD::ROTR:        return LowerShift(Op, DAG);
   case ISD::SIGN_EXTEND: return LowerSignExtend(Op, DAG);
   case ISD::MUL:         return LowerMul(Op, DAG);
   case ISD::LOAD:        return LowerLoad(cast<LoadSDNode>(Op.getNode()), DAG);
@@ -1703,7 +1754,6 @@ SDValue Z80TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   // Get a count of how many bytes are to be pushed on the stack.
   unsigned NumBytes = CCInfo.getAlignedCallFrameSize();
   MVT PtrVT = getPointerTy(DAG.getDataLayout());
-  unsigned PtrBits = PtrVT.getStoreSize();
 
   if (!IsTailCall)
     Chain = DAG.getCALLSEQ_START(
@@ -2062,8 +2112,6 @@ SDValue Z80TargetLowering::LowerFormalArguments(
     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
   MachineFunction &MF = DAG.getMachineFunction();
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  bool Is24Bit = Subtarget.is24Bit();
-
   assert(!IsVarArg && "Var args not supported yet");
 
   // Assign locations to all of the incoming arguments.

@@ -212,6 +212,8 @@ public:
                      SelectionDAG &DAG) const;
   SDValue EmitNegate(const SDLoc &DL, SDValue Op, SelectionDAG &DAG) const;
   SDValue EmitFlipSign(const SDLoc &DL, SDValue Op, SelectionDAG &DAG) const;
+  SDValue EmitPair(const SDLoc &DL, SDValue Hi, SDValue Lo,
+                   SelectionDAG &DAG) const;
   // Legalize Helpers
   SDValue EmitCmp(SDValue LHS, SDValue RHS, SDValue &TargetCC,
                   ISD::CondCode CC, const SDLoc &DL, SelectionDAG &DAG) const;
