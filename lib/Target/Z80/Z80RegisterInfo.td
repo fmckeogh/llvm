@@ -27,8 +27,6 @@ let Namespace = "Z80" in {
   def sub_low   : SubRegIndex<8>;
   def sub_high  : SubRegIndex<8, 8>;
   def sub_short : SubRegIndex<16>;
-  def sub_long  : SubRegIndex<24>;
-  def sub_top   : SubRegIndex<8, 24>;
 }
 
 //===----------------------------------------------------------------------===//
@@ -81,67 +79,6 @@ def UIY : Z80RegWithSubRegs<"iy", [IY], 2>;
 def SPL : Z80Reg<"sp", 3>;
 def PC  : Z80Reg<"pc">;
 
-let SubRegIndices = [sub_top, sub_long], CoveredBySubRegs = 1 in {
-// 32-bit pseudo registers
-// 
-def   AUBC : Z80RegWithSubRegs<"", [  A,UBC]>;
-def   AUDE : Z80RegWithSubRegs<"", [  A,UDE]>;
-def   AUHL : Z80RegWithSubRegs<"", [  A,UHL]>;
-def   AUIX : Z80RegWithSubRegs<"", [  A,UIX]>;
-def   AUIY : Z80RegWithSubRegs<"", [  A,UIY]>;
-def   ASPL : Z80RegWithSubRegs<"", [  A,SPL]>;
-def   BUDE : Z80RegWithSubRegs<"", [  B,UDE]>;
-def   BUHL : Z80RegWithSubRegs<"", [  B,UHL]>;
-def   BUIX : Z80RegWithSubRegs<"", [  B,UIX]>;
-def   BUIY : Z80RegWithSubRegs<"", [  B,UIY]>;
-def   BSPL : Z80RegWithSubRegs<"", [  B,SPL]>;
-def   CUDE : Z80RegWithSubRegs<"", [  C,UDE]>;
-def   CUHL : Z80RegWithSubRegs<"", [  C,UHL]>;
-def   CUIX : Z80RegWithSubRegs<"", [  C,UIX]>;
-def   CUIY : Z80RegWithSubRegs<"", [  C,UIY]>;
-def   CSPL : Z80RegWithSubRegs<"", [  C,SPL]>;
-def   DUBC : Z80RegWithSubRegs<"", [  D,UBC]>;
-def   DUHL : Z80RegWithSubRegs<"", [  D,UHL]>;
-def   DUIX : Z80RegWithSubRegs<"", [  D,UIX]>;
-def   DUIY : Z80RegWithSubRegs<"", [  D,UIY]>;
-def   DSPL : Z80RegWithSubRegs<"", [  D,SPL]>;
-def   EUBC : Z80RegWithSubRegs<"", [  E,UBC]>;
-def   EUHL : Z80RegWithSubRegs<"", [  E,UHL]>;
-def   EUIX : Z80RegWithSubRegs<"", [  E,UIX]>;
-def   EUIY : Z80RegWithSubRegs<"", [  E,UIY]>;
-def   ESPL : Z80RegWithSubRegs<"", [  E,SPL]>;
-def   HUBC : Z80RegWithSubRegs<"", [  H,UBC]>;
-def   HUDE : Z80RegWithSubRegs<"", [  H,UDE]>;
-def   HUIX : Z80RegWithSubRegs<"", [  H,UIX]>;
-def   HUIY : Z80RegWithSubRegs<"", [  H,UIY]>;
-def   HSPL : Z80RegWithSubRegs<"", [  H,SPL]>;
-def   LUBC : Z80RegWithSubRegs<"", [  L,UBC]>;
-def   LUDE : Z80RegWithSubRegs<"", [  L,UDE]>;
-def   LUIX : Z80RegWithSubRegs<"", [  L,UIX]>;
-def   LUIY : Z80RegWithSubRegs<"", [  L,UIY]>;
-def   LSPL : Z80RegWithSubRegs<"", [  L,SPL]>;
-def IXHUBC : Z80RegWithSubRegs<"", [IXH,UBC]>;
-def IXHUDE : Z80RegWithSubRegs<"", [IXH,UDE]>;
-def IXHUHL : Z80RegWithSubRegs<"", [IXH,UHL]>;
-def IXHUIY : Z80RegWithSubRegs<"", [IXH,UIY]>;
-def IXHSPL : Z80RegWithSubRegs<"", [IXH,SPL]>;
-def IXLUBC : Z80RegWithSubRegs<"", [IXL,UBC]>;
-def IXLUDE : Z80RegWithSubRegs<"", [IXL,UDE]>;
-def IXLUHL : Z80RegWithSubRegs<"", [IXL,UHL]>;
-def IXLUIY : Z80RegWithSubRegs<"", [IXL,UIY]>;
-def IXLSPL : Z80RegWithSubRegs<"", [IXL,SPL]>;
-def IYHUBC : Z80RegWithSubRegs<"", [IYH,UBC]>;
-def IYHUDE : Z80RegWithSubRegs<"", [IYH,UDE]>;
-def IYHUHL : Z80RegWithSubRegs<"", [IYH,UHL]>;
-def IYHUIX : Z80RegWithSubRegs<"", [IYH,UIX]>;
-def IYHSPL : Z80RegWithSubRegs<"", [IYH,SPL]>;
-def IYLUBC : Z80RegWithSubRegs<"", [IYL,UBC]>;
-def IYLUDE : Z80RegWithSubRegs<"", [IYL,UDE]>;
-def IYLUHL : Z80RegWithSubRegs<"", [IYL,UHL]>;
-def IYLUIX : Z80RegWithSubRegs<"", [IYL,UIX]>;
-def IYLSPL : Z80RegWithSubRegs<"", [IYL,SPL]>;
-}
-
 //===----------------------------------------------------------------------===//
 //  Register Class Definitions...
 //
@@ -188,16 +125,3 @@ def S24 : Z80RC24<(add R24, AF)>;
 //def R24 : Z80RC24<(add L24, SPL)>;
 //def S24 : Z80RC24<(add L24, AF)>;
 def C24 : Z80RC24<(add R24, SPL)>;
-
-def A32 : Z80RC32<(add AUHL, AUIX, AUIY)>;
-def R32 : Z80RC32<(add AUHL, CUHL, BUHL, EUHL, DUHL,
-                       AUDE, CUDE, BUDE, LUDE, HUDE,
-                       AUBC, EUBC, DUBC, LUBC, HUBC,
-                       AUIY, CUIY, BUIY, EUIY, DUIY, LUIY, HUIY,
-                       AUIX, CUIX, BUIX, EUIX, DUIX, LUIX, HUIX,
-                       IYLUHL, IYHUHL, IXLUHL, IXHUHL,
-                       IYLUDE, IYHUDE, IXLUDE, IXHUDE,
-                       IYLUBC, IYHUBC, IXLUBC, IXHUBC,
-                       IYLUIX, IYHUIX, IXLUIY, IXHUIY,
-                       ASPL, CSPL, BSPL, ESPL, DSPL, LSPL, HSPL,
-                       IYLSPL, IYHSPL, IXLSPL, IXHSPL)>;

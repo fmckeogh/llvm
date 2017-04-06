@@ -265,16 +265,6 @@ bool Z80::splitReg(
     LoIdx = HiIdx = Z80::NoSubRegister;
     HiOff = 0;
     return false;
-//case 4:
-//  // Legalization should have taken care of this if we don't have eZ80 ops
-//  assert(HasEZ80Ops() && "Need eZ80 word load/store");
-//  RC = Z80::R32RegClassID;
-//  LoOpc = Opc24;
-//  HiOpc = Opc8;
-//  LoIdx = Z80::sub_long;
-//  HiIdx = Z80::sub_top;
-//  HiOff = 3;
-//  return true;
   }
 }
 
@@ -299,12 +289,8 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
                     std::make_pair(SrcReg, &DstReg)}) {
     if (Z80::R8RegClass.contains(Regs.first) &&
         (Z80::R16RegClass.contains(*Regs.second) ||
-         Z80::R24RegClass.contains(*Regs.second) ||
-         Z80::R32RegClass.contains(*Regs.second)))
+         Z80::R24RegClass.contains(*Regs.second)))
       *Regs.second = RI.getSubReg(*Regs.second, Z80::sub_low);
-    else if (Z80::R24RegClass.contains(Regs.first) &&
-             Z80::R32RegClass.contains(*Regs.second))
-      *Regs.second = RI.getSubReg(*Regs.second, Z80::sub_long);
   }*/
   // Identity copy.
   if (DstReg == SrcReg)
@@ -447,12 +433,10 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
   // Otherwise, implement as two copies. A 16-bit copy should copy high and low
-  // 8 bits separately. A 32-bit copy should copy high 8 bits and low 24 bits.
-  bool Is32Bit = Z80::R32RegClass.contains(DstReg, SrcReg);
-  assert((Is32Bit || Z80::R16RegClass.contains(DstReg, SrcReg)) &&
-         "Unknown copy width");
-  unsigned SubLo = Is32Bit ? Z80::sub_long : Z80::sub_low;
-  unsigned SubHi = Is32Bit ? Z80::sub_top : Z80::sub_high;
+  // 8 bits separately.
+  assert(Z80::R16RegClass.contains(DstReg, SrcReg) && "Unknown copy width");
+  unsigned SubLo = Z80::sub_low;
+  unsigned SubHi = Z80::sub_high;
   unsigned DstLoReg = RI.getSubReg(DstReg, SubLo);
   unsigned SrcLoReg = RI.getSubReg(SrcReg, SubLo);
   unsigned DstHiReg = RI.getSubReg(DstReg, SubHi);

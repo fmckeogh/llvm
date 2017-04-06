@@ -227,9 +227,7 @@ public:
                   ISD::CondCode CC, const SDLoc &DL, SelectionDAG &DAG) const;
 
   SDValue LowerAddSubNew(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerAddSubOld(SDValue Op, SelectionDAG &DAG) const;
 
-  SDValue LowerADDSUB(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSHL(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSHR(bool Signed, SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerMUL(SDValue Op, SelectionDAG &DAG) const;

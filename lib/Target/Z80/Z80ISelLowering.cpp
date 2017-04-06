@@ -34,10 +34,8 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   // Set up the register classes.
   addRegisterClass(MVT::i8, &Z80::R8RegClass);
   addRegisterClass(MVT::i16, &Z80::R16RegClass);
-  if (Is24Bit) {
+  if (Is24Bit)
     addRegisterClass(MVT::i24, &Z80::R24RegClass);
-    //addRegisterClass(MVT::i32, &Z80::R24RegClass);
-  }
   for (unsigned Opc : { ISD::ROTL, ISD::ROTR })
     setOperationAction(Opc, MVT::i8, Custom);
   for (MVT VT : { MVT::i16, MVT::i24, MVT::i32 }) {
@@ -83,10 +81,6 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
     setOperationAction(ISD::LOAD, MVT::i16, Custom);
   if (!HasEZ80Ops || Is24Bit)
     setOperationAction(ISD::STORE, MVT::i16, Custom);
-  if (Is24Bit) {
-    //setOperationAction(ISD::LOAD, MVT::i32, Custom);
-    //setOperationAction(ISD::STORE, MVT::i32, Custom);
-  }
   if (Is24Bit)
     setLoadExtAction(ISD::EXTLOAD, MVT::i24, MVT::i16, Custom);
   setOperationAction(ISD::DYNAMIC_STACKALLOC, PtrVT, Expand);
@@ -728,127 +722,6 @@ SDValue Z80TargetLowering::LowerAddSubNew(SDValue Op, SelectionDAG &DAG) const {
   Ops[1] = ResHi.getValue(1);
   return DAG.getMergeValues(makeArrayRef(Ops, 2), DL);
 }
-SDValue Z80TargetLowering::LowerAddSubOld(SDValue Op, SelectionDAG &DAG) const {
-  if (Op.getValueType() != MVT::i32 || !Subtarget.is24Bit())
-    return Op;
-  unsigned OpcC, OpcE;
-  MVT GlueVT;
-  switch (Op.getOpcode()) {
-  default: llvm_unreachable("Unexpected opcode");
-  case ISD::ADD:
-  case ISD::ADDC:
-    OpcC = ISD::ADDC;
-    OpcE = ISD::ADDE;
-    GlueVT = MVT::Glue;
-    break;
-  case ISD::ADDE:
-    OpcC = OpcE = ISD::ADDE;
-    GlueVT = MVT::Glue;
-    break;
-  case ISD::SUB:
-  case ISD::SUBC:
-    OpcC = ISD::SUBC;
-    OpcE = ISD::SUBE;
-    GlueVT = MVT::Glue;
-    break;
-  case ISD::SUBE:
-    OpcC = OpcE = ISD::SUBE;
-    GlueVT = MVT::Glue;
-    break;
-  case Z80ISD::ADD:
-    OpcC = Z80ISD::ADD;
-    OpcE = Z80ISD::ADC;
-    GlueVT = MVT::i8;
-    break;
-  case Z80ISD::ADC:
-    OpcC = OpcE = Z80ISD::ADC;
-    GlueVT = MVT::i8;
-    break;
-  case Z80ISD::SUB:
-    OpcC = Z80ISD::SUB;
-    OpcE = Z80ISD::SBC;
-    GlueVT = MVT::i8;
-    break;
-  case Z80ISD::SBC:
-    OpcC = OpcE = Z80ISD::SBC;
-    GlueVT = MVT::i8;
-    break;
-  }
-  SDLoc DL(Op);
-  SDValue Ops[3];
-  unsigned OpCount;
-  SDValue LHS = Op.getOperand(0), RHS = Op.getOperand(1);
-  SDValue LHSLo = EmitExtractSubreg(Z80::sub_long, DL, LHS, DAG);
-  SDValue RHSLo = EmitExtractSubreg(Z80::sub_long, DL, RHS, DAG);
-  SDValue LHSHi = EmitExtractSubreg(Z80::sub_top,  DL, LHS, DAG);
-  SDValue RHSHi = EmitExtractSubreg(Z80::sub_top,  DL, RHS, DAG);
-  Ops[0] = LHSLo;
-  Ops[1] = RHSLo;
-  OpCount = 2;
-  if (OpcC == OpcE) {
-    Ops[2] = Op.getOperand(2);
-    OpCount = 3;
-  }
-  SDValue ResLo = DAG.getNode(OpcC, DL, DAG.getVTList(MVT::i24, GlueVT),
-                              makeArrayRef(Ops, OpCount));
-  SDValue ResHi = DAG.getNode(OpcE, DL, DAG.getVTList(MVT::i8, GlueVT),
-                              LHSHi, RHSHi, ResLo.getValue(1));
-  Ops[1] = ResHi.getValue(1);
-  ResLo = EmitInsertSubreg(Z80::sub_long, DL, MVT::i32, ResLo, DAG);
-  ResHi = EmitInsertSubreg(Z80::sub_top,  DL, MVT::i32, ResHi, DAG);
-  Ops[0] = DAG.getNode(ISD::OR, DL, MVT::i32, ResLo, ResHi);
-  return DAG.getMergeValues(makeArrayRef(Ops, 2), DL);
-}
-
-SDValue Z80TargetLowering::LowerADDSUB(SDValue Op, SelectionDAG &DAG) const {
-  SDLoc DL(Op);
-  SDValue L = Op.getOperand(0);
-  SDValue R = Op.getOperand(1);
-  /*if (Op.getValueType() != MVT::i32) {
-    assert(Op.getValueType() == MVT::i16 ||
-           Op.getValueType() == MVT::i24);
-    switch (Op.getOpcode()) {
-    default: llvm_unreachable("Can only handle adds/subs");
-    case ISD::ADD:
-    case ISD::SUB:
-      asm("int3");
-      unsigned Opc = Op.getOpcode() == ISD::ADD ? ISD::ADDE : ISD::SUBE;
-      return DAG.getNode(Opc, DL, DAG.getVTList(Op.getValueType(), MVT::Glue),
-                         L, R, DAG.getNode(ISD::CARRY_FALSE, DL, MVT::Glue));
-    }
-  }*/
-  assert(Op.getValueType() == MVT::i32 && "Unexpected type");
-  unsigned OpC, OpE;
-  switch (Op.getOpcode()) {
-  default: llvm_unreachable("Can only handle adds/subs");
-  case ISD::ADD: case ISD::ADDC: OpC = ISD::ADDC; OpE = ISD::ADDE; break;
-  case ISD::ADDE: OpC = OpE = ISD::ADDE; break;
-  case ISD::SUB: case ISD::SUBC: OpC = ISD::SUBC; OpE = ISD::SUBE; break;
-  case ISD::SUBE: OpC = OpE = ISD::ADDE; break;
-  case Z80ISD::ADD: OpC = Z80ISD::ADD; OpE = Z80ISD::ADC; break;
-  case Z80ISD::ADC: OpC = OpE = Z80ISD::ADC; break;
-  case Z80ISD::SUB: OpC = Z80ISD::SUB; OpE = Z80ISD::SBC; break;
-  case Z80ISD::SBC: OpC = OpE = Z80ISD::SBC; break;
-  }
-  SDValue LH = EmitExtractSubreg(Z80::sub_top,  DL, L, DAG);
-  SDValue LL = EmitExtractSubreg(Z80::sub_long, DL, L, DAG);
-  SDValue RH = EmitExtractSubreg(Z80::sub_top,  DL, R, DAG);
-  SDValue RL = EmitExtractSubreg(Z80::sub_long, DL, R, DAG);
-  SDValue Ops[3] = { LL, RL };
-  unsigned OpCount = 2;
-  if (OpC == OpE)
-    Ops[OpCount++] = Op.getOperand(2);
-  SDValue Lo = DAG.getNode(OpC, DL, DAG.getVTList(MVT::i24, MVT::Glue),
-                           makeArrayRef(Ops, OpCount));
-  SDValue Hi = DAG.getNode(OpE, DL, DAG.getVTList(MVT::i8,  MVT::Glue),
-                           LH, RH, Lo.getValue(1));
-  SDValue Result = DAG.getUNDEF(MVT::i16);
-  Result = DAG.getTargetInsertSubreg(Z80::sub_long, DL, MVT::i32, Result, Lo);
-  Result = DAG.getTargetInsertSubreg(Z80::sub_top,  DL, MVT::i32, Result, Hi);
-  Ops[0] = Result;
-  Ops[1] = Hi.getValue(1);
-  return DAG.getMergeValues(makeArrayRef(Ops, 2), DL);
-}
 
 SDValue Z80TargetLowering::LowerSHL(SDValue Op, SelectionDAG &DAG) const {
   EVT VT = Op.getValueType();
@@ -991,8 +864,6 @@ SDValue Z80TargetLowering::EmitCMP(SDValue LHS, SDValue RHS, SDValue &TargetCC,
   TargetCC = DAG.getConstant(TCC, DL, MVT::i8);
   SDVTList VTs = DAG.getVTList(VT, MVT::i8);
   SDValue Cmp = DAG.getNode(Opc, DL, VTs, LHS, RHS);
-  if (VT == MVT::i32)
-    Cmp = LowerADDSUB(Cmp, DAG);
   return Cmp.getValue(1);
 }
 
@@ -1778,7 +1649,6 @@ SDValue Z80TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
         default: llvm_unreachable("Unexpected final size");
         case 1: Idx = Z80::sub_low;   break;
         case 2: Idx = Z80::sub_short; break;
-        case 3: Idx = Z80::sub_long;  break;
         }
         Reg = TRI->getSubReg(Reg, Idx);
         Val = DAG.getNode(ISD::ANY_EXTEND, DL, LocVT,
@@ -2043,7 +1913,6 @@ SDValue Z80TargetLowering::LowerReturn(SDValue Chain,
         default: llvm_unreachable("Unexpected final size");
         case 1: Idx = Z80::sub_low;   break;
         case 2: Idx = Z80::sub_short; break;
-        case 3: Idx = Z80::sub_long;  break;
         }
         Reg = TRI->getSubReg(Reg, Idx);
         LocVT = MVT::getIntegerVT(8*RegBytes);
