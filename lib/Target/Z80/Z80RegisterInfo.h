@@ -62,6 +62,20 @@ public:
   /// used by register scaverger to determine what registers are free.
   BitVector getReservedRegs(const MachineFunction &MF) const override;
 
+  bool requiresRegisterScavenging(const MachineFunction &MF) const override {
+    return true;
+  }
+
+  bool requiresFrameIndexScavenging(const MachineFunction &MF) const override {
+    return true;
+  }
+
+  bool saveScavengerRegister(MachineBasicBlock &MBB,
+                             MachineBasicBlock::iterator I,
+                             MachineBasicBlock::iterator &UseMI,
+                             const TargetRegisterClass *RC,
+                             unsigned Reg) const override;
+
   void eliminateFrameIndex(MachineBasicBlock::iterator MI,
                            int SPAdj, unsigned FIOperandNum,
                            RegScavenger *RS = nullptr) const override;

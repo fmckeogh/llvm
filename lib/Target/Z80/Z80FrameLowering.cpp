@@ -19,6 +19,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/RegisterScavenging.h"
 using namespace llvm;
 
 Z80FrameLowering::Z80FrameLowering(const Z80Subtarget &STI)
@@ -293,6 +294,13 @@ bool Z80FrameLowering::restoreCalleeSavedRegisters(
   if (UseShadow)
     shadowCalleeSavedRegisters(MBB, MI, DL, MachineInstr::FrameDestroy, CSI);
   return true;
+}
+
+void Z80FrameLowering::processFunctionBeforeFrameFinalized(
+    MachineFunction &MF, RegScavenger *RS) const {
+  MachineFrameInfo &MFI = MF.getFrameInfo();
+  if (MFI.estimateStackSize(MF) > 0x80)
+    RS->addScavengingFrameIndex(MFI.CreateStackObject(SlotSize, 1, false));
 }
 
 MachineBasicBlock::iterator Z80FrameLowering::

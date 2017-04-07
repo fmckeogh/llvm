@@ -17,6 +17,7 @@
 #include "MCTargetDesc/Z80MCTargetDesc.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/Target/TargetFrameLowering.h"
 using namespace llvm;
@@ -132,12 +133,38 @@ BitVector Z80RegisterInfo::getReservedRegs(const MachineFunction &MF) const {
   return Reserved;
 }
 
+bool Z80RegisterInfo::saveScavengerRegister(MachineBasicBlock &MBB,
+                                            MachineBasicBlock::iterator I,
+                                            MachineBasicBlock::iterator &UseMI,
+                                            const TargetRegisterClass *RC,
+                                            unsigned Reg) const {
+  return false;
+  const Z80Subtarget &STI = MBB.getParent()->getSubtarget<Z80Subtarget>();
+  const TargetInstrInfo &TII = *STI.getInstrInfo();
+  const TargetRegisterInfo *TRI = STI.getRegisterInfo();
+  DebugLoc DL;
+  BuildMI(MBB, I, DL, TII.get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
+    .addReg(Reg);
+  for (MachineBasicBlock::iterator II = I; II != UseMI ; ++II) {
+    if (II->isDebugValue())
+      continue;
+    if (II->modifiesRegister(Reg, TRI))
+      UseMI = II;
+  }
+  BuildMI(MBB, UseMI, DL, TII.get(Is24Bit ? Z80::POP24r : Z80::POP16r), Reg);
+  return true;
+}
+
 void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                           int SPAdj, unsigned FIOperandNum,
                                           RegScavenger *RS) const {
   MachineInstr &MI = *II;
-  MachineFunction &MF = *MI.getParent()->getParent();
+  MachineBasicBlock &MBB = *MI.getParent();
+  MachineFunction &MF = *MBB.getParent();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
   const Z80FrameLowering *TFI = getFrameLowering(MF);
+  DebugLoc DL = MI.getDebugLoc();
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
   unsigned BasePtr = getFrameRegister(MF);
   DEBUG(MF.dump(); II->dump(); dbgs() << MF.getFunction()->arg_size() << '\n');
@@ -151,9 +178,22 @@ void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   if (FrameIndex < 0)
     Offset += SlotSize;
   Offset += MI.getOperand(FIOperandNum + 1).getImm();
+  if (isInt<8>(Offset)) {
+    MI.getOperand(FIOperandNum).ChangeToRegister(BasePtr, false);
+    MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
+    return;
+  }
+  unsigned ScratchReg = MRI.createVirtualRegister(Is24Bit ? &Z80::O24RegClass
+                                                          : &Z80::O16RegClass);
+  BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
+    .addReg(BasePtr);
+  BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri), ScratchReg)
+    .addImm(Offset);
+  BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao), BasePtr)
+    .addReg(BasePtr).addReg(ScratchReg, RegState::Kill);
   MI.getOperand(FIOperandNum).ChangeToRegister(BasePtr, false);
-  MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
-  DEBUG(MI.dump());
+  MI.getOperand(FIOperandNum + 1).ChangeToImmediate(0);
+  BuildMI(MBB, ++II, DL, TII.get(Is24Bit ? Z80::POP24r : Z80::POP16r), BasePtr);
 }
 
 unsigned Z80RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
