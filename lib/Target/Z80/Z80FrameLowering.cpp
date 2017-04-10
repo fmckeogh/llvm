@@ -176,7 +176,8 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
   const TargetRegisterClass *ScratchRC = Is24Bit ? &Z80::A24RegClass
                                                  : &Z80::A16RegClass;
   TargetRegisterClass::iterator ScratchReg = ScratchRC->begin();
-  for (; MI->readsRegister(*ScratchReg, TRI); ++ScratchReg)
+  for (; MI->readsRegister(TRI->getSubReg(*ScratchReg, Z80::sub_low), TRI);
+       ++ScratchReg)
     assert(ScratchReg != ScratchRC->end() &&
            "Could not allocate a scratch register!");
   assert((!hasFP(MF) || *ScratchReg != TRI->getFrameRegister(MF)) &&
