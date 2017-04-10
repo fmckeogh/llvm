@@ -80,6 +80,17 @@ public:
                            int SPAdj, unsigned FIOperandNum,
                            RegScavenger *RS = nullptr) const override;
 
+  // Support for virtual base registers.
+  bool requiresVirtualBaseRegisters(const MachineFunction &MF) const override;
+  bool needsFrameBaseReg(MachineInstr *MI, int64_t Offset) const override;
+  void materializeFrameBaseRegister(MachineBasicBlock *MBB,
+                                    unsigned BaseReg, int FrameIdx,
+                                    int64_t Offset) const override;
+  void resolveFrameIndex(MachineInstr &MI, unsigned BaseReg,
+                         int64_t Offset) const override;
+  bool isFrameOffsetLegal(const MachineInstr *MI, unsigned BaseReg,
+                          int64_t Offset) const override;
+
   // Debug information queries.
   unsigned getFrameRegister(const MachineFunction &MF) const override;
 

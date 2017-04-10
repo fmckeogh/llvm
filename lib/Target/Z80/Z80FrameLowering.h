@@ -58,7 +58,8 @@ private:
   void BuildStackAdjustment(MachineFunction &MF, MachineBasicBlock &MBB,
                             MachineBasicBlock::iterator MBBI, DebugLoc DL,
                             unsigned ScratchReg, int Offset,
-                            int FPOffset = -1) const;
+                            int FPOffset = -1,
+                            bool UnknownOffset = false) const;
 
   void shadowCalleeSavedRegisters(
       MachineBasicBlock &MBB, MachineBasicBlock::iterator MI, DebugLoc DL,

@@ -472,10 +472,14 @@ def EX16DE : SI<NoPre, 0xEB, "ex", "de, hl", "", (outs), (ins)>;
 let Defs = [UDE, UHL], Uses = [UDE, UHL] in
 def EX24DE : LI<NoPre, 0xEB, "ex", "de, hl", "", (outs), (ins)>;
 
-let Defs = [HL], Uses = [HL, SPS] in
-def EX16SP : SI<NoPre, 0xE3, "ex", "(sp), hl", "", (outs), (ins)>;
-let Defs = [UHL], Uses = [UHL, SPL] in
-def EX24SP : LI<NoPre, 0xE3, "ex", "(sp), hl", "", (outs), (ins)>;
+let Constraints = "$imp = $arg" in {
+let Uses = [SPS] in
+def EX16SP : SI<NoPre, 0xE3, "ex", "(sp), $arg", "",
+                (outs A16:$arg), (ins A16:$imp)>;
+let Uses = [SPL] in
+def EX24SP : LI<NoPre, 0xE3, "ex", "(sp), $arg", "",
+                (outs A24:$arg), (ins A24:$imp)>;
+}
 
 let AsmString = "pop\t$dst" in {
 let Uses = [SPS] in
@@ -490,6 +494,11 @@ def PUSH16r : I<0xC5, (outs), (ins S16:$src), [(Z80push S16:$src)]>;
 let Uses = [SPL] in
 def PUSH24r : I<0xC5, (outs), (ins S24:$src), [(Z80push S24:$src)]>;
 }
+
+def PEA16o : SI<EDPre, 0x65, "pea", "$src", "", (outs), (ins off16:$src),
+                [(Z80push offpat:$src)]>, Requires<[In16BitMode, HaveEZ80Ops]>;
+def PEA24o : LI<EDPre, 0x65, "pea", "$src", "", (outs), (ins off24:$src),
+                [(Z80push offpat:$src)]>;
 
 let Defs = [F], isReMaterializable = 1 in {
   def RCF : P;

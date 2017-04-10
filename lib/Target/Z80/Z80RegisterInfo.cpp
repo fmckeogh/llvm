@@ -159,6 +159,7 @@ void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
                                           int SPAdj, unsigned FIOperandNum,
                                           RegScavenger *RS) const {
   MachineInstr &MI = *II;
+  unsigned Opc = MI.getOpcode();
   MachineBasicBlock &MBB = *MI.getParent();
   MachineFunction &MF = *MBB.getParent();
   MachineRegisterInfo &MRI = MF.getRegInfo();
@@ -185,15 +186,35 @@ void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   }
   unsigned ScratchReg = MRI.createVirtualRegister(Is24Bit ? &Z80::O24RegClass
                                                           : &Z80::O16RegClass);
+  if ((Opc == Z80::LEA24ro &&
+       Z80::A24RegClass.contains(MI.getOperand(0).getReg())) ||
+      (Opc == Z80::LEA16ro &&
+       Z80::A16RegClass.contains(MI.getOperand(0).getReg()))) {
+    BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
+            ScratchReg).addImm(Offset);
+    MI.getOperand(FIOperandNum).ChangeToRegister(BasePtr, false);
+    MI.getOperand(FIOperandNum + 1).ChangeToImmediate(0);
+    BuildMI(MBB, ++II, DL, TII.get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao),
+            MI.getOperand(0).getReg()).addReg(MI.getOperand(0).getReg())
+      .addReg(ScratchReg, RegState::Kill);
+    return;
+  }
   BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
     .addReg(BasePtr);
   BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri), ScratchReg)
     .addImm(Offset);
   BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao), BasePtr)
     .addReg(BasePtr).addReg(ScratchReg, RegState::Kill);
-  MI.getOperand(FIOperandNum).ChangeToRegister(BasePtr, false);
-  MI.getOperand(FIOperandNum + 1).ChangeToImmediate(0);
-  BuildMI(MBB, ++II, DL, TII.get(Is24Bit ? Z80::POP24r : Z80::POP16r), BasePtr);
+  if (Opc == Z80::PEA24o || Opc == Z80::PEA16o) {
+    MI.setDesc(TII.get(Opc == Z80::PEA24o ? Z80::EX24SP : Z80::EX16SP));
+    MI.getOperand(0).ChangeToRegister(BasePtr, true);
+    MI.getOperand(1).ChangeToRegister(BasePtr, false);
+    MI.tieOperands(0, 1);
+  } else {
+    MI.getOperand(FIOperandNum).ChangeToRegister(BasePtr, false);
+    MI.getOperand(FIOperandNum + 1).ChangeToImmediate(0);
+    BuildMI(MBB, ++II, DL, TII.get(Is24Bit ? Z80::POP24r : Z80::POP16r), BasePtr);
+  }
 }
 
 unsigned Z80RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
@@ -216,4 +237,53 @@ bool Z80RegisterInfo::shouldCoalesce(MachineInstr *MI,
         << (DstSubReg ? TRI.getSubRegIndexName(DstSubReg) : "") << ' '
         << TRI.getRegClassName(NewRC) << '\n');
   return true;
+}
+
+bool Z80RegisterInfo::
+requiresVirtualBaseRegisters(const MachineFunction &MF) const {
+  return true;
+}
+bool Z80RegisterInfo::needsFrameBaseReg(MachineInstr *MI,
+                                        int64_t Offset) const {
+  const MachineFunction &MF = *MI->getParent()->getParent();
+  return !isFrameOffsetLegal(MI, getFrameRegister(MF), Offset);
+}
+void Z80RegisterInfo::
+materializeFrameBaseRegister(MachineBasicBlock *MBB, unsigned BaseReg,
+                             int FrameIdx, int64_t Offset) const {
+  MachineFunction &MF = *MBB->getParent();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
+  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  MachineBasicBlock::iterator II = MBB->begin();
+  DebugLoc DL = MBB->findDebugLoc(II);
+  MRI.setRegClass(BaseReg, Is24Bit ? &Z80::I24RegClass : &Z80::I16RegClass);
+  BuildMI(*MBB, II, DL, TII.get(Is24Bit ? Z80::LEA24ro : Z80::LEA16ro), BaseReg)
+    .addFrameIndex(FrameIdx).addImm(Offset);
+  return;
+  unsigned CopyReg = MRI.createVirtualRegister(Is24Bit ? &Z80::I24RegClass
+                                                       : &Z80::I16RegClass);
+  unsigned OffsetReg = MRI.createVirtualRegister(Is24Bit ? &Z80::O24RegClass
+                                                         : &Z80::O16RegClass);
+  BuildMI(*MBB, II, DL, TII.get(TargetOpcode::COPY), CopyReg)
+    .addReg(getFrameRegister(MF));
+  BuildMI(*MBB, II, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
+          OffsetReg).addImm(Offset);
+  BuildMI(*MBB, II, DL, TII.get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao), BaseReg)
+    .addReg(CopyReg).addReg(OffsetReg);
+}
+void Z80RegisterInfo::resolveFrameIndex(MachineInstr &MI, unsigned BaseReg,
+                                        int64_t Offset) const {
+  unsigned FIOperandNum = 0;
+  while (!MI.getOperand(FIOperandNum).isFI()) {
+    FIOperandNum++;
+    assert(FIOperandNum < MI.getNumOperands() && "Expected a frame index");
+  }
+  MI.getOperand(FIOperandNum).ChangeToRegister(BaseReg, false);
+  MI.getOperand(FIOperandNum + 1).ChangeToImmediate(
+      MI.getOperand(FIOperandNum + 1).getImm() + Offset);
+}
+bool Z80RegisterInfo::isFrameOffsetLegal(const MachineInstr *MI,
+                                         unsigned BaseReg,
+                                         int64_t Offset) const {
+  return isInt<8>(Offset);
 }

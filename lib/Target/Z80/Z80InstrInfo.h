@@ -66,6 +66,8 @@ public:
   ///
   const Z80RegisterInfo &getRegisterInfo() const { return RI; }
 
+  int getSPAdjust(const MachineInstr &MI) const override;
+
   // Branch analysis.
   bool isUnpredicatedTerminator(const MachineInstr &MI) const override;
   bool analyzeBranch(MachineBasicBlock &MBB, MachineBasicBlock *&TBB,

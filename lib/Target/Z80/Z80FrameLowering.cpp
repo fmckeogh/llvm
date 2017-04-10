@@ -40,35 +40,35 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
                                             MachineBasicBlock &MBB,
                                             MachineBasicBlock::iterator MI,
                                             DebugLoc DL, unsigned ScratchReg,
-                                            int Offset, int FPOffset) const {
+                                            int Offset, int FPOffset,
+                                            bool UnknownOffset) const {
   if (!Offset)
     return;
 
-  bool OptSize = MF.getFunction()->getAttributes()
-    .hasAttribute(AttributeSet::FunctionIndex, Attribute::OptimizeForSize);
-  uint32_t WordSize = Is24Bit ? 3 : 2;
-
   // Optimal if we are trying to set SP = FP
   //   LD SP, FP
-  if (FPOffset >= 0 && FPOffset + Offset == 0) {
+  if (UnknownOffset || (FPOffset >= 0 && FPOffset + Offset == 0)) {
     assert(hasFP(MF) && "This function doesn't have a frame pointer");
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24SP : Z80::LD16SP))
       .addReg(TRI->getFrameRegister(MF));
     return;
   }
 
+  bool OptSize = MF.getFunction()->getAttributes()
+    .hasAttribute(AttributeSet::FunctionIndex, Attribute::OptimizeForSize);
+
   // Optimal for small offsets
-  //   POP/PUSH HL for every WordSize bytes
+  //   POP/PUSH HL for every SlotSize bytes
   unsigned SmallCost = OptSize ? 1 : Is24Bit ? 4 : Offset >= 0 ? 10 : 11;
-  uint32_t PopPushCount = std::abs(Offset) / WordSize;
+  uint32_t PopPushCount = std::abs(Offset) / SlotSize;
   SmallCost *= PopPushCount;
   //   INC/DEC SP for remaining bytes
-  uint32_t IncDecCount = std::abs(Offset) % WordSize;
+  uint32_t IncDecCount = std::abs(Offset) % SlotSize;
   SmallCost += (OptSize || Is24Bit ? 1 : 6) * IncDecCount;
 
   // Optimal for large offsets
   //   LD HL, Offset
-  unsigned LargeCost = OptSize || Is24Bit ? 1 + WordSize : 10;
+  unsigned LargeCost = OptSize || Is24Bit ? 1 + SlotSize : 10;
   //   ADD HL, SP
   LargeCost += OptSize || Is24Bit ? 1 : 11;
   //   LD SP, HL
@@ -88,7 +88,8 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
                                                           : Z80::POP16r)
                                                : (Is24Bit ? Z80::PUSH24r
                                                           : Z80::PUSH16r)))
-        .addReg(ScratchReg, getDefRegState(Offset >= 0) | RegState::Undef);
+        .addReg(ScratchReg, getDefRegState(Offset >= 0) |
+                getDeadRegState(Offset >= 0) | getUndefRegState(Offset < 0));
     unsigned StackReg = Is24Bit ? Z80::SPL : Z80::SPS;
     while (IncDecCount--)
       BuildMI(MBB, MI, DL, TII.get(Offset >= 0 ? (Is24Bit ? Z80::INC24r
@@ -172,6 +173,16 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
   MachineFrameInfo &MFI = MF.getFrameInfo();
   int StackSize = int(MFI.getStackSize());
 
+  const TargetRegisterClass *ScratchRC = Is24Bit ? &Z80::A24RegClass
+                                                 : &Z80::A16RegClass;
+  TargetRegisterClass::iterator ScratchReg = ScratchRC->begin();
+  for (; MI->readsRegister(*ScratchReg, TRI); ++ScratchReg)
+    assert(ScratchReg != ScratchRC->end() &&
+           "Could not allocate a scratch register!");
+  assert((!hasFP(MF) || *ScratchReg != TRI->getFrameRegister(MF)) &&
+         "Cannot allocate fp as scratch register!");
+
+  // skip callee-saved restores
   while (MI != MBB.begin()) {
     MachineBasicBlock::iterator PI = std::prev(MI);
     unsigned Opc = PI->getOpcode();
@@ -181,22 +192,47 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
       StackSize -= SlotSize;
     else if (Opc == Z80::EXX)
       StackSize -= SlotSize * 3;
+    else
+      llvm_unreachable("Unknown frame destroy opcode!");
     --MI;
   }
 
-  if (hasFP(MF)) {
-    unsigned FrameReg = TRI->getFrameRegister(MF);
-    if (StackSize || MFI.hasVarSizedObjects())
-      BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24SP : Z80::LD16SP))
-        .addReg(FrameReg);
-    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::POP24r : Z80::POP16r),
-            FrameReg);
-  } else {
-    assert(!MFI.hasVarSizedObjects() &&
-           "Can't use StackSize with var sized objects!");
-    unsigned ScratchReg = Is24Bit ? Z80::UIY : Z80::IY;
-    BuildStackAdjustment(MF, MBB, MI, DL, ScratchReg, StackSize, -StackSize);
+  // consume stack adjustment
+  while (MI != MBB.begin()) {
+    MachineBasicBlock::iterator PI = std::prev(MI);
+    unsigned Opc = PI->getOpcode();
+    if ((Opc == Z80::POP24r || Opc == Z80::POP16r) &&
+        PI->getOperand(0).isDead()) {
+      StackSize += SlotSize;
+    } else if (Opc == Z80::LD24SP || Opc == Z80::LD16SP) {
+      bool Is24Bit = Opc == Z80::LD24SP;
+      unsigned Reg = PI->getOperand(0).getReg();
+      if (PI == MBB.begin())
+        break;
+      MachineBasicBlock::iterator AI = std::prev(PI);
+      Opc = AI->getOpcode();
+      if (AI == MBB.begin() || Opc != (Is24Bit ? Z80::ADD24SP : Z80::ADD16SP) ||
+          AI->getOperand(0).getReg() != Reg ||
+          AI->getOperand(1).getReg() != Reg)
+        break;
+      MachineBasicBlock::iterator LI = std::prev(AI);
+      Opc = LI->getOpcode();
+      if (Opc != (Is24Bit ? Z80::LD24ri : Z80::LD16ri) ||
+          LI->getOperand(0).getReg() != Reg)
+        break;
+      StackSize += LI->getOperand(1).getImm();
+      LI->removeFromParent();
+      AI->removeFromParent();
+    } else
+      break;
+    PI->removeFromParent();
   }
+
+  BuildStackAdjustment(MF, MBB, MI, DL, *ScratchReg, StackSize, -StackSize,
+                       MFI.hasVarSizedObjects());
+  if (hasFP(MF))
+    BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::POP24r : Z80::POP16r),
+            TRI->getFrameRegister(MF));
 }
 
 // Only non-nested non-nmi interrupts can use shadow registers.
@@ -299,6 +335,7 @@ bool Z80FrameLowering::restoreCalleeSavedRegisters(
 void Z80FrameLowering::processFunctionBeforeFrameFinalized(
     MachineFunction &MF, RegScavenger *RS) const {
   MachineFrameInfo &MFI = MF.getFrameInfo();
+  MFI.setMaxCallFrameSize(0); // call frames are not implemented atm
   if (MFI.estimateStackSize(MF) > 0x80)
     RS->addScavengingFrameIndex(MFI.CreateStackObject(SlotSize, 1, false));
 }

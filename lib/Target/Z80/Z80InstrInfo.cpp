@@ -37,6 +37,16 @@ Z80InstrInfo::Z80InstrInfo(Z80Subtarget &STI)
       Subtarget(STI), RI(STI.getTargetTriple()) {
 }
 
+int Z80InstrInfo::getSPAdjust(const MachineInstr &MI) const {
+  switch (MI.getOpcode()) {
+  case Z80::POP16r: return 2;
+  case Z80::POP24r: return 3;
+  case Z80::PUSH16r: return -2;
+  case Z80::PUSH24r: return -3;
+  }
+  return TargetInstrInfo::getSPAdjust(MI);
+}
+
 /// Return the inverse of the specified condition,
 /// e.g. turning COND_E to COND_NE.
 Z80::CondCode Z80::GetOppositeBranchCondition(Z80::CondCode CC) {
@@ -441,7 +451,7 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   unsigned SrcLoReg = RI.getSubReg(SrcReg, SubLo);
   unsigned DstHiReg = RI.getSubReg(DstReg, SubHi);
   unsigned SrcHiReg = RI.getSubReg(SrcReg, SubHi);
-  bool DstLoSrcHiOverlap = RI.regsOverlap(DstLoReg, SrcHiReg);
+  /*bool DstLoSrcHiOverlap = RI.regsOverlap(DstLoReg, SrcHiReg);
   bool SrcLoDstHiOverlap = RI.regsOverlap(SrcLoReg, DstHiReg);
   if (DstLoSrcHiOverlap && SrcLoDstHiOverlap) {
     assert(KillSrc &&
@@ -479,7 +489,7 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     // Copy out SrcHi before SrcLo overwrites it.
     copyPhysReg(MBB, MI, DL, DstHiReg, SrcHiReg, KillSrc);
     copyPhysReg(MBB, MI, DL, DstLoReg, SrcLoReg, KillSrc);
-  } else {
+  } else*/ {
     // If SrcLoDstHiOverlap then copy out SrcLo before SrcHi overwrites it,
     // otherwise the order doesn't matter.
     copyPhysReg(MBB, MI, DL, DstLoReg, SrcLoReg, KillSrc);
@@ -683,9 +693,11 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     unsigned SuperReg = TRI.getMatchingSuperReg(Reg, Z80::sub_short,
                                                 &Z80::R24RegClass);
     bool Index = Z80::I16RegClass.contains(Reg);
+    unsigned ScratchReg;
     if (Index) {
+      ScratchReg = Is24Bit ? Z80::UHL : Z80::HL;
       BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
-        .addReg(Is24Bit ? Z80::UHL : Z80::HL);
+        .addReg(ScratchReg);
       Reg = Z80::HL;
     }
     MI.setDesc(get(Z80::LD8ro));
@@ -694,7 +706,8 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
                   TRI.getSubReg(Reg, Z80::sub_high))
       .addReg(MI.getOperand(1).getReg()).addImm(MI.getOperand(2).getImm() + 1);
     if (Index) {
-      BuildMI(MBB, Next, DL, get(Is24Bit ? Z80::EX24SP : Z80::EX16SP));
+      BuildMI(MBB, Next, DL, get(Is24Bit ? Z80::EX24SP : Z80::EX16SP),
+              ScratchReg).addReg(ScratchReg);
       BuildMI(MBB, Next, DL, get(Is24Bit ? Z80::POP24r : Z80::POP16r),
               Is24Bit ? SuperReg : OriginalReg);
     }
@@ -723,14 +736,17 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     unsigned SuperReg = TRI.getMatchingSuperReg(Reg, Z80::sub_short,
                                                 &Z80::R24RegClass);
     bool Index = Z80::I16RegClass.contains(Reg);
+    unsigned ScratchReg;
     if (Index) {
+      ScratchReg = UseLEA ? Z80::UHL : Is24Bit ? SuperReg : Reg;
       BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
-        .addReg(UseLEA ? Z80::UHL : Is24Bit ? SuperReg : Reg);
+        .addReg(ScratchReg);
       if (UseLEA)
         BuildMI(MBB, MI, DL, get(Z80::LEA24ro), Z80::UHL)
           .addReg(SuperReg).addImm(0);
       else
-        BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::EX24SP : Z80::EX16SP));
+        BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::EX24SP : Z80::EX16SP),
+                ScratchReg).addReg(ScratchReg);
       Reg = Z80::HL;
     }
     MI.setDesc(get(Z80::LD8or));
