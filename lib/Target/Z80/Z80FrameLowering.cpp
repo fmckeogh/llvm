@@ -232,9 +232,10 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
     PI->removeFromParent();
   }
 
-  BuildStackAdjustment(MF, MBB, MI, DL, *ScratchReg, StackSize, StackSize,
-                       MFI.hasVarSizedObjects());
-  if (hasFP(MF))
+  bool HasFP = hasFP(MF);
+  BuildStackAdjustment(MF, MBB, MI, DL, *ScratchReg, StackSize,
+                       HasFP ? StackSize : -1, MFI.hasVarSizedObjects());
+  if (HasFP)
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::POP24r : Z80::POP16r),
             TRI->getFrameRegister(MF));
 }
