@@ -8420,6 +8420,9 @@ private:
     for (auto &Arg : FI.arguments())
       removeExtend(Arg.info = classifyArgumentType(Arg.type));
   }
+
+  Address EmitVAArg(CodeGenFunction &CGF, Address VAListAddr,
+                    QualType Ty) const override;
 };
 
 class Z80TargetCodeGenInfo : public TargetCodeGenInfo {
@@ -8430,6 +8433,17 @@ public:
                            CodeGen::CodeGenModule &CGM) const override;
 };
 
+}
+
+Address Z80ABIInfo::EmitVAArg(CodeGenFunction &CGF,
+                              Address VAListAddr, QualType Ty) const {
+  Address Addr =
+    emitVoidPtrVAArg(CGF, VAListAddr, Ty, /*Indirect*/ false,
+                     getContext().getTypeInfoInChars(Ty),
+                     CharUnits::fromQuantity(getDataLayout().getPointerSize()),
+                     /*AllowHigherAlign*/ false);
+  // Remove SlotSize over-alignment, since stack is never aligned.
+  return Address(Addr.getPointer(), CharUnits::fromQuantity(1));
 }
 
 void Z80TargetCodeGenInfo::setTargetAttributes(

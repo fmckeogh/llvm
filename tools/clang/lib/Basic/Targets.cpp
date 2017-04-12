@@ -8495,7 +8495,7 @@ public:
   bool hasInt48Type() const override { return true; }
   ArrayRef<Builtin::Info> getTargetBuiltins() const final { return None; }
   BuiltinVaListKind getBuiltinVaListKind() const override {
-    return TargetInfo::VoidPtrBuiltinVaList;
+    return TargetInfo::CharPtrBuiltinVaList;
   }
   bool validateAsmConstraint(const char *&Name,
                              TargetInfo::ConstraintInfo &Info) const override {

@@ -14,6 +14,7 @@
 
 #include "Z80ISelLowering.h"
 #include "MCTargetDesc/Z80MCTargetDesc.h"
+#include "Z80MachineFunctionInfo.h"
 #include "Z80Subtarget.h"
 #include "Z80TargetMachine.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -84,6 +85,11 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   if (Is24Bit)
     setLoadExtAction(ISD::EXTLOAD, MVT::i24, MVT::i16, Custom);
   setOperationAction(ISD::DYNAMIC_STACKALLOC, PtrVT, Expand);
+
+  setOperationAction(ISD::VASTART, MVT::Other, Custom);
+  setOperationAction(ISD::VAARG,   MVT::Other, Expand);
+  setOperationAction(ISD::VAEND,   MVT::Other, Expand);
+  setOperationAction(ISD::VACOPY,  MVT::Other, Expand);
 
   setStackPointerRegisterToSaveRestore(Is24Bit ? Z80::SPL : Z80::SPS);
 
@@ -504,6 +510,17 @@ SDValue Z80TargetLowering::LowerStore(StoreSDNode *Node,
   return Ch;
 }
 
+SDValue Z80TargetLowering::LowerVAStart(SDValue Op, SelectionDAG &DAG) const {
+  MachineFunction &MF = DAG.getMachineFunction();
+  Z80MachineFunctionInfo *FuncInfo = MF.getInfo<Z80MachineFunctionInfo>();
+  SDLoc DL(Op);
+  EVT PtrVT = getPointerTy(MF.getDataLayout());
+  SDValue FR = DAG.getFrameIndex(FuncInfo->getVarArgsFrameIndex(), PtrVT);
+  const Value *SV = cast<SrcValueSDNode>(Op.getOperand(2))->getValue();
+  return DAG.getStore(Op.getOperand(0), DL, FR, Op.getOperand(1),
+                      MachinePointerInfo(SV));
+}
+
 SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   DEBUG(dbgs() << "LowerOperation: "; Op->dump(&DAG));
   assert(Op.getResNo() == 0);
@@ -526,6 +543,7 @@ SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   case ISD::MUL:         return LowerMul(Op, DAG);
   case ISD::LOAD:        return LowerLoad(cast<LoadSDNode>(Op.getNode()), DAG);
   case ISD::STORE:       return LowerStore(cast<StoreSDNode>(Op.getNode()), DAG);
+  case ISD::VASTART:     return LowerVAStart(Op, DAG);
   }
 }
 
@@ -1980,13 +1998,20 @@ SDValue Z80TargetLowering::LowerFormalArguments(
     const SmallVectorImpl<ISD::InputArg> &Ins, const SDLoc &DL,
     SelectionDAG &DAG, SmallVectorImpl<SDValue> &InVals) const {
   MachineFunction &MF = DAG.getMachineFunction();
+  Z80MachineFunctionInfo *FuncInfo = MF.getInfo<Z80MachineFunctionInfo>();
   MachineFrameInfo &MFI = MF.getFrameInfo();
-  assert(!IsVarArg && "Var args not supported yet");
 
   // Assign locations to all of the incoming arguments.
   SmallVector<CCValAssign, 16> ArgLocs;
   CCState CCInfo(CallConv, IsVarArg, MF, ArgLocs, *DAG.getContext());
   CCInfo.AnalyzeFormalArguments(Ins, getCCAssignFn(CallConv));
+
+  // If the function takes variable number of arguments, make a frame index for
+  // the start of the first vararg value... for expansion of llvm.va_start. We
+  // can skip this if there are no va_start calls.
+  if (MFI.hasVAStart())
+    FuncInfo->setVarArgsFrameIndex(
+        MFI.CreateFixedObject(1, CCInfo.getNextStackOffset(), true));
 
   SDValue ArgValue;
   for (unsigned I = 0, E = ArgLocs.size(); I != E; ++I) {

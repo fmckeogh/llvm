@@ -105,6 +105,7 @@ public:
   SDValue LowerMul(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerLoad(LoadSDNode *Node, SelectionDAG &DAG) const;
   SDValue LowerStore(StoreSDNode *Node, SelectionDAG &DAG) const;
+  SDValue LowerVAStart(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerOperation(SDValue Op, SelectionDAG &DAG) const override;
 
   /// ---------------------------------------------------------------------- ///
