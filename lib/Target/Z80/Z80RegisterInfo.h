@@ -66,10 +66,6 @@ public:
     return true;
   }
 
-  bool requiresFrameIndexScavenging(const MachineFunction &MF) const override {
-    return true;
-  }
-
   bool saveScavengerRegister(MachineBasicBlock &MBB,
                              MachineBasicBlock::iterator I,
                              MachineBasicBlock::iterator &UseMI,

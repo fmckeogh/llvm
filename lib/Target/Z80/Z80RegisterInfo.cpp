@@ -19,6 +19,7 @@
 #include "llvm/CodeGen/MachineFunction.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
+#include "llvm/CodeGen/RegisterScavenging.h"
 #include "llvm/Target/TargetFrameLowering.h"
 using namespace llvm;
 
@@ -163,7 +164,8 @@ void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   MachineBasicBlock &MBB = *MI.getParent();
   MachineFunction &MF = *MBB.getParent();
   MachineRegisterInfo &MRI = MF.getRegInfo();
-  const TargetInstrInfo &TII = *MF.getSubtarget().getInstrInfo();
+  const Z80Subtarget &STI = MF.getSubtarget<Z80Subtarget>();
+  const Z80InstrInfo &TII = *STI.getInstrInfo();
   const Z80FrameLowering *TFI = getFrameLowering(MF);
   DebugLoc DL = MI.getDebugLoc();
   int FrameIndex = MI.getOperand(FIOperandNum).getIndex();
@@ -184,27 +186,56 @@ void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     MI.getOperand(FIOperandNum + 1).ChangeToImmediate(Offset);
     return;
   }
-  unsigned ScratchReg = MRI.createVirtualRegister(Is24Bit ? &Z80::O24RegClass
-                                                          : &Z80::O16RegClass);
+  unsigned OffsetReg = RS->scavengeRegister(
+      Is24Bit ? &Z80::O24RegClass : &Z80::O16RegClass, SPAdj);
   if ((Opc == Z80::LEA24ro &&
        Z80::A24RegClass.contains(MI.getOperand(0).getReg())) ||
       (Opc == Z80::LEA16ro &&
        Z80::A16RegClass.contains(MI.getOperand(0).getReg()))) {
     BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
-            ScratchReg).addImm(Offset);
+            OffsetReg).addImm(Offset);
     MI.getOperand(FIOperandNum).ChangeToRegister(BasePtr, false);
     MI.getOperand(FIOperandNum + 1).ChangeToImmediate(0);
     BuildMI(MBB, ++II, DL, TII.get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao),
             MI.getOperand(0).getReg()).addReg(MI.getOperand(0).getReg())
-      .addReg(ScratchReg, RegState::Kill);
+      .addReg(OffsetReg, RegState::Kill);
+    return;
+  }
+  if (unsigned ScratchReg = RS->FindUnusedReg(Is24Bit ? &Z80::A24RegClass
+                                                      : &Z80::A16RegClass)) {
+    BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
+            OffsetReg).addImm(Offset);
+    BuildMI(MBB, II, DL, TII.get(TargetOpcode::COPY), ScratchReg)
+      .addReg(BasePtr);
+    BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao),
+            ScratchReg).addReg(ScratchReg).addReg(OffsetReg, RegState::Kill);
+    MI.getOperand(FIOperandNum).ChangeToRegister(ScratchReg, false);
+    if ((Is24Bit ? Z80::I24RegClass : Z80::I16RegClass).contains(ScratchReg))
+      MI.getOperand(FIOperandNum + 1).ChangeToImmediate(0);
+    else {
+      switch (Opc) {
+      default: llvm_unreachable("Unexpected opcode!");
+      case Z80::LD24ro: Opc = Z80::LD24rp; break;
+      case Z80::LD16ro: Opc = Z80::LD16rp; break;
+      case Z80::LD8go: Opc = Z80::LD8gp; break;
+      case Z80::LD24or: Opc = Z80::LD24pr; break;
+      case Z80::LD16or: Opc = Z80::LD16pr; break;
+      case Z80::LD8og: Opc = Z80::LD8pg; break;
+      case Z80::LEA24ro: case Z80::LEA16ro: Opc = TargetOpcode::COPY; break;
+      case Z80::PEA24o: Opc = Z80::PUSH24r; break;
+      case Z80::PEA16o: Opc = Z80::PUSH16r; break;
+      }
+      MI.setDesc(TII.get(Opc));
+      MI.RemoveOperand(FIOperandNum + 1);
+    }
     return;
   }
   BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
     .addReg(BasePtr);
-  BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri), ScratchReg)
+  BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri), OffsetReg)
     .addImm(Offset);
   BuildMI(MBB, II, DL, TII.get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao), BasePtr)
-    .addReg(BasePtr).addReg(ScratchReg, RegState::Kill);
+    .addReg(BasePtr).addReg(OffsetReg, RegState::Kill);
   if (Opc == Z80::PEA24o || Opc == Z80::PEA16o) {
     MI.setDesc(TII.get(Opc == Z80::PEA24o ? Z80::EX24SP : Z80::EX16SP));
     MI.getOperand(0).ChangeToRegister(BasePtr, true);

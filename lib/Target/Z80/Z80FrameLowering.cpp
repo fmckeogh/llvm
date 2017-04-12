@@ -47,7 +47,7 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
 
   // Optimal if we are trying to set SP = FP
   //   LD SP, FP
-  if (UnknownOffset || (FPOffset >= 0 && FPOffset + Offset == 0)) {
+  if (UnknownOffset || (FPOffset >= 0 && FPOffset == Offset)) {
     assert(hasFP(MF) && "This function doesn't have a frame pointer");
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24SP : Z80::LD16SP))
       .addReg(TRI->getFrameRegister(MF));
@@ -74,11 +74,11 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
   //   LD SP, HL
   LargeCost += OptSize || Is24Bit ? 1 : 6;
 
-  // Optimal for large offsets when possible
-  //   LEA HL, FP + SPOffsetFromFP + Offset
+  // Optimal for medium offsets
+  //   LEA HL, FP - Offset - FPOffset
   //   LD SP, HL
   bool CanUseLEA = STI.hasEZ80Ops() && FPOffset >= 0 &&
-    isInt<8>(FPOffset + Offset) && hasFP(MF);
+    isInt<8>(Offset - FPOffset) && hasFP(MF);
   unsigned LEACost = CanUseLEA ? 4 : LargeCost;
 
   // Prefer smaller version
@@ -109,10 +109,10 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
     assert(CanUseLEA && hasFP(MF) && "Can't use lea");
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LEA24ro : Z80::LEA16ro),
             ScratchReg).addReg(TRI->getFrameRegister(MF))
-      .addImm(FPOffset + Offset);
+      .addImm(Offset - FPOffset);
   }
   BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24SP : Z80::LD16SP))
-    .addReg(ScratchReg);
+    .addReg(ScratchReg, RegState::Kill);
 }
 
 /// emitPrologue - Push callee-saved registers onto the stack, which
@@ -139,6 +139,7 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
     ++MI;
   }
 
+  int FPOffset = -1;
   if (hasFP(MF)) {
     if (MF.getFunction()->getAttributes().hasAttribute(
             AttributeSet::FunctionIndex, Attribute::OptimizeForSize)) {
@@ -146,7 +147,8 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
         BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
                 ScratchReg).addImm(StackSize);
         BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::CALL24i : Z80::CALL16i))
-          .addExternalSymbol("_frameset").addReg(ScratchReg, RegState::Implicit);
+          .addExternalSymbol("_frameset").addReg(ScratchReg,
+                                                 RegState::ImplicitKill);
         return;
       }
       BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::CALL24i : Z80::CALL16i))
@@ -161,8 +163,9 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
       .addImm(0);
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::ADD24SP : Z80::ADD16SP),
             FrameReg).addReg(FrameReg);
+    FPOffset = 0;
   }
-  BuildStackAdjustment(MF, MBB, MI, DL, ScratchReg, StackSize, 0);
+  BuildStackAdjustment(MF, MBB, MI, DL, ScratchReg, StackSize, FPOffset);
 }
 
 void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
@@ -229,7 +232,7 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
     PI->removeFromParent();
   }
 
-  BuildStackAdjustment(MF, MBB, MI, DL, *ScratchReg, StackSize, -StackSize,
+  BuildStackAdjustment(MF, MBB, MI, DL, *ScratchReg, StackSize, StackSize,
                        MFI.hasVarSizedObjects());
   if (hasFP(MF))
     BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::POP24r : Z80::POP16r),
