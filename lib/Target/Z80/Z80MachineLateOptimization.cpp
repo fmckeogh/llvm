@@ -67,7 +67,7 @@ bool Z80MachineLateOptimization::runOnMachineFunction(MachineFunction &MF) {
   const TargetInstrInfo *TII = STI.getInstrInfo();
   bool Changed = false;
   bool OptSize = MF.getFunction()->getAttributes()
-    .hasAttribute(AttributeSet::FunctionIndex, Attribute::OptimizeForSize);
+    .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
   APInt FlagsZero(8, 0), FlagsOne(8, 0);
   for (auto &MBB : MF) {
     bool UnusedFlags = true;

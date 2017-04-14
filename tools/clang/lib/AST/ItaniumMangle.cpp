@@ -982,9 +982,8 @@ void CXXNameMangler::mangleFloat(const llvm::APFloat &f) {
     unsigned digitBitIndex = 4 * (numCharacters - stringIndex - 1);
 
     // Project out 4 bits starting at 'digitIndex'.
-    llvm::integerPart hexDigit
-      = valueBits.getRawData()[digitBitIndex / llvm::integerPartWidth];
-    hexDigit >>= (digitBitIndex % llvm::integerPartWidth);
+    uint64_t hexDigit = valueBits.getRawData()[digitBitIndex / 64];
+    hexDigit >>= (digitBitIndex % 64);
     hexDigit &= 0xF;
 
     // Map that over to a lowercase hex digit.
@@ -2159,10 +2158,12 @@ void CXXNameMangler::mangleQualifiers(Qualifiers Quals) {
     } else {
       switch (AS) {
       default: llvm_unreachable("Not a language specific address space");
-      //  <OpenCL-addrspace> ::= "CL" [ "global" | "local" | "constant" ]
+      //  <OpenCL-addrspace> ::= "CL" [ "global" | "local" | "constant |
+      //                                "generic" ]
       case LangAS::opencl_global:   ASString = "CLglobal";   break;
       case LangAS::opencl_local:    ASString = "CLlocal";    break;
       case LangAS::opencl_constant: ASString = "CLconstant"; break;
+      case LangAS::opencl_generic:  ASString = "CLgeneric";  break;
       //  <CUDA-addrspace> ::= "CU" [ "device" | "constant" | "shared" ]
       case LangAS::cuda_device:     ASString = "CUdevice";   break;
       case LangAS::cuda_constant:   ASString = "CUconstant"; break;

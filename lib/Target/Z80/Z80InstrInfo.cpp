@@ -434,7 +434,7 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
   bool IsDstIndexReg = Z80::I16RegClass.contains(DstReg) || Z80::I24RegClass.contains(DstReg);
   unsigned NumIndexRegs = IsSrcIndexReg + IsDstIndexReg;
   bool OptSize = MBB.getParent()->getFunction()->getAttributes()
-    .hasAttribute(AttributeSet::FunctionIndex, Attribute::OptimizeForSize);
+    .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
   if (Is24Bit || (NumIndexRegs == 1 && OptSize) ||
       (NumIndexRegs && !Subtarget.hasIndexHalfRegs())) {
     BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
@@ -656,7 +656,7 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   const TargetRegisterInfo &TRI = getRegisterInfo();
   bool Is24Bit = Subtarget.is24Bit();
   bool UseLEA = Is24Bit && !MBB.getParent()->getFunction()->getAttributes()
-    .hasAttribute(AttributeSet::FunctionIndex, Attribute::OptimizeForSize);
+    .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
   DEBUG(dbgs() << "\nZ80InstrInfo::expandPostRAPseudo:"; MI.dump());
   switch (MI.getOpcode()) {
   default:

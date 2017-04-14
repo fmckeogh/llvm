@@ -55,7 +55,7 @@ void Z80FrameLowering::BuildStackAdjustment(MachineFunction &MF,
   }
 
   bool OptSize = MF.getFunction()->getAttributes()
-    .hasAttribute(AttributeSet::FunctionIndex, Attribute::OptimizeForSize);
+    .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
 
   // Optimal for small offsets
   //   POP/PUSH HL for every SlotSize bytes
@@ -142,7 +142,7 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
   int FPOffset = -1;
   if (hasFP(MF)) {
     if (MF.getFunction()->getAttributes().hasAttribute(
-            AttributeSet::FunctionIndex, Attribute::OptimizeForSize)) {
+            AttributeList::FunctionIndex, Attribute::OptimizeForSize)) {
       if (StackSize) {
         BuildMI(MBB, MI, DL, TII.get(Is24Bit ? Z80::LD24ri : Z80::LD16ri),
                 ScratchReg).addImm(StackSize);

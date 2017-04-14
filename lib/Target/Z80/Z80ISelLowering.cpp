@@ -285,7 +285,7 @@ SDValue Z80TargetLowering::LowerAddSub(SDValue Op, SelectionDAG &DAG) const {
   SDValue LHS = Op.getOperand(0), RHS = Op.getOperand(1);
   ConstantSDNode *ConstLHS = dyn_cast<ConstantSDNode>(LHS);
   bool OptSize = DAG.getMachineFunction().getFunction()->getAttributes()
-    .hasAttribute(AttributeSet::FunctionIndex, Attribute::OptimizeForSize);
+    .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
   if (OptSize && Opc == ISD::SUB && VT.bitsGT(MVT::i8) && ConstLHS &&
       !ConstLHS->getZExtValue())
     return LowerLibCall(RTLIB::UNKNOWN_LIBCALL, RTLIB::NEG_I16, RTLIB::NEG_I24,
@@ -300,7 +300,7 @@ SDValue Z80TargetLowering::LowerBitwise(SDValue Op, SelectionDAG &DAG) const {
   SDValue LHS = Op.getOperand(0), RHS = Op.getOperand(1);
   ConstantSDNode *ConstRHS = dyn_cast<ConstantSDNode>(RHS);
   bool OptSize = DAG.getMachineFunction().getFunction()->getAttributes()
-    .hasAttribute(AttributeSet::FunctionIndex, Attribute::OptimizeForSize);
+    .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
   if (OptSize && Opc == ISD::XOR && VT.bitsGT(MVT::i8) && ConstRHS &&
       ConstRHS->getSExtValue() == ~0)
     return LowerLibCall(RTLIB::UNKNOWN_LIBCALL, RTLIB::NOT_I16, RTLIB::NOT_I24,
@@ -340,7 +340,7 @@ SDValue Z80TargetLowering::LowerShift(SDValue Op, SelectionDAG &DAG) const {
          "Unsupported operation!");
   bool Is24Bit = Subtarget.is24Bit();
   bool OptSize = DAG.getMachineFunction().getFunction()->getAttributes()
-    .hasAttribute(AttributeSet::FunctionIndex, Attribute::OptimizeForSize);
+    .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
   if (ConstantSDNode *Shift = dyn_cast<ConstantSDNode>(Op.getOperand(1))) {
     unsigned Amt = Shift->getZExtValue();
     SDValue Val = Op->getOperand(0);
