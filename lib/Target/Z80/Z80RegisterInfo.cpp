@@ -187,7 +187,7 @@ void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
     return;
   }
   unsigned OffsetReg = RS->scavengeRegister(
-      Is24Bit ? &Z80::O24RegClass : &Z80::O16RegClass, SPAdj);
+      Is24Bit ? &Z80::O24RegClass : &Z80::O16RegClass, II, SPAdj);
   if ((Opc == Z80::LEA24ro &&
        Z80::A24RegClass.contains(MI.getOperand(0).getReg())) ||
       (Opc == Z80::LEA16ro &&
