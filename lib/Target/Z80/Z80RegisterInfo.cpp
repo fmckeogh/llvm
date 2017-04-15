@@ -217,9 +217,11 @@ void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
       default: llvm_unreachable("Unexpected opcode!");
       case Z80::LD24ro: Opc = Z80::LD24rp; break;
       case Z80::LD16ro: Opc = Z80::LD16rp; break;
+      case Z80::LD8ro: Opc = Z80::LD8rp; break;
       case Z80::LD8go: Opc = Z80::LD8gp; break;
       case Z80::LD24or: Opc = Z80::LD24pr; break;
       case Z80::LD16or: Opc = Z80::LD16pr; break;
+      case Z80::LD8or: Opc = Z80::LD8pr; break;
       case Z80::LD8og: Opc = Z80::LD8pg; break;
       case Z80::LEA24ro: case Z80::LEA16ro: Opc = TargetOpcode::COPY; break;
       case Z80::PEA24o: Opc = Z80::PUSH24r; break;

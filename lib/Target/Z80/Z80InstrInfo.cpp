@@ -672,7 +672,8 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   case Z80::Cp016:
   case Z80::Cp024:
     llvm_unreachable("Unimplemented");
-  case Z80::LD8ro: {
+  case Z80::LD8ro:
+  case Z80::LD8rp: {
     unsigned Reg = MI.getOperand(0).getReg();
     if (Z80::I8RegClass.contains(Reg)) {
       BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
@@ -683,7 +684,7 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
               Reg).addReg(Z80::A, RegState::Kill);
       BuildMI(MBB, Next, DL, get(Is24Bit ? Z80::POP24r : Z80::POP16r), Z80::AF);
     }
-    MI.setDesc(get(Z80::LD8go));
+    MI.setDesc(get(MI.getOpcode() == Z80::LD8ro ? Z80::LD8go : Z80::LD8gp));
     break;
   }
   case Z80::LD88ro: {
@@ -714,19 +715,21 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     DEBUG(MI.dump());
     break;
   }
-  case Z80::LD8or: {
-    unsigned Reg = MI.getOperand(2).getReg();
+  case Z80::LD8or:
+  case Z80::LD8pr: {
+    unsigned RegIdx = MI.getNumExplicitOperands() - 1;
+    unsigned Reg = MI.getOperand(RegIdx).getReg();
     if (Z80::I8RegClass.contains(Reg)) {
       BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
         .addReg(Z80::AF, RegState::Undef);
       BuildMI(MBB, MI, DL,
               get(Z80::X8RegClass.contains(Reg) ? Z80::LD8xx : Z80::LD8yy),
               Z80::A).addReg(Reg);
-      MI.getOperand(2).ChangeToRegister(Z80::A, /*isDef*/false, /*isImp*/false,
-                                        /*isKill*/true);
+      MI.getOperand(RegIdx).ChangeToRegister(Z80::A, /*isDef*/false,
+                                             /*isImp*/false, /*isKill*/true);
       BuildMI(MBB, Next, DL, get(Is24Bit ? Z80::POP24r : Z80::POP16r), Z80::AF);
     }
-    MI.setDesc(get(Z80::LD8og));
+    MI.setDesc(get(MI.getOpcode() == Z80::LD8or ? Z80::LD8og : Z80::LD8pg));
     break;
   }
   case Z80::LD88or: {

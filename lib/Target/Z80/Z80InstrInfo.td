@@ -374,6 +374,7 @@ def LD8am : I<0x3A, (outs), (ins mem:$src),
 let AsmString = "ld\t$dst, $src" in {
 def LD8gp : I<0x46, (outs G8:$dst), (ins ptr:$src),
               [(set G8:$dst, (load iPTR:$src))]>;
+def LD8rp : P<(outs R8:$dst), (ins ptr:$src)>;
 def LD8go : PI<IdxPre, 0x46, (outs  G8:$dst), (ins off:$src),
                [(set G8:$dst, (load offpat:$src))]>;
 def LD8ro : P<(outs R8:$dst), (ins off:$src)>;
@@ -408,6 +409,7 @@ def LD8ma : I<0x32, (outs), (ins mem:$dst),
 let AsmString = "ld\t$dst, $src" in {
 def LD8pg : I<0x70, (outs), (ins ptr:$dst, G8:$src),
               [(store G8:$src, iPTR:$dst)]>;
+def LD8pr : P<(outs), (ins ptr:$dst, R8:$src)>;
 def LD8og : PI<IdxPre, 0x70, (outs), (ins off:$dst, G8:$src),
                [(store G8:$src, offpat:$dst)]>;
 def LD8or : P<(outs), (ins off:$dst, R8:$src)>;
