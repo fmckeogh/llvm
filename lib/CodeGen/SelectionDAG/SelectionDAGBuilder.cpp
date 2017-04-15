@@ -7717,6 +7717,13 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
           MyFlags.Flags.setZExt();
         if (CLI.IsInReg)
           MyFlags.Flags.setInReg();
+        if (NumRegs > 1 && i == 0)
+          MyFlags.Flags.setSplit();
+        else if (i != 0) {
+          MyFlags.Flags.setOrigAlign(1);
+          if (i == NumRegs - 1)
+            MyFlags.Flags.setSplitEnd();
+        }
         CLI.Ins.push_back(MyFlags);
       }
     }
