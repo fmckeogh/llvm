@@ -27,29 +27,23 @@ extern "C" void LLVMInitializeZ80Target() {
 }
 
 static std::string computeDataLayout(const Triple &TT) {
+  bool IsEZ80 = TT.getArch() == Triple::ez80;
+  bool Is16Bit = TT.isArch16Bit() || TT.getEnvironment() == Triple::CODE16;
   // Z80 is little endian and mangling is closest to MachO.
-  std::string Ret = "e-m:o";
-  if (TT.isArch16Bit() || TT.getEnvironment() == Triple::CODE16)
-    Ret += "-p:16:8";
-  else
-    Ret += "-p:24:8";
-  if (TT.getArch() == Triple::ez80) {
-    Ret += "-p1:16:8";
-    if (TT.getEnvironment() == Triple::CODE16)
-      Ret += "-p2:24:8";
-    else
-      Ret += "-p2:16:8";
-  } else {
-    Ret += "-p1:8:8";
-  }
+  std::string Ret = "e-m:o-S8";
+  // Memory Address Width
+  Ret += Is16Bit ? "-p:16:8" : "-p:24:8";
+  // Port Address Width
+  Ret += IsEZ80 ? "-p1:16:8" : "-p1:8:8";
+  // Other Address Width
+  if (IsEZ80)
+    Ret += Is16Bit ? "-p2:24:8" : "-p2:16:8";
   Ret += "-i16:8";
-  if (!(TT.isArch16Bit() || TT.getEnvironment() == Triple::CODE16))
+  if (!Is16Bit)
     Ret += "-i24:8";
-  Ret += "-i32:8-a:8";
-  if (TT.isArch16Bit() || TT.getEnvironment() == Triple::CODE16)
-    Ret += "-n8:16";
-  else
-    Ret += "-n8:16:24";
+  Ret += "-a:8-n8:16";
+  if (!Is16Bit)
+    Ret += ":24";
   return Ret;
 }
 
