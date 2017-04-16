@@ -30,7 +30,7 @@ static std::string computeDataLayout(const Triple &TT) {
   bool IsEZ80 = TT.getArch() == Triple::ez80;
   bool Is16Bit = TT.isArch16Bit() || TT.getEnvironment() == Triple::CODE16;
   // Z80 is little endian and mangling is closest to MachO.
-  std::string Ret = "e-m:o-S8";
+  std::string Ret = "e-m:o";
   // Memory Address Width
   Ret += Is16Bit ? "-p:16:8" : "-p:24:8";
   // Port Address Width
@@ -38,12 +38,10 @@ static std::string computeDataLayout(const Triple &TT) {
   // Other Address Width
   if (IsEZ80)
     Ret += Is16Bit ? "-p2:24:8" : "-p2:16:8";
-  Ret += "-i16:8";
-  if (!Is16Bit)
-    Ret += "-i24:8";
-  Ret += "-a:8-n8:16";
+  Ret += "-i16:8-i24:8-i32:8-i48:8-i64:8-i96:8-f32:8-f64:8-a:8-n8:16";
   if (!Is16Bit)
     Ret += ":24";
+  Ret += "-S8";
   return Ret;
 }
 
