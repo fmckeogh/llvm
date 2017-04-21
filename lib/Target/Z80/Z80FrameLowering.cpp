@@ -183,8 +183,8 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
        ++ScratchReg)
     assert(ScratchReg != ScratchRC->end() &&
            "Could not allocate a scratch register!");
-  assert((!hasFP(MF) || *ScratchReg != TRI->getFrameRegister(MF)) &&
-         "Cannot allocate fp as scratch register!");
+  assert((hasFP(MF) || *ScratchReg != TRI->getFrameRegister(MF)) &&
+         "Cannot allocate csr as scratch register!");
 
   // skip callee-saved restores
   while (MI != MBB.begin()) {

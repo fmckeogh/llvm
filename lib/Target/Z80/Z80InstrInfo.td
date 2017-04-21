@@ -228,16 +228,18 @@ let hasPostISelHook = 1 in {
   }
 }
 let usesCustomInserter = 1 in {
-  def Select8  : P<(outs  R8:$dst), (ins  R8:$true,  R8:$false, i8imm:$cc),
-                   [(set  R8:$dst, (Z80select  R8:$true,  R8:$false, imm:$cc,
-                                    F))]>;
-  def Select16 : P<(outs R16:$dst), (ins R16:$true, R16:$false, i8imm:$cc),
-                   [(set R16:$dst, (Z80select R16:$true, R16:$false, imm:$cc,
-                                    F))]>;
-  def Select24 : P<(outs R24:$dst), (ins R24:$true, R24:$false, i8imm:$cc),
-                   [(set R24:$dst, (Z80select R24:$true, R24:$false, imm:$cc,
-                                    F))]>,
-                   Requires<[In24BitMode]>;
+  let Uses = [F] in {
+    def Select8  : P<(outs  R8:$dst), (ins  R8:$true,  R8:$false, i8imm:$cc),
+                     [(set  R8:$dst, (Z80select  R8:$true,  R8:$false, imm:$cc,
+                                      F))]>;
+    def Select16 : P<(outs R16:$dst), (ins R16:$true, R16:$false, i8imm:$cc),
+                     [(set R16:$dst, (Z80select R16:$true, R16:$false, imm:$cc,
+                                      F))]>;
+    def Select24 : P<(outs R24:$dst), (ins R24:$true, R24:$false, i8imm:$cc),
+                     [(set R24:$dst, (Z80select R24:$true, R24:$false, imm:$cc,
+                                      F))]>,
+                     Requires<[In24BitMode]>;
+  }
   let Defs = [HL, F], Uses = [HL] in {
     def Sub016 : P<(outs), (ins), [(set  HL, F, (Z80sub_flag  HL, 0))]>;
     def Sub16  : P<(outs), (ins O16:$src),
@@ -681,8 +683,12 @@ def ADD24SP : LI<NoPre, 0x39, "add", "$dst, sp", "$imp = $dst",
                  (outs A24:$dst), (ins A24:$imp),
                  [(set A24:$dst, F, (Z80add_flag A24:$imp, SPL))]>;
 }
+def : Pat<(add  A16:$src, A16:$src), (ADD16aa A16:$src)>;
+def : Pat<(addc A16:$src, A16:$src), (ADD16aa A16:$src)>;
 def : Pat<(add  A16:$dst, O16:$src), (ADD16ao A16:$dst, O16:$src)>;
 def : Pat<(addc A16:$dst, O16:$src), (ADD16ao A16:$dst, O16:$src)>;
+def : Pat<(add  A24:$src, A24:$src), (ADD24aa A24:$src)>;
+def : Pat<(addc A24:$src, A24:$src), (ADD24aa A24:$src)>;
 def : Pat<(add  A24:$dst, O24:$src), (ADD24ao A24:$dst, O24:$src)>;
 def : Pat<(addc A24:$dst, O24:$src), (ADD24ao A24:$dst, O24:$src)>;
 let Defs = [HL, F] in {
@@ -693,9 +699,9 @@ def ADC16SP : SI<EDPre, 0x7A, "adc", "hl, sp", "", (outs), (ins),
                  [(set  HL, F, (Z80adc_flag HL, SPS, F))]>;
 }
 let Uses = [HL, F] in {
-def SBC16aa : LI<EDPre, 0x42, "sbc", "hl, hl", "", (outs), (ins),
+def SBC16aa : SI<EDPre, 0x42, "sbc", "hl, hl", "", (outs), (ins),
                  [(set  HL, F, (Z80sbc_flag  HL, HL,       F))]>;
-def ADC16aa : LI<EDPre, 0x4A, "adc", "hl, hl", "", (outs), (ins),
+def ADC16aa : SI<EDPre, 0x4A, "adc", "hl, hl", "", (outs), (ins),
                  [(set  HL, F, (Z80adc_flag  HL, HL,       F))]>;
 def SBC16ar : SI<EDPre, 0x42, "sbc", "hl, $src", "", (outs), (ins O16:$src),
                  [(set  HL, F, (Z80sbc_flag  HL, O16:$src, F))]>;

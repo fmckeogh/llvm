@@ -213,8 +213,11 @@ public:
                      SelectionDAG &DAG) const;
   SDValue EmitNegate(const SDLoc &DL, SDValue Op, SelectionDAG &DAG) const;
   SDValue EmitFlipSign(const SDLoc &DL, SDValue Op, SelectionDAG &DAG) const;
+  SDValue EmitLow(SDValue Op, SelectionDAG &DAG) const;
+  SDValue EmitHigh(SDValue Op, SelectionDAG &DAG) const;
   SDValue EmitPair(const SDLoc &DL, SDValue Hi, SDValue Lo,
                    SelectionDAG &DAG) const;
+  SDValue EmitSignToCarry(SDValue Op, SelectionDAG &DAG) const;
   // Legalize Helpers
   SDValue EmitCmp(SDValue LHS, SDValue RHS, SDValue &TargetCC,
                   ISD::CondCode CC, const SDLoc &DL, SelectionDAG &DAG) const;
@@ -284,11 +287,9 @@ public:
 
   SDValue combineCopyFromReg(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineStore(StoreSDNode *N, DAGCombinerInfo &DCI) const;
-  SDValue combineEXTRACT_SUBREG(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineINSERT_SUBREG(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineADD(SDNode *N, DAGCombinerInfo &DCI) const;
   SDValue combineSUB(SDNode *N, DAGCombinerInfo &DCI) const;
-  SDValue combineMul(SDNode *N, DAGCombinerInfo &DCI) const;
 };
 } // End llvm namespace
 

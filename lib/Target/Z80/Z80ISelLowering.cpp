@@ -74,7 +74,7 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   }
   for (unsigned Opc : { ISD::BRCOND, ISD::BR_JT })
     setOperationAction(Opc, MVT::Other, Expand);
-  if (HasEZ80Ops)
+  if (Subtarget.hasZ180Ops())
     for (MVT VT : { MVT::i8, MVT::i16, MVT::i24 })
       setOperationAction(ISD::MUL, VT, Custom);
 
@@ -92,6 +92,9 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   setOperationAction(ISD::VACOPY,  MVT::Other, Expand);
 
   setStackPointerRegisterToSaveRestore(Is24Bit ? Z80::SPL : Z80::SPS);
+
+  setTargetDAGCombine(ISD::MUL);
+  setTargetDAGCombine(ISD::TRUNCATE);
 
   // Compute derived properties from the register classes
   computeRegisterProperties(STI.getRegisterInfo());
@@ -268,6 +271,35 @@ SDValue Z80TargetLowering::EmitPair(const SDLoc &DL, SDValue Hi, SDValue Lo,
   return SDValue(Res, 0);
 }
 
+SDValue Z80TargetLowering::EmitLow(SDValue Op, SelectionDAG &DAG) const {
+  return DAG.getNode(ISD::TRUNCATE, SDLoc(Op), MVT::i8, Op);
+}
+
+SDValue Z80TargetLowering::EmitHigh(SDValue Op, SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  return EmitLow(DAG.getNode(ISD::SRL, DL, Op.getValueType(), Op,
+                             DAG.getConstant(8, DL, MVT::i8)), DAG);
+}
+
+SDValue Z80TargetLowering::EmitSignToCarry(SDValue Op,
+                                           SelectionDAG &DAG) const {
+  SDLoc DL(Op);
+  EVT VT = Op.getValueType();
+  if (VT == MVT::i24) {
+    if (Op.hasOneUse() && ISD::isNormalLoad(Op.getNode())) {
+      Op = DAG.getNode(ISD::SRL, DL, MVT::i24, Op,
+                       DAG.getConstant(16, DL, MVT::i8));
+      Op = DAG.getNode(ISD::TRUNCATE, DL, MVT::i8, Op);
+    } else
+      return DAG.getNode(Z80ISD::ADD, DL, DAG.getVTList(VT, MVT::i8), Op, Op)
+        .getValue(1);
+  } else if (VT == MVT::i16)
+    Op = DAG.getTargetExtractSubreg(Z80::sub_high, DL, MVT::i8, Op);
+  assert(Op.getValueType() == MVT::i8 && "Unexpected type!");
+  return DAG.getNode(Z80ISD::SLA, DL, DAG.getVTList(MVT::i8, MVT::i8), Op)
+    .getValue(1);
+}
+
 // Legalize Types Helpers
 
 void Z80TargetLowering::ReplaceNodeResults(SDNode *N,
@@ -296,6 +328,8 @@ SDValue Z80TargetLowering::LowerAddSub(SDValue Op, SelectionDAG &DAG) const {
 SDValue Z80TargetLowering::LowerBitwise(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
   unsigned Opc = Op.getOpcode();
+  assert((Opc == ISD::AND || Opc == ISD::OR || Opc == ISD::XOR) &&
+         "Unexpected opcode!");
   EVT VT = Op.getValueType();
   SDValue LHS = Op.getOperand(0), RHS = Op.getOperand(1);
   ConstantSDNode *ConstRHS = dyn_cast<ConstantSDNode>(RHS);
@@ -306,11 +340,8 @@ SDValue Z80TargetLowering::LowerBitwise(SDValue Op, SelectionDAG &DAG) const {
     return LowerLibCall(RTLIB::UNKNOWN_LIBCALL, RTLIB::NOT_I16, RTLIB::NOT_I24,
                         RTLIB::NOT_I32, DAG.getMergeValues(LHS, DL), DAG);
   if (Opc != ISD::AND && VT.bitsGT(MVT::i8) &&
-      DAG.haveNoCommonBitsSet(LHS, RHS)) {
-    assert((Op.getOpcode() == ISD::OR || Op.getOpcode() == ISD::XOR) &&
-           "Unexpected opcode");
+      DAG.haveNoCommonBitsSet(LHS, RHS))
     return DAG.getNode(ISD::ADD, DL, VT, LHS, RHS);
-  }
   if (VT == MVT::i16) {
     SDValue RHSHi, RHSLo;
     if (ConstRHS) {
@@ -333,8 +364,7 @@ SDValue Z80TargetLowering::LowerShift(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
   unsigned Opc = Op.getOpcode();
   assert((Opc == ISD::SHL || Opc == ISD::SRL || Opc == ISD::SRA ||
-          Opc == ISD::ROTL || Opc == ISD::ROTR) &&
-         "Unexpected opcode!");
+          Opc == ISD::ROTL || Opc == ISD::ROTR) && "Unexpected opcode!");
   EVT VT = Op.getValueType();
   assert((VT == MVT::i8 || (Opc != ISD::ROTL && Opc != ISD::ROTR)) &&
          "Unsupported operation!");
@@ -344,6 +374,9 @@ SDValue Z80TargetLowering::LowerShift(SDValue Op, SelectionDAG &DAG) const {
   if (ConstantSDNode *Shift = dyn_cast<ConstantSDNode>(Op.getOperand(1))) {
     unsigned Amt = Shift->getZExtValue();
     SDValue Val = Op->getOperand(0);
+    if (Opc == ISD::SRA && Amt == VT.getSizeInBits() - 1)
+      return DAG.getNode(Z80ISD::SEXT, DL, VT, EmitSignToCarry(Val, DAG));
+    SDVTList VTList = DAG.getVTList(MVT::i8, MVT::i8);
     switch (VT.getSizeInBits()) {
     case 8:
       if (Amt >= 4 && (Opc == ISD::ROTL || Opc == ISD::ROTR)) {
@@ -361,7 +394,7 @@ SDValue Z80TargetLowering::LowerShift(SDValue Op, SelectionDAG &DAG) const {
       case ISD::ROTR: Opc = Z80ISD::RRC; break;
       }
       while (Amt--)
-        Val = DAG.getNode(Opc, DL, DAG.getVTList(MVT::i8, MVT::i8), Val);
+        Val = DAG.getNode(Opc, DL, VTList, Val);
       return Val;
     case 16:
       if (Amt >= 8) {
@@ -374,6 +407,19 @@ SDValue Z80TargetLowering::LowerShift(SDValue Op, SelectionDAG &DAG) const {
         return DAG.getNode(Opc == ISD::SRL ? ISD::ZERO_EXTEND
                                            : ISD::SIGN_EXTEND, DL, VT, Val);
       }
+      if (Opc != ISD::SHL && (!OptSize || Amt == 1)) {
+        unsigned Opc0 = Opc == ISD::SRA ? Z80ISD::SRA : Z80ISD::SRL;
+        SDValue Val0 = DAG.getTargetExtractSubreg(Z80::sub_high, DL,
+                                                  MVT::i8, Val);
+        unsigned Opc1 = Z80ISD::RR;
+        SDValue Val1 = DAG.getTargetExtractSubreg(Z80::sub_low, DL,
+                                                  MVT::i8, Val);
+        while (Amt--) {
+          Val0 = DAG.getNode(Opc0, DL, VTList, Val0);
+          Val1 = DAG.getNode(Opc1, DL, VTList, Val1, Val0.getValue(1));
+        }
+        return EmitPair(DL, Val0, Val1, DAG);
+      }
       LLVM_FALLTHROUGH;
     case 24:
       if (Opc == ISD::SHL) {
@@ -385,6 +431,31 @@ SDValue Z80TargetLowering::LowerShift(SDValue Op, SelectionDAG &DAG) const {
           Val = DAG.getNode(Z80ISD::ADD, DL,
                             DAG.getVTList(PtrVT, MVT::i8), Val, Val);
         return DAG.getNode(ISD::TRUNCATE, DL, VT, Val);
+      }
+      if (Amt >= 8) {
+        SDValue Ptr, Chain;
+        MachinePointerInfo MPI;
+        if (ISD::isNormalLoad(Val.getNode())) {
+          auto Load = cast<LoadSDNode>(Val);
+          Ptr = Load->getBasePtr();
+          MPI = Load->getPointerInfo();
+          Chain = Load->getChain();
+        } else {
+          Ptr = DAG.CreateStackTemporary(MVT::i24);
+          MPI = MachinePointerInfo::getFixedStack(
+              DAG.getMachineFunction(),
+              cast<FrameIndexSDNode>(Ptr)->getIndex());
+          Chain = DAG.getStore(DAG.getEntryNode(), DL, Val, Ptr, MPI);
+        }
+        unsigned Off = Amt / 8;
+        MVT NewVT = Amt >= 16 ? MVT::i8 : MVT::i16;
+        Val = DAG.getLoad(NewVT, DL, Chain,
+                          DAG.getMemBasePlusOffset(Ptr, Off, DL),
+                          MPI.getWithOffset(Off));
+        Val = DAG.getNode(Opc, DL, NewVT, Val,
+                          DAG.getConstant(Amt - Off*8, DL, NewVT));
+        return DAG.getNode(Opc == ISD::SRL ? ISD::ZERO_EXTEND
+                                           : ISD::SIGN_EXTEND, DL, VT, Val);
       }
       break;
     }
@@ -399,12 +470,7 @@ SDValue Z80TargetLowering::LowerSignExtend(SDValue Op,
   EVT VT = Op.getValueType();
   SDValue Val = Op.getOperand(0);
   EVT ValVT = Val.getValueType();
-  SDValue Sign = Val;
-  if (ValVT == MVT::i16)
-    Sign = DAG.getTargetExtractSubreg(Z80::sub_high, DL, MVT::i8, Val);
-  Sign = DAG.getNode(Z80ISD::ADD, DL,
-                     DAG.getVTList(Sign.getValueType(), MVT::i8), Val, Val)
-    .getValue(1);
+  SDValue Sign = EmitSignToCarry(Val, DAG);
   if (VT == MVT::i16) {
     assert(ValVT == MVT::i8 && "Unexpected sign extend");
     return DAG.getTargetInsertSubreg(
@@ -427,16 +493,17 @@ SDValue Z80TargetLowering::LowerMul(SDValue Op, SelectionDAG &DAG) const {
   APInt LoMask = APInt::getLowBitsSet(Bits, 8), HiMask = ~LoMask;
   SDValue InOps[] = { Op.getOperand(0), Op.getOperand(1) };
   bool NegRes = false;
-  for (SDValue &Op : InOps) {
-    DAG.computeKnownBits(Op, KnownZero, KnownOne);
-    Op = DAG.getNode(ISD::TRUNCATE, DL, MVT::i8, Op);
-    if ((KnownOne & HiMask) == HiMask && KnownOne.intersects(LoMask)) {
-      Op = DAG.getNode(ISD::SUB, DL, MVT::i8, DAG.getConstant(0, DL, MVT::i8),
-                       Op);
-      NegRes = !NegRes;
-    } else if ((KnownZero & HiMask) != HiMask)
-      return SDValue();
-  }
+  if (VT != MVT::i8)
+    for (SDValue &Op : InOps) {
+      DAG.computeKnownBits(Op, KnownZero, KnownOne);
+      Op = DAG.getNode(ISD::TRUNCATE, DL, MVT::i8, Op);
+      if ((KnownOne & HiMask) == HiMask && KnownOne.intersects(LoMask)) {
+        Op = DAG.getNode(ISD::SUB, DL, MVT::i8,
+                         DAG.getConstant(0, DL, MVT::i8), Op);
+        NegRes = !NegRes;
+      } else if ((KnownZero & HiMask) != HiMask)
+        return SDValue();
+    }
   SDValue OutOps[] = {
     DAG.getTargetConstant(Z80::G16RegClassID, DL, MVT::i32),
     InOps[0], DAG.getTargetConstant(Z80::sub_low, DL, MVT::i32),
@@ -1192,20 +1259,6 @@ SDValue Z80TargetLowering::combineStore(StoreSDNode *N,
   return SDValue();
 }
 
-SDValue Z80TargetLowering::combineEXTRACT_SUBREG(SDNode *N,
-                                                 DAGCombinerInfo &DCI) const {
-  const TargetRegisterInfo *TRI = Subtarget.getRegisterInfo();
-  SelectionDAG &DAG = DCI.DAG;
-  EVT VT = N->getValueType(0);
-  SDValue N0 = N->getOperand(0);
-  unsigned Off = TRI->getSubRegIdxOffset(N->getConstantOperandVal(1));
-  if (N0->getOpcode() == ISD::Constant)
-    return DAG.getNode(ISD::TRUNCATE, SDLoc(N), VT,
-                       DAG.getNode(ISD::SRL, SDLoc(N), VT, N0,
-                                   DAG.getConstant(Off, SDLoc(N), VT)));
-  return SDValue();
-}
-
 SDValue Z80TargetLowering::combineINSERT_SUBREG(SDNode *N,
                                                 DAGCombinerInfo &DCI) const {
   return SDValue();
@@ -1261,19 +1314,92 @@ SDValue Z80TargetLowering::combineSUB(SDNode *N, DAGCombinerInfo &DCI) const {
   return SDValue();
 }
 
-SDValue Z80TargetLowering::combineMul(SDNode *N, DAGCombinerInfo &DCI) const {
+static SDValue combineExtractSubreg(SDNode *N, SelectionDAG &DAG,
+                                    const Z80Subtarget &Subtarget) {
+  const TargetRegisterInfo *TRI = Subtarget.getRegisterInfo();
+  EVT VT = N->getValueType(0);
+  SDValue N0 = N->getOperand(0);
+  unsigned Off = TRI->getSubRegIdxOffset(N->getConstantOperandVal(1));
+  SDLoc DL(N);
+  if (!N0.hasOneUse())
+    return SDValue();
+  if (N0->getOpcode() == ISD::Constant)
+    return DAG.getNode(ISD::TRUNCATE, DL, VT,
+                       DAG.getNode(ISD::SRL, DL, VT, N0,
+                                   DAG.getConstant(Off, DL, VT)));
+  if (auto Load = dyn_cast<LoadSDNode>(N0))
+    return DAG.getLoad(VT, DL, Load->getChain(),
+                       DAG.getMemBasePlusOffset(Load->getBasePtr(), Off, DL),
+                       Load->getPointerInfo().getWithOffset(Off),
+                       Load->getAlignment(), Load->getMemOperand()->getFlags(),
+                       Load->getAAInfo());
+  return SDValue();
+}
+
+static SDValue combineMul(SDNode *N, SelectionDAG &DAG,
+                          const Z80Subtarget &Subtarget) {
+  EVT VT = N->getValueType(0);
+  SDValue N0 = N->getOperand(0);
+  SDValue N1 = N->getOperand(1);
+  SDLoc DL(N);
+  bool OptSize = DAG.getMachineFunction().getFunction()->getAttributes()
+    .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
+  if (OptSize)
+    return SDValue();
+  if (VT == MVT::i8 && Subtarget.hasZ180Ops())
+    return SDValue();
+  if (auto C1 = dyn_cast<ConstantSDNode>(N1)) {
+    APInt Const = C1->getAPIntValue();
+    bool Odd = Const[0];
+    Const.lshrInPlace(1);
+    SDValue Half = DAG.getNode(ISD::MUL, DL, VT, N0,
+                               DAG.getConstant(Const, DL, VT));
+    SDValue Double = DAG.getNode(ISD::ADD, DL, VT, Half, Half);
+    if (Odd)
+      Double = DAG.getNode(Z80ISD::ADD, DL, VT, Double, N0);
+    return Double;
+  }
+  return SDValue();
+}
+
+static SDValue combineTruncate(SDNode *N, SelectionDAG &DAG) {
+  EVT VT = N->getValueType(0);
+  SDValue Src = N->getOperand(0);
+  SDLoc DL(N);
+  if (VT == MVT::i8 && Src.hasOneUse() && Src.getOpcode() == Z80ISD::SEXT)
+    return DAG.getNode(Z80ISD::SEXT, DL, VT, Src.getOperand(0));
+  return SDValue();
+}
+
+static SDValue combineSExt(SDNode *N, SelectionDAG &DAG,
+                           const Z80Subtarget &Subtarget) {
+  EVT VT = N->getValueType(0);
+  SDValue N0 = N->getOperand(0);
+  SDLoc DL(N);
+  if (VT == MVT::i16 && Subtarget.is24Bit())
+    return DAG.getNode(ISD::TRUNCATE, DL, VT,
+                       DAG.getNode(Z80ISD::SEXT, DL, MVT::i24, N0));
   return SDValue();
 }
 
 SDValue Z80TargetLowering::PerformDAGCombine(SDNode *N,
                                              DAGCombinerInfo &DCI) const {
-  return SDValue();
+  if (N->isMachineOpcode())
+    switch (N->getMachineOpcode()) {
+    default: return SDValue();
+    case TargetOpcode::EXTRACT_SUBREG:
+      return combineExtractSubreg(N, DCI.DAG, Subtarget);
+    }
   switch (N->getOpcode()) {
-  default:               return SDValue();
+  default:            return SDValue();
+  case ISD::MUL:      return combineMul(N, DCI.DAG, Subtarget);
+  case ISD::TRUNCATE: return combineTruncate(N, DCI.DAG);
+  case Z80ISD::SEXT:  return combineSExt(N, DCI.DAG, Subtarget);
+  }
+  switch (N->getOpcode()) {
 //case ISD::MUL:         return combineMul(N, DCI);
 //case ISD::CopyFromReg: return combineCopyFromReg(N, DCI);
 //case ISD::STORE:       return combineStore(cast<StoreSDNode>(N), DCI);
-//case TargetOpcode::EXTRACT_SUBREG: return combineEXTRACT_SUBREG(N, DCI);
 //case TargetOpcode::INSERT_SUBREG:  return combineINSERT_SUBREG(N, DCI);
 //case Z80ISD::ADD:                  return combineADD(N, DCI);
 //case Z80ISD::SUB:                  return combineSUB(N, DCI);
@@ -1298,14 +1424,15 @@ bool Z80TargetLowering::isTypeDesirableForOp(unsigned Opc, EVT VT) const {
   case ISD::SIGN_EXTEND:
   case ISD::ZERO_EXTEND:
   case ISD::ANY_EXTEND:
-  case ISD::SHL:
-  case ISD::SRL:
-  case ISD::SUB:
   case ISD::ADD:
+  case ISD::SUB:
   case ISD::MUL:
   case ISD::AND:
   case ISD::OR:
   case ISD::XOR:
+  case ISD::SHL:
+  case ISD::SRA:
+  case ISD::SRL:
     return false;
   }
 }
@@ -1326,10 +1453,15 @@ bool Z80TargetLowering::isDesirableToShrinkOp(unsigned Opc, EVT SrcVT,
   case ISD::SUBE:
     // These require a .sis suffix for i24 -> i16
     return DstVT != MVT::i16 || Subtarget.is16Bit();
+  case ISD::MUL:
   case ISD::AND:
   case ISD::OR:
   case ISD::XOR:
-  case ISD::MUL:
+  case ISD::SHL:
+  case ISD::SRA:
+  case ISD::SRL:
+  case ISD::ROTL:
+  case ISD::ROTR:
     // These are more expensive on larger types, so always shrink.
     return true;
   }
@@ -1339,9 +1471,8 @@ bool Z80TargetLowering::isDesirableToShrinkOp(unsigned Opc, EVT SrcVT,
 /// promote the specified node. If true, it should return the desired promotion
 /// type by reference.
 bool Z80TargetLowering::IsDesirableToPromoteOp(SDValue Op, EVT &PVT) const {
-  EVT VT = Op.getValueType();
-  if (VT != MVT::i16 || Subtarget.is16Bit())
-    return false;
+  if (isDesirableToShrinkOp(Op.getOpcode(), MVT::i24, Op.getValueType()))
+      return false;
   PVT = MVT::i24;
   return true;
 }
@@ -2019,8 +2150,8 @@ SDValue Z80TargetLowering::LowerFormalArguments(
     int FI = MFI.CreateFixedObject(VA.getLocVT().getStoreSize(),
                                    VA.getLocMemOffset(), true);
     SDValue Val = DAG.getLoad(
-        VA.getLocVT(), DL, Chain,
-        DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout())),
+        VA.getLocInfo() == CCValAssign::AExt ? VA.getValVT() : VA.getLocVT(),
+        DL, Chain, DAG.getFrameIndex(FI, getPointerTy(DAG.getDataLayout())),
         MachinePointerInfo::getFixedStack(DAG.getMachineFunction(), FI));
 
     // Set SExt or ZExt flag.
