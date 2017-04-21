@@ -27,9 +27,9 @@ using namespace llvm;
 
 void Z80AsmPrinter::EmitStartOfAsmFile(Module &M) {
  const Triple &TT = TM.getTargetTriple();
- bool is16 = TT.isArch16Bit() || TT.getEnvironment() == Triple::CODE16;
- if (M.getModuleInlineAsm().empty())
-   OutStreamer->EmitAssemblerFlag(is16 ? MCAF_Code16 : MCAF_Code24);
+ if (TT.getArch() == Triple::ez80 && M.getModuleInlineAsm().empty())
+   OutStreamer->EmitAssemblerFlag(TT.getEnvironment() == Triple::CODE16
+                                      ? MCAF_Code16 : MCAF_Code24);
 }
 
 void Z80AsmPrinter::EmitEndOfAsmFile(Module &M) {

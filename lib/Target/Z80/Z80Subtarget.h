@@ -30,11 +30,11 @@ class Z80Subtarget final : public Z80GenSubtargetInfo {
   /// What processor and OS we're targeting.
   Triple TargetTriple;
 
-  /// True if compiling for 24-bit, false for 16-bit.
-  bool In24BitMode;
-
   /// True if compiling for 16-bit, false for 24-bit.
   bool In16BitMode;
+
+  /// True if compiling for 24-bit, false for 16-bit.
+  bool In24BitMode;
 
   /// True if target has undocumented z80 instructions.
   bool HasUndocOps;
@@ -60,6 +60,8 @@ public:
   /// of the specified triple.
   Z80Subtarget(const Triple &TT, const std::string &CPU, const std::string &FS,
                const Z80TargetMachine &TM);
+
+  //bool enableSubRegLiveness() const override { return true; }
 
   const Z80SelectionDAGInfo *getSelectionDAGInfo() const override {
     return &TSInfo;

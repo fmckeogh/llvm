@@ -29,10 +29,8 @@ using namespace llvm;
 #include "Z80GenRegisterInfo.inc"
 
 Z80RegisterInfo::Z80RegisterInfo(const Triple &TT)
-    : Z80GenRegisterInfo(Z80::PC) {
-  // Cache some information
-  Is24Bit = !TT.isArch16Bit();
-}
+    : Z80GenRegisterInfo(Z80::PC),
+      Is24Bit(!(TT.isArch16Bit() || TT.getEnvironment() == Triple::CODE16)) {}
 
 const TargetRegisterClass *
 Z80RegisterInfo::getPointerRegClass(const MachineFunction &MF,

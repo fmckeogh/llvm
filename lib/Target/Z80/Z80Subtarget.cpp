@@ -32,11 +32,9 @@ Z80Subtarget &Z80Subtarget::initializeSubtargetDependencies(StringRef CPU,
 Z80Subtarget::Z80Subtarget(const Triple &TT, const std::string &CPU,
                            const std::string &FS, const Z80TargetMachine &TM)
     : Z80GenSubtargetInfo(TT, CPU, FS), TargetTriple(TT),
-      In24BitMode(TargetTriple.getArch() == Triple::ez80 &&
-                  TargetTriple.getEnvironment() != Triple::CODE16),
-      In16BitMode(TargetTriple.getArch() == Triple::z80 ||
-                  TargetTriple.getEnvironment() == Triple::CODE16),
-      HasUndocOps(false), HasZ180Ops(false), HasEZ80Ops(false), HasIdxHalfRegs(false),
+      In16BitMode(TT.isArch16Bit() || TT.getEnvironment() == Triple::CODE16),
+      In24BitMode(!In16BitMode), HasUndocOps(false), HasZ180Ops(false),
+      HasEZ80Ops(false), HasIdxHalfRegs(false),
       InstrInfo(initializeSubtargetDependencies(CPU, FS)),
       TLInfo(TM, *this), FrameLowering(*this) {
 }
