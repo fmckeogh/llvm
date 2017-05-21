@@ -719,6 +719,39 @@ unsigned Z80InstrInfo::isStoreToStackSlot(const MachineInstr &MI,
   return 0;
 }
 
+bool Z80InstrInfo::isReallyTriviallyReMaterializable(const MachineInstr &MI,
+                                                     AliasAnalysis *AA) const {
+  switch (MI.getOpcode()) {
+  case Z80::LD8r0:
+  case Z80::LD24r0:
+  case Z80::LD24r_1:
+    return true;
+  }
+  return false;
+}
+
+void Z80InstrInfo::reMaterialize(MachineBasicBlock &MBB,
+                                 MachineBasicBlock::iterator I,
+                                 unsigned DstReg, unsigned SubIdx,
+                                 const MachineInstr &Orig,
+                                 const TargetRegisterInfo &TRI) const {
+  if (!Orig.modifiesRegister(Z80::F, &TRI) ||
+      MBB.computeRegisterLiveness(&TRI, Z80::F, I) ==
+      MachineBasicBlock::LQR_Dead)
+    return TargetInstrInfo::reMaterialize(MBB, I, DstReg, SubIdx, Orig, TRI);
+  // The instruction clobbers F. Re-materialize as LDri to avoid side effects.
+  unsigned Opc;
+  int Val;
+  switch (Orig.getOpcode()) {
+  default: llvm_unreachable("Unexpected instruction!");
+  case Z80::LD8r0:   Opc = Z80::LD8ri;  Val =  0; break;
+  case Z80::LD24r0:  Opc = Z80::LD24ri; Val =  0; break;
+  case Z80::LD24r_1: Opc = Z80::LD24ri; Val = -1; break;
+  }
+  BuildMI(MBB, I, Orig.getDebugLoc(), get(Opc))
+    .addReg(DstReg, RegState::Define, SubIdx).addImm(Val);
+}
+
 void Z80InstrInfo::
 expandLoadStoreWord(const TargetRegisterClass *ARC, unsigned AOpc,
                     const TargetRegisterClass *ORC, unsigned OOpc,
@@ -759,7 +792,7 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     }
     break;
   case Z80::LD24r0:
-  case Z80::LD24rM1:
+  case Z80::LD24r_1:
     if (MI.getOperand(0).getReg() == Z80::UHL) {
       if (Opc == Z80::LD24r0)
         expandPostRAPseudo(*BuildMI(MBB, MI, DL, get(Z80::RCF)));

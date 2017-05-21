@@ -345,7 +345,7 @@ let isMoveImm = 1, isReMaterializable = 1 in {
                          (outs  R8:$dst), (ins), [(set  R8:$dst,  0)]>;
     def LD24r0  : Pseudo<"ld", "\t$dst, 0",  "",
                          (outs R24:$dst), (ins), [(set R24:$dst,  0)]>;
-    def LD24rM1 : Pseudo<"ld", "\t$dst, -1", "",
+    def LD24r_1 : Pseudo<"ld", "\t$dst, -1", "",
                          (outs R24:$dst), (ins), [(set R24:$dst, -1)]>;
   }
   def LD8ri  : I8i <Idx0Pre, 0x06, "ld", "\t$dst, $src", "",

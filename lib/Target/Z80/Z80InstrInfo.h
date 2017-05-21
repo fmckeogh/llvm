@@ -133,6 +133,12 @@ public:
   unsigned isLoadFromStackSlot(const MachineInstr &MI,
                                int &FrameIndex) const override;
 
+  bool isReallyTriviallyReMaterializable(const MachineInstr &MI,
+                                         AliasAnalysis *AA) const override;
+  void reMaterialize(MachineBasicBlock &MBB, MachineBasicBlock::iterator I,
+                     unsigned DstReg, unsigned SubIdx, const MachineInstr &Orig,
+                     const TargetRegisterInfo &TRI) const override;
+
   bool expandPostRAPseudo(MachineInstr &MI) const override;
 
   /// analyzeCompare - For a comparison instruction, return the source registers
