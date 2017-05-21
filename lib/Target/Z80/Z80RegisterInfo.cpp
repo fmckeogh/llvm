@@ -174,7 +174,6 @@ void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   int Offset = MF.getFrameInfo().getObjectOffset(FrameIndex);
   int SlotSize = Is24Bit ? 3 : 2;
   // Skip any saved callee saved registers
-  Offset += MF.getInfo<Z80MachineFunctionInfo>()->getCalleeSavedFrameSize();
   if (TFI->hasFP(MF))
     Offset += SlotSize;
   // Skip return address for arguments
