@@ -255,21 +255,22 @@ unsigned Z80RegisterInfo::getFrameRegister(const MachineFunction &MF) const {
                                          : (Is24Bit ? Z80::SPL : Z80::SPS);
 }
 
-bool Z80RegisterInfo::shouldCoalesce(MachineInstr *MI,
-                                     const TargetRegisterClass *SrcRC,
-                                     unsigned SubReg,
-                                     const TargetRegisterClass *DstRC,
-                                     unsigned DstSubReg,
-                                     const TargetRegisterClass *NewRC) const {
+bool Z80RegisterInfo::
+shouldCoalesce(MachineInstr *MI,
+               const TargetRegisterClass *SrcRC, unsigned SrcSubReg,
+               const TargetRegisterClass *DstRC, unsigned DstSubReg,
+               const TargetRegisterClass *NewRC) const {
   const TargetRegisterInfo &TRI = *MI->getParent()->getParent()->getRegInfo()
     .getTargetRegisterInfo();
   (void)TRI;
-  DEBUG(dbgs() << TRI.getRegClassName(SrcRC) << ':'
-        << (SubReg ? TRI.getSubRegIndexName(SubReg) : "") << " -> "
-        << TRI.getRegClassName(DstRC) << ':'
-        << (DstSubReg ? TRI.getSubRegIndexName(DstSubReg) : "") << ' '
-        << TRI.getRegClassName(NewRC) << '\n');
-  return true;
+  DEBUG(dbgs() << TRI.getRegClassName(SrcRC) << '[' << SrcRC->getNumRegs()
+        << "]:" << (SrcSubReg ? TRI.getSubRegIndexName(SrcSubReg) : "")
+        << " -> " << TRI.getRegClassName(DstRC) << '[' << DstRC->getNumRegs()
+        << "]:" << (DstSubReg ? TRI.getSubRegIndexName(DstSubReg) : "") << ' '
+        << TRI.getRegClassName(NewRC) << '[' << NewRC->getNumRegs() << "]\n");
+  // Don't coalesce if SrcRC and DstRC have a small intersection.
+  return std::min(SrcRC->getNumRegs(),
+                  DstRC->getNumRegs()) <= NewRC->getNumRegs();
 }
 
 bool Z80RegisterInfo::

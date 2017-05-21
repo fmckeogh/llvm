@@ -65,9 +65,9 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
     for (unsigned Opc : { ISD::EXTLOAD, ISD::SEXTLOAD, ISD::ZEXTLOAD })
       setLoadExtAction(Opc, VT, MVT::i1, Promote);
     for (MVT MemVT : { MVT::i8, MVT::i16, MVT::i24 }) {
-      if (MemVT == VT)
-        continue;
-      for (unsigned Opc : { ISD::EXTLOAD, ISD::SEXTLOAD, ISD::ZEXTLOAD })
+      if (MemVT.bitsGE(VT))
+        break;
+      for (unsigned Opc : { ISD::SEXTLOAD, ISD::ZEXTLOAD })
         setLoadExtAction(Opc, VT, MemVT, Expand);
       setTruncStoreAction(VT, MemVT, Expand);
     }
@@ -78,13 +78,16 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
     for (MVT VT : { MVT::i8, MVT::i16, MVT::i24 })
       setOperationAction(ISD::MUL, VT, Custom);
 
-  if (!HasEZ80Ops)
-    setOperationAction(ISD::LOAD, MVT::i16, Custom);
-  if (!HasEZ80Ops || Is24Bit)
-    setOperationAction(ISD::STORE, MVT::i16, Custom);
-  if (Is24Bit)
-    setLoadExtAction(ISD::EXTLOAD, MVT::i24, MVT::i16, Custom);
+  //if (!HasEZ80Ops)
+    //setOperationAction(ISD::LOAD, MVT::i16, Custom);
+  //if (!HasEZ80Ops || Is24Bit)
+    //setOperationAction(ISD::STORE, MVT::i16, Custom);
+  //if (Is24Bit)
+    //setLoadExtAction(ISD::EXTLOAD, MVT::i24, MVT::i16, Legal);
   setOperationAction(ISD::DYNAMIC_STACKALLOC, PtrVT, Expand);
+  for (unsigned Opc : { ISD::GlobalAddress, ISD::ExternalSymbol,
+                        ISD::BlockAddress })
+    setOperationAction(Opc, PtrVT, Custom);
 
   setOperationAction(ISD::VASTART, MVT::Other, Custom);
   setOperationAction(ISD::VAARG,   MVT::Other, Expand);
@@ -518,6 +521,31 @@ SDValue Z80TargetLowering::LowerMul(SDValue Op, SelectionDAG &DAG) const {
   return Res;
 }
 
+SDValue Z80TargetLowering::LowerGlobalAddress(GlobalAddressSDNode *Node,
+                                              SelectionDAG &DAG) const {
+  SDLoc DL(Node);
+  auto PtrVT = getPointerTy(DAG.getDataLayout());
+  SDValue Res = DAG.getTargetGlobalAddress(Node->getGlobal(), DL, PtrVT,
+                                           Node->getOffset());
+  return DAG.getNode(Z80ISD::Wrapper, DL, PtrVT, Res);
+}
+
+SDValue Z80TargetLowering::LowerExternalSymbol(ExternalSymbolSDNode *Node,
+                                               SelectionDAG &DAG) const {
+  SDLoc DL(Node);
+  auto PtrVT = getPointerTy(DAG.getDataLayout());
+  SDValue Res = DAG.getTargetExternalSymbol(Node->getSymbol(), PtrVT);
+  return DAG.getNode(Z80ISD::Wrapper, DL, PtrVT, Res);
+}
+
+SDValue Z80TargetLowering::LowerBlockAddress(BlockAddressSDNode *Node,
+                                             SelectionDAG &DAG) const {
+  SDLoc DL(Node);
+  auto PtrVT = getPointerTy(DAG.getDataLayout());
+  SDValue Res = DAG.getTargetBlockAddress(Node->getBlockAddress(), PtrVT);
+  return DAG.getNode(Z80ISD::Wrapper, DL, PtrVT, Res);
+}
+
 SDValue Z80TargetLowering::LowerLoad(LoadSDNode *Node,
                                      SelectionDAG &DAG) const {
   SDLoc DL(Node);
@@ -593,24 +621,30 @@ SDValue Z80TargetLowering::LowerOperation(SDValue Op, SelectionDAG &DAG) const {
   assert(Op.getResNo() == 0);
   switch (Op.getOpcode()) {
   default: llvm_unreachable("Don't know how to lower this operation.");
-  case ISD::BR_CC:       return LowerBR_CC(Op, DAG);
-//case ISD::SETCC:       return LowerSETCC(Op, DAG);
-  case ISD::SELECT_CC:   return LowerSELECT_CC(Op, DAG);
+  case ISD::BR_CC:          return LowerBR_CC(Op, DAG);
+//case ISD::SETCC:          return LowerSETCC(Op, DAG);
+  case ISD::SELECT_CC:      return LowerSELECT_CC(Op, DAG);
 //case ISD::ADD:
-//case ISD::SUB:         return LowerAddSub(Op, DAG);
+//case ISD::SUB:            return LowerAddSub(Op, DAG);
   case ISD::AND:
   case ISD::OR:
-  case ISD::XOR:         return LowerBitwise(Op, DAG);
+  case ISD::XOR:            return LowerBitwise(Op, DAG);
   case ISD::SHL:
   case ISD::SRA:
   case ISD::SRL:
   case ISD::ROTL:
-  case ISD::ROTR:        return LowerShift(Op, DAG);
-  case ISD::SIGN_EXTEND: return LowerSignExtend(Op, DAG);
-  case ISD::MUL:         return LowerMul(Op, DAG);
-  case ISD::LOAD:        return LowerLoad(cast<LoadSDNode>(Op.getNode()), DAG);
-  case ISD::STORE:       return LowerStore(cast<StoreSDNode>(Op.getNode()), DAG);
-  case ISD::VASTART:     return LowerVAStart(Op, DAG);
+  case ISD::ROTR:           return LowerShift(Op, DAG);
+  case ISD::SIGN_EXTEND:    return LowerSignExtend(Op, DAG);
+  case ISD::MUL:            return LowerMul(Op, DAG);
+  case ISD::GlobalAddress:  return LowerGlobalAddress(
+                                       cast<GlobalAddressSDNode>(Op), DAG);
+  case ISD::ExternalSymbol: return LowerExternalSymbol(
+                                       cast<ExternalSymbolSDNode>(Op), DAG);
+  case ISD::BlockAddress:   return LowerBlockAddress(
+                                       cast<BlockAddressSDNode>(Op), DAG);
+  case ISD::LOAD:           return LowerLoad(cast<LoadSDNode>(Op), DAG);
+  case ISD::STORE:          return LowerStore(cast<StoreSDNode>(Op), DAG);
+  case ISD::VASTART:        return LowerVAStart(Op, DAG);
   }
 }
 
@@ -1366,8 +1400,33 @@ static SDValue combineTruncate(SDNode *N, SelectionDAG &DAG) {
   EVT VT = N->getValueType(0);
   SDValue Src = N->getOperand(0);
   SDLoc DL(N);
-  if (VT == MVT::i8 && Src.hasOneUse() && Src.getOpcode() == Z80ISD::SEXT)
-    return DAG.getNode(Z80ISD::SEXT, DL, VT, Src.getOperand(0));
+  if (VT == MVT::i8 && Src.hasOneUse())
+    switch (Src.getOpcode()) {
+    case ISD::SRL:
+    case ISD::SRA:
+      if (auto SA = dyn_cast<ConstantSDNode>(Src.getOperand(1)))
+        if (Src.getValueType() == MVT::i24 && SA->getZExtValue() <= 8)
+          return DAG.getNode(ISD::TRUNCATE, DL, VT,
+                             DAG.getNode(ISD::SRL, DL, MVT::i16,
+                                         DAG.getNode(ISD::TRUNCATE, DL,
+                                                     MVT::i16,
+                                                     Src.getOperand(0)),
+                                         Src.getOperand(1)));
+      break;
+    case Z80ISD::SEXT:
+      return DAG.getNode(Z80ISD::SEXT, DL, VT, Src.getOperand(0));
+    }
+  return SDValue();
+}
+
+static SDValue combineSub(SDNode *N, TargetLowering::DAGCombinerInfo &DCI) {
+  SelectionDAG &DAG = DCI.DAG;
+  SDLoc DL(N);
+  SDValue Val0(N, 0);
+  if (Val0.use_empty())
+    return DCI.CombineTo(N, Val0,
+                         DAG.getNode(Z80ISD::CP, DL, N->getValueType(1),
+                                     N->getOperand(0), N->getOperand(1)));
   return SDValue();
 }
 
@@ -1394,6 +1453,7 @@ SDValue Z80TargetLowering::PerformDAGCombine(SDNode *N,
   default:            return SDValue();
   case ISD::MUL:      return combineMul(N, DCI.DAG, Subtarget);
   case ISD::TRUNCATE: return combineTruncate(N, DCI.DAG);
+  case Z80ISD::SUB:   return combineSub(N, DCI);
   case Z80ISD::SEXT:  return combineSExt(N, DCI.DAG, Subtarget);
   }
   switch (N->getOpcode()) {
@@ -1413,19 +1473,20 @@ SDValue Z80TargetLowering::PerformDAGCombine(SDNode *N,
 bool Z80TargetLowering::isTypeDesirableForOp(unsigned Opc, EVT VT) const {
   if (!isTypeLegal(VT))
     return false;
-  if (VT != MVT::i16 || Subtarget.is16Bit())
+  if (Subtarget.is16Bit())
     return true;
 
   switch (Opc) {
   default:
-    return true;
-  case ISD::LOAD:
-  case ISD::STORE:
   case ISD::SIGN_EXTEND:
   case ISD::ZERO_EXTEND:
   case ISD::ANY_EXTEND:
+    return true;
+  case ISD::LOAD:
+  case ISD::STORE:
   case ISD::ADD:
   case ISD::SUB:
+    return VT != MVT::i16;
   case ISD::MUL:
   case ISD::AND:
   case ISD::OR:
@@ -1433,7 +1494,7 @@ bool Z80TargetLowering::isTypeDesirableForOp(unsigned Opc, EVT VT) const {
   case ISD::SHL:
   case ISD::SRA:
   case ISD::SRL:
-    return false;
+    return VT != MVT::i24;
   }
 }
 
@@ -1828,6 +1889,14 @@ SDValue Z80TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   if (IsTailCall)
     InFlag = SDValue();
 
+  // If the callee is a GlobalAddress node (quite common, every direct call is)
+  // turn it into a TargetGlobalAddress node so that legalize doesn't hack it.
+  // Likewise ExternalSymbol -> TargetExternalSymbol.
+  if (GlobalAddressSDNode *G = dyn_cast<GlobalAddressSDNode>(Callee))
+    Callee = DAG.getTargetGlobalAddress(G->getGlobal(), DL, PtrVT);
+  else if (ExternalSymbolSDNode *E = dyn_cast<ExternalSymbolSDNode>(Callee))
+    Callee = DAG.getTargetExternalSymbol(E->getSymbol(), PtrVT);
+
   // Returns a chain and a flag for retval copy to use.
   SDVTList NodeTys = DAG.getVTList(MVT::Other, MVT::Glue);
   SmallVector<SDValue, 8> Ops;
@@ -2109,6 +2178,7 @@ SDValue Z80TargetLowering::LowerFormalArguments(
   MachineFunction &MF = DAG.getMachineFunction();
   Z80MachineFunctionInfo *FuncInfo = MF.getInfo<Z80MachineFunctionInfo>();
   MachineFrameInfo &MFI = MF.getFrameInfo();
+  MachineRegisterInfo &MRI = MF.getRegInfo();
 
   // Assign locations to all of the incoming arguments.
   SmallVector<CCValAssign, 16> ArgLocs;

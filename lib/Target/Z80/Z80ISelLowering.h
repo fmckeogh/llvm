@@ -239,6 +239,11 @@ public:
   SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
 
+  SDValue LowerGlobalAddress(GlobalAddressSDNode *Node,
+                             SelectionDAG &DAG) const;
+  SDValue LowerExternalSymbol(ExternalSymbolSDNode *Node,
+                              SelectionDAG &DAG) const;
+  SDValue LowerBlockAddress(BlockAddressSDNode *Node, SelectionDAG &DAG) const;
   SDValue LowerLOAD(LoadSDNode *Node, SelectionDAG &DAG) const;
   SDValue LowerSTORE(StoreSDNode *Node, SelectionDAG &DAG) const;
 
