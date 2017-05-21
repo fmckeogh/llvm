@@ -51,6 +51,35 @@ bool splitReg(unsigned ByteSize, unsigned Opc8, unsigned Opc16, unsigned Opc24,
               unsigned &HiIdx, unsigned &HiOff, bool Has16BitEZ80Ops);
 } // end namespace Z80;
 
+namespace Z80II {
+  enum {
+    PrefixShift = 0,
+    NoPrefix = 0 << PrefixShift,
+    CBPrefix = 1 << PrefixShift,
+    DDPrefix = 2 << PrefixShift,
+    DDCBPrefix = 3 << PrefixShift,
+    EDPrefix = 4 << PrefixShift,
+    FDPrefix = 5 << PrefixShift,
+    FDCBPrefix = 6 << PrefixShift,
+    AnyIndexPrefix = 7 << PrefixShift,
+    PrefixMask = 7 << PrefixShift,
+    IndexedIndexPrefix = 8 << PrefixShift,
+
+    ModeShift = 4,
+    AnyMode = 0 << ModeShift,
+    CurMode = 1 << ModeShift,
+    Z80Mode = 2 << ModeShift,
+    EZ80Mode = 3 << ModeShift,
+    ModeMask = 3 << ModeShift,
+
+    HasImm = 1 << 6,
+    HasOff = 1 << 7,
+
+    OpcodeShift = 8,
+    OpcodeMask = 0xFF << OpcodeShift
+  };
+} // end namespace Z80II;
+
 class Z80InstrInfo final : public Z80GenInstrInfo {
   Z80Subtarget &Subtarget;
   const Z80RegisterInfo RI;
@@ -67,6 +96,8 @@ public:
   const Z80RegisterInfo &getRegisterInfo() const { return RI; }
 
   int getSPAdjust(const MachineInstr &MI) const override;
+
+  unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
 
   // Branch analysis.
   bool isUnpredicatedTerminator(const MachineInstr &MI) const override;

@@ -47,6 +47,84 @@ int Z80InstrInfo::getSPAdjust(const MachineInstr &MI) const {
   return TargetInstrInfo::getSPAdjust(MI);
 }
 
+static bool isIndex(const MachineOperand &MO, const MCRegisterInfo &RI) {
+  if (MO.isFI())
+    return true;
+  if (MO.isReg())
+    for (unsigned IndexReg : Z80::I24RegClass)
+      if (RI.isSubRegisterEq(IndexReg, MO.getReg()))
+        return true;
+  return false;
+}
+
+static bool hasIndex(const MachineInstr &MI, const MCRegisterInfo &RI) {
+  for (const MachineOperand &Op : MI.explicit_operands())
+    if (isIndex(Op, RI))
+      return true;
+  return false;
+}
+
+unsigned Z80InstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
+  auto TSFlags = MI.getDesc().TSFlags;
+  // 1 byte for opcode
+  unsigned Size = 1;
+  // 1 byte if we need a suffix
+  switch (TSFlags & Z80II::ModeMask) {
+  case Z80II::AnyMode:
+  case Z80II::CurMode:
+    break;
+  case Z80II::Z80Mode:
+    Size += Subtarget.is24Bit();
+    break;
+  case Z80II::EZ80Mode:
+    Size += Subtarget.is16Bit();
+    break;
+  }
+  // prefix byte(s)
+  unsigned Prefix = TSFlags & Z80II::PrefixMask;
+  if (TSFlags & Z80II::IndexedIndexPrefix)
+    Size += isIndex(MI.getOperand(Prefix >> Z80II::PrefixShift),
+                    getRegisterInfo());
+  else
+    switch (Prefix) {
+    case Z80II::NoPrefix:
+      break;
+    case Z80II::CBPrefix:
+    case Z80II::DDPrefix:
+    case Z80II::EDPrefix:
+    case Z80II::FDPrefix:
+      Size += 1;
+      break;
+    case Z80II::DDCBPrefix:
+    case Z80II::FDCBPrefix:
+      Size += 2;
+      break;
+    case Z80II::AnyIndexPrefix:
+      Size += hasIndex(MI, getRegisterInfo());
+      break;
+    }
+  // immediate byte(s)
+  if (TSFlags & Z80II::HasImm)
+    switch (TSFlags & Z80II::ModeMask) {
+    case Z80II::AnyMode:
+      Size += 1;
+      break;
+    case Z80II::CurMode:
+      Size += Subtarget.is24Bit() ? 3 : 2;
+      break;
+    case Z80II::Z80Mode:
+      Size += 2;
+      break;
+    case Z80II::EZ80Mode:
+      Size += 3;
+      break;
+    }
+  // 1 byte if we need an offset
+  if (TSFlags & Z80II::HasOff)
+    Size += 1;
+  return Size;
+}
+
 /// Return the inverse of the specified condition,
 /// e.g. turning COND_E to COND_NE.
 Z80::CondCode Z80::GetOppositeBranchCondition(Z80::CondCode CC) {
