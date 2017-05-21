@@ -300,31 +300,31 @@ let isCall = 1, isTerminator = 1, isReturn = 1, isBarrier = 1 in {
 
 let isBranch = 1, isTerminator = 1 in {
   let isBarrier = 1 in {
-    def JQ : Pseudo<"jp", "\t$target", "", (outs), (ins jmptarget:$target),
-                    [(br bb:$target)]>;
-    def JR   : Io  <NoPre, 0x18, "jr", "\t$target", "",
-                    (outs), (ins jmptargetoff:$target)>;
-    def JP16 : I16i<NoPre, 0xC3, "jp", "\t$target", "",
-                    (outs), (ins jmptarget:$target)>;
-    def JP24 : I24i<NoPre, 0xC3, "jp", "\t$target", "",
-                    (outs), (ins jmptarget:$target)>;
+    def JQ : Pseudo<"jp", "\t$dst", "", (outs), (ins jmptarget:$dst),
+                    [(br bb:$dst)]>;
+    def JR   : Io  <NoPre, 0x18, "jr", "\t$dst", "",
+                    (outs), (ins jmptargetoff:$dst)>;
+    def JP16 : I16i<NoPre, 0xC3, "jp", "\t$dst", "",
+                    (outs), (ins jmptarget:$dst)>;
+    def JP24 : I24i<NoPre, 0xC3, "jp", "\t$dst", "",
+                    (outs), (ins jmptarget:$dst)>;
     let isIndirectBranch = 1 in {
-      def JP16r : I16<NoPre, 0xE9, "jp", "\t$target", "",
-                      (outs), (ins ptr:$target), [(brind iPTR:$target)]>;
-      def JP24r : I24<NoPre, 0xE9, "jp", "\t$target", "",
-                      (outs), (ins ptr:$target), [(brind iPTR:$target)]>;
+      def JP16r : I16<NoPre, 0xE9, "jp", "\t($dst)", "",
+                      (outs), (ins A16:$dst), [(brind A16:$dst)]>;
+      def JP24r : I24<NoPre, 0xE9, "jp", "\t($dst)", "",
+                      (outs), (ins A24:$dst), [(brind A24:$dst)]>;
     }
   }
   let Uses = [F] in {
-    def JQCC : Pseudo<"jp", "\t$cc, $target", "",
-                      (outs), (ins jmptarget:$target, cc:$cc),
-                      [(Z80brcond bb:$target, imm:$cc, F)]>;
-    def JRCC   : Io  <NoPre, 0x18, "jr", "\t$cc, $target", "",
-                      (outs), (ins jmptargetoff:$target, cc:$cc)>;
-    def JP16CC : I16i<NoPre, 0xC3, "jp", "\t$cc, $target", "",
-                      (outs), (ins jmptarget:$target, cc:$cc)>;
-    def JP24CC : I24i<NoPre, 0xC3, "jp", "\t$cc, $target", "",
-                      (outs), (ins jmptarget:$target, cc:$cc)>;
+    def JQCC : Pseudo<"jp", "\t$cc, $dst", "",
+                      (outs), (ins jmptarget:$dst, cc:$cc),
+                      [(Z80brcond bb:$dst, imm:$cc, F)]>;
+    def JRCC   : Io  <NoPre, 0x18, "jr", "\t$cc, $dst", "",
+                      (outs), (ins jmptargetoff:$dst, cc:$cc)>;
+    def JP16CC : I16i<NoPre, 0xC3, "jp", "\t$cc, $dst", "",
+                      (outs), (ins jmptarget:$dst, cc:$cc)>;
+    def JP24CC : I24i<NoPre, 0xC3, "jp", "\t$cc, $dst", "",
+                      (outs), (ins jmptarget:$dst, cc:$cc)>;
   }
 }
 
@@ -840,13 +840,22 @@ def : Pat<(i16 (Z80Wrapper tblockaddress:$src)), (LD16ri tblockaddress:$src)>;
 def : Pat<(i24 (Z80Wrapper tblockaddress:$src)), (LD24ri tblockaddress:$src)>;
 
 // calls
-def : Pat<(Z80call (tglobaladdr :$target)), (CALL16i tglobaladdr :$target)>,
+def : Pat<(Z80call (tglobaladdr :$dst)), (CALL16i tglobaladdr :$dst)>,
       Requires<[In16BitMode]>;
-def : Pat<(Z80call (tglobaladdr :$target)), (CALL24i tglobaladdr :$target)>,
+def : Pat<(Z80call (tglobaladdr :$dst)), (CALL24i tglobaladdr :$dst)>,
       Requires<[In24BitMode]>;
-def : Pat<(Z80call (texternalsym:$target)), (CALL16i texternalsym:$target)>,
+def : Pat<(Z80call (texternalsym:$dst)), (CALL16i texternalsym:$dst)>,
       Requires<[In16BitMode]>;
-def : Pat<(Z80call (texternalsym:$target)), (CALL24i texternalsym:$target)>,
+def : Pat<(Z80call (texternalsym:$dst)), (CALL24i texternalsym:$dst)>,
+      Requires<[In24BitMode]>;
+
+def : Pat<(Z80tcret (tglobaladdr :$dst)), (TCRETURN16i tglobaladdr :$dst)>,
+      Requires<[In16BitMode]>;
+def : Pat<(Z80tcret (tglobaladdr :$dst)), (TCRETURN24i tglobaladdr :$dst)>,
+      Requires<[In24BitMode]>;
+def : Pat<(Z80tcret (texternalsym:$dst)), (TCRETURN16i texternalsym:$dst)>,
+      Requires<[In16BitMode]>;
+def : Pat<(Z80tcret (texternalsym:$dst)), (TCRETURN24i texternalsym:$dst)>,
       Requires<[In24BitMode]>;
 
 //===----------------------------------------------------------------------===//
