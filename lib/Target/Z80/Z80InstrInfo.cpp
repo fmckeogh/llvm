@@ -733,11 +733,12 @@ expandLoadStoreWord(const TargetRegisterClass *ARC, unsigned AOpc,
 bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   DebugLoc DL = MI.getDebugLoc();
   MachineBasicBlock &MBB = *MI.getParent();
+  MachineFunction &MF = *MBB.getParent();
   auto Next = ++MachineBasicBlock::iterator(MI);
-  MachineInstrBuilder MIB(*MBB.getParent(), MI);
+  MachineInstrBuilder MIB(MF, MI);
   const TargetRegisterInfo &TRI = getRegisterInfo();
   bool Is24Bit = Subtarget.is24Bit();
-  bool UseLEA = Is24Bit && !MBB.getParent()->getFunction()->getAttributes()
+  bool UseLEA = Is24Bit && !MF.getFunction()->getAttributes()
     .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
   DEBUG(dbgs() << "\nZ80InstrInfo::expandPostRAPseudo:"; MI.dump());
   switch (unsigned Opc = MI.getOpcode()) {
@@ -765,7 +766,9 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       else
         BuildMI(MBB, MI, DL, get(Z80::SCF));
       MI.setDesc(get(Z80::SBC24aa));
-      MI.RemoveOperand(0);
+      MI.getOperand(0).setImplicit();
+      MIB.addReg(Z80::UHL, RegState::Implicit | RegState::Undef);
+      MIB.addReg(Z80::F, RegState::Implicit);
     } else {
       MI.setDesc(get(Z80::LD24ri));
       MI.findRegisterDefOperand(Z80::F)
