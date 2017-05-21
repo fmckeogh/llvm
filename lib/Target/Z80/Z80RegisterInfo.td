@@ -83,9 +83,6 @@ def PC  : Z80Reg<"pc">;
 //  Register Class Definitions...
 //
 
-def aptr_rc : PointerLikeRegClass<1>;
-def iptr_rc : PointerLikeRegClass<2>;
-
 class Z80RC8 <dag regList> : RegisterClass<"Z80", [i8 ], 8, regList>;
 class Z80RC16<dag regList> : RegisterClass<"Z80", [i16], 8, regList>;
 class Z80RC24<dag regList> : RegisterClass<"Z80", [i24], 8, regList>;

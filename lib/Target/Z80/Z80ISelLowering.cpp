@@ -1489,18 +1489,18 @@ Z80TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                MachineBasicBlock *BB) const {
   switch (MI.getOpcode()) {
   default: llvm_unreachable("Unexpected instr type to insert");
-  case Z80::Sub016:
+  /*case Z80::Sub016:
   case Z80::Sub024:
     return EmitLoweredSub0(MI, BB);
   case Z80::Sub16:
   case Z80::Sub24:
     return EmitLoweredSub(MI, BB);
-  case Z80::Cp016:
-  case Z80::Cp024:
+  case Z80::Cp16a0:
+  case Z80::Cp24a0:
     return EmitLoweredCmp0(MI, BB);
-  case Z80::Cp16:
-  case Z80::Cp24:
-    return EmitLoweredCmp(MI, BB);
+  case Z80::Cp16ao:
+  case Z80::Cp24ao:
+  return EmitLoweredCmp(MI, BB);*/
   case Z80::Select8:
   case Z80::Select16:
   case Z80::Select24:
@@ -1533,43 +1533,21 @@ void Z80TargetLowering::AdjustAdjCallStack(MachineInstr &MI) const {
   MachineRegisterInfo &MRI = MI.getParent()->getParent()->getRegInfo();
   unsigned Reg = MRI.createVirtualRegister(Is24Bit ? &Z80::A24RegClass
                                                    : &Z80::A16RegClass);
-  MI.addOperand(MachineOperand::CreateReg(Reg, true  /*IsDef*/,
-                                               true  /*IsImp*/,
-                                               false /*IsKill*/,
-                                               true  /*IsDead*/));
+  MachineInstrBuilder(*MI.getParent()->getParent(), MI)
+    .addReg(Reg, RegState::ImplicitDefine | RegState::Dead);
   DEBUG(MI.dump());
-}
-
-MachineBasicBlock *
-Z80TargetLowering::EmitLoweredSub0(MachineInstr &MI,
-                                   MachineBasicBlock *BB) const {
-  bool Is24Bit = MI.getOpcode() == Z80::Sub024;
-  assert((Is24Bit || MI.getOpcode() == Z80::Sub016) && "Unexpected opcode");
-  unsigned OpReg = Is24Bit ? Z80::UHL : Z80::HL;
-  unsigned ScratchReg = Is24Bit ? Z80::UBC : Z80::BC;
-  const TargetInstrInfo *TII = Subtarget.getInstrInfo();
-  DebugLoc DL = MI.getDebugLoc();
-  DEBUG(BB->dump());
-  BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao), OpReg)
-    .addReg(OpReg).addReg(ScratchReg, RegState::Undef);
-  BuildMI(*BB, MI, DL, TII->get(Z80::RCF));
-  BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ar : Z80::SBC16ar))
-    .addReg(ScratchReg, RegState::Undef);
-  MI.eraseFromParent();
-  DEBUG(BB->dump());
-  return BB;
 }
 
 MachineBasicBlock *
 Z80TargetLowering::EmitLoweredSub(MachineInstr &MI,
                                   MachineBasicBlock *BB) const {
-  bool Is24Bit = MI.getOpcode() == Z80::Sub24;
-  assert((Is24Bit || MI.getOpcode() == Z80::Sub16) && "Unexpected opcode");
+  bool Is24Bit = MI.getOpcode() == Z80::SUB24ao;
+  assert((Is24Bit || MI.getOpcode() == Z80::SUB16ao) && "Unexpected opcode");
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
   DebugLoc DL = MI.getDebugLoc();
   DEBUG(BB->dump());
   BuildMI(*BB, MI, DL, TII->get(Z80::RCF));
-  BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ar : Z80::SBC16ar))
+  BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ao : Z80::SBC16ao))
           .addReg(MI.getOperand(0).getReg());
   MI.eraseFromParent();
   DEBUG(BB->dump());
@@ -1579,12 +1557,12 @@ Z80TargetLowering::EmitLoweredSub(MachineInstr &MI,
 MachineBasicBlock *
 Z80TargetLowering::EmitLoweredCmp(MachineInstr &MI,
                                   MachineBasicBlock *BB) const {
-  bool Is24Bit = MI.getOpcode() == Z80::Cp24;
-  assert((Is24Bit || MI.getOpcode() == Z80::Cp16) && "Unexpected opcode");
+  bool Is24Bit = MI.getOpcode() == Z80::CP24ao;
+  assert((Is24Bit || MI.getOpcode() == Z80::CP16ao) && "Unexpected opcode");
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
   DebugLoc DL = MI.getDebugLoc();
   BuildMI(*BB, MI, DL, TII->get(Z80::RCF));
-  BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ar : Z80::SBC16ar))
+  BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ao : Z80::SBC16ao))
     .addReg(MI.getOperand(0).getReg());
   BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao),
           Is24Bit ? Z80::UHL : Z80::HL).addReg(Is24Bit ? Z80::UHL : Z80::HL)
@@ -1597,15 +1575,15 @@ Z80TargetLowering::EmitLoweredCmp(MachineInstr &MI,
 MachineBasicBlock *
 Z80TargetLowering::EmitLoweredCmp0(MachineInstr &MI,
                                    MachineBasicBlock *BB) const {
-  bool Is24Bit = MI.getOpcode() == Z80::Cp024;
-  assert((Is24Bit || MI.getOpcode() == Z80::Cp016) && "Unexpected opcode");
+  bool Is24Bit = MI.getOpcode() == Z80::CP24a0;
+  assert((Is24Bit || MI.getOpcode() == Z80::CP16a0) && "Unexpected opcode");
   const TargetInstrInfo *TII = Subtarget.getInstrInfo();
   DebugLoc DL = MI.getDebugLoc();
   BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::ADD24ao : Z80::ADD16ao),
           Is24Bit ? Z80::UHL : Z80::HL).addReg(Is24Bit ? Z80::UHL : Z80::HL)
     .addReg(MI.getOperand(0).getReg());
   BuildMI(*BB, MI, DL, TII->get(Z80::RCF));
-  BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ar : Z80::SBC16ar))
+  BuildMI(*BB, MI, DL, TII->get(Is24Bit ? Z80::SBC24ao : Z80::SBC16ao))
     .addReg(MI.getOperand(0).getReg());
   MI.eraseFromParent();
   DEBUG(BB->dump());

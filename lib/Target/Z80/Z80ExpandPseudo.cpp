@@ -98,8 +98,8 @@ FunctionPass *llvm::createZ80ExpandPseudoPass() {
 }
 
 void Z80ExpandPseudo::ExpandCmp(MachineInstr &MI, MachineBasicBlock &MBB) {
-  bool Is24Bit = MI.getOpcode() == Z80::Cp24;
-  assert((Is24Bit || MI.getOpcode() == Z80::Cp16) && "Unexpected opcode");
+  bool Is24Bit = MI.getOpcode() == Z80::CP24ao;
+  assert((Is24Bit || MI.getOpcode() == Z80::CP16ao) && "Unexpected opcode");
   DebugLoc DL = MI.getDebugLoc();
   dbgs() << "Z80ExpandPseudo::ExpandCmp";
   MI.dump();
@@ -111,8 +111,8 @@ void Z80ExpandPseudo::ExpandCmp(MachineInstr &MI, MachineBasicBlock &MBB) {
   //  .addReg(MI.getOperand(0).getReg());
 }
 void Z80ExpandPseudo::ExpandCmp0(MachineInstr &MI, MachineBasicBlock &MBB) {
-  bool Is24Bit = MI.getOpcode() == Z80::Cp024;
-  assert((Is24Bit || MI.getOpcode() == Z80::Cp016) && "Unexpected opcode");
+  bool Is24Bit = MI.getOpcode() == Z80::CP24a0;
+  assert((Is24Bit || MI.getOpcode() == Z80::CP16a0) && "Unexpected opcode");
   DebugLoc DL = MI.getDebugLoc();
   dbgs() << "Z80ExpandPseudo::ExpandCmp";
   MI.dump();
@@ -127,12 +127,12 @@ void Z80ExpandPseudo::ExpandCmp0(MachineInstr &MI, MachineBasicBlock &MBB) {
 bool Z80ExpandPseudo::ExpandMI(MachineBasicBlock::iterator &MI, MachineBasicBlock &MBB) {
   switch (MI->getOpcode()) {
   default: return false;
-  case Z80::Cp16:
-  case Z80::Cp24:
+  case Z80::CP16ao:
+  case Z80::CP24ao:
     ExpandCmp(*MI, MBB);
     break;
-  case Z80::Cp016:
-  case Z80::Cp024:
+  case Z80::CP16a0:
+  case Z80::CP24a0:
     ExpandCmp0(*MI, MBB);
     break;
   }

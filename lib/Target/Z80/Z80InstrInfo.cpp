@@ -87,16 +87,12 @@ bool Z80InstrInfo::analyzeBranch(MachineBasicBlock &MBB,
     if (!I->isBranch())
       return true;
 
-    // Cannot handle indirect branches.
-    if (I->getOpcode() == Z80::JPr)
-      return true;
-
-    // Cannot handle tcreturn branches.
+    // Cannot handle branches that don't branch to a block.
     if (!I->getOperand(0).isMBB())
       return true;
 
     // Handle unconditional branches.
-    if (I->getOpcode() == Z80::JQ && I->getOperand(0).isMBB()) {
+    if (I->getNumOperands() == 1) {
       UnCondBrIter = I;
 
       if (!AllowModify) {
@@ -125,7 +121,7 @@ bool Z80InstrInfo::analyzeBranch(MachineBasicBlock &MBB,
     }
 
     // Handle conditional branches.
-    assert(I->getOpcode() == Z80::JQCC && "Invalid conditional branch");
+    assert(I->getNumExplicitOperands() == 2 && "Invalid conditional branch");
     Z80::CondCode BranchCode = Z80::CondCode(I->getOperand(1).getImm());
 
     // Working from the bottom, handle the first conditional branch.
@@ -309,7 +305,7 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     // Byte copy.
     if (Z80::G8RegClass.contains(DstReg, SrcReg)) {
       // Neither are index registers.
-      BuildMI(MBB, MI, DL, get(Z80::LD8rr), DstReg)
+      BuildMI(MBB, MI, DL, get(Z80::LD8gg), DstReg)
         .addReg(SrcReg, getKillRegState(KillSrc));
     } else if (Z80::I8RegClass.contains(DstReg, SrcReg)) {
       assert(Subtarget.hasIndexHalfRegs() && "Need  index half registers");
@@ -352,21 +348,18 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
         // If the prev instr was an EX DE,HL, just kill it.
         if (MI != MBB.begin() && std::prev(MI)->getOpcode() == ExOpc)
           std::prev(MI)->eraseFromParent();
-        else {
-          MachineInstrBuilder MIB = BuildMI(MBB, MI, DL, get(ExOpc));
-          MIB->findRegisterUseOperand(Is24Bit ? Z80::UDE : Z80::DE)
+        else
+          BuildMI(MBB, MI, DL, get(ExOpc))
+            ->findRegisterUseOperand(Is24Bit ? Z80::UDE : Z80::DE)
             ->setIsUndef();
-        }
       }
       BuildMI(MBB, MI, DL,
               get(Z80::X8RegClass.contains(DstReg, SrcReg) ? Z80::LD8xx
                                                            : Z80::LD8yy),
               DstReg).addReg(SrcReg, getKillRegState(KillSrc));
-      if (NeedEX) {
-        MachineInstrBuilder MIB = BuildMI(MBB, MI, DL, get(ExOpc));
-        MIB->findRegisterUseOperand(Is24Bit ? Z80::UDE : Z80::DE)
-          ->setIsUndef();
-      }
+      if (NeedEX)
+        BuildMI(MBB, MI, DL, get(ExOpc))
+          ->findRegisterUseOperand(Is24Bit ? Z80::UDE : Z80::DE)->setIsUndef();
     }
     return;
   }
@@ -648,6 +641,17 @@ unsigned Z80InstrInfo::isStoreToStackSlot(const MachineInstr &MI,
   return 0;
 }
 
+void Z80InstrInfo::
+expandLoadStoreWord(const TargetRegisterClass *ARC, unsigned AOpc,
+                    const TargetRegisterClass *ORC, unsigned OOpc,
+                    MachineInstr &MI, unsigned RegIdx) const {
+  unsigned Reg = MI.getOperand(RegIdx).getReg();
+  assert(ARC->contains(Reg) != ORC->contains(Reg) &&
+         "RegClasses should be covering and disjoint");
+  MI.setDesc(get(ARC->contains(Reg) ? AOpc : OOpc));
+  (void)ORC;
+}
+
 bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   DebugLoc DL = MI.getDebugLoc();
   MachineBasicBlock &MBB = *MI.getParent();
@@ -658,19 +662,69 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
   bool UseLEA = Is24Bit && !MBB.getParent()->getFunction()->getAttributes()
     .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
   DEBUG(dbgs() << "\nZ80InstrInfo::expandPostRAPseudo:"; MI.dump());
-  switch (MI.getOpcode()) {
+  switch (unsigned Opc = MI.getOpcode()) {
   default:
     return false;
   case Z80::RCF:
     MI.setDesc(get(Z80::OR8ar));
     MIB.addReg(Z80::A, RegState::Undef);
     break;
+  case Z80::LD8r0:
+    if (MI.getOperand(0).getReg() == Z80::A) {
+      MI.setDesc(get(Z80::XOR8ar));
+      MI.getOperand(0).setIsUse();
+      MI.getOperand(0).setIsUndef();
+    } else {
+      MI.setDesc(get(Z80::LD8ri));
+      MI.findRegisterDefOperand(Z80::F)->ChangeToImmediate(0);
+    }
+    break;
+  case Z80::LD24r0:
+  case Z80::LD24rM1:
+    if (MI.getOperand(0).getReg() == Z80::UHL) {
+      if (Opc == Z80::LD24r0)
+        expandPostRAPseudo(*BuildMI(MBB, MI, DL, get(Z80::RCF)));
+      else
+        BuildMI(MBB, MI, DL, get(Z80::SCF));
+      MI.setDesc(get(Z80::SBC24aa));
+      MI.RemoveOperand(0);
+    } else {
+      MI.setDesc(get(Z80::LD24ri));
+      MI.findRegisterDefOperand(Z80::F)
+        ->ChangeToImmediate(Opc == Z80::LD24r0 ? 0 : -1);
+    }
+    break;
+  case Z80::CP16ao:
+  case Z80::CP24ao: {
+    unsigned Reg = Opc == Z80::CP24ao ? Z80::UHL : Z80::HL;
+    if (MBB.computeRegisterLiveness(&TRI, Reg, Next) !=
+        MachineBasicBlock::LQR_Dead) {
+      BuildMI(MBB, Next, DL, get(Opc == Z80::CP24ao ? Z80::ADD24ao
+                                 : Z80::ADD16ao), Reg)
+        .addReg(Reg).add(MI.getOperand(0));
+      MI.getOperand(0).setIsKill(false);
+    }
+    LLVM_FALLTHROUGH;
+  }
+  case Z80::SUB16ao:
+  case Z80::SUB24ao:
+    expandPostRAPseudo(*BuildMI(MBB, MI, DL, get(Z80::RCF)));
+    MI.setDesc(get(Opc == Z80::CP24ao || Opc == Z80::SUB24ao ? Z80::SBC24ao
+                                                             : Z80::SBC16ao));
+    break;
+  case Z80::CP16a0:
+  case Z80::CP24a0: {
+    unsigned Reg = Opc == Z80::CP24a0 ? Z80::UHL : Z80::HL;
+    unsigned UndefReg = Opc == Z80::CP24a0 ? Z80::UBC : Z80::BC;
+    BuildMI(MBB, MI, DL, get(Opc == Z80::CP24a0 ? Z80::ADD24ao : Z80::ADD16ao),
+            Reg).addReg(Reg).addReg(UndefReg, RegState::Undef);
+    expandPostRAPseudo(*BuildMI(MBB, MI, DL, get(Z80::RCF)));
+    MI.setDesc(get(Opc == Z80::CP24a0 ? Z80::SBC24ao : Z80::SBC16ao));
+    MIB.addReg(UndefReg, RegState::Undef);
+    break;
+  }
   case Z80::LD88rp:
   case Z80::LD88pr:
-  case Z80::Cp16:
-  case Z80::Cp24:
-  case Z80::Cp016:
-  case Z80::Cp024:
     llvm_unreachable("Unimplemented");
   case Z80::LD8ro:
   case Z80::LD8rp: {
@@ -678,13 +732,13 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     if (Z80::I8RegClass.contains(Reg)) {
       BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
         .addReg(Z80::AF, RegState::Undef);
-      MI.getOperand(0).ChangeToRegister(Z80::A, /*isDef*/true);
-      BuildMI(MBB, MI, DL,
+      MI.getOperand(0).setReg(Z80::A);
+      BuildMI(MBB, Next, DL,
               get(Z80::X8RegClass.contains(Reg) ? Z80::LD8xx : Z80::LD8yy),
               Reg).addReg(Z80::A, RegState::Kill);
       BuildMI(MBB, Next, DL, get(Is24Bit ? Z80::POP24r : Z80::POP16r), Z80::AF);
     }
-    MI.setDesc(get(MI.getOpcode() == Z80::LD8ro ? Z80::LD8go : Z80::LD8gp));
+    MI.setDesc(get(Opc == Z80::LD8ro ? Z80::LD8go : Z80::LD8gp));
     break;
   }
   case Z80::LD88ro: {
@@ -702,7 +756,7 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       Reg = Z80::HL;
     }
     MI.setDesc(get(Z80::LD8ro));
-    MI.getOperand(0).ChangeToRegister(TRI.getSubReg(Reg, Z80::sub_low), true);
+    MI.getOperand(0).setReg(TRI.getSubReg(Reg, Z80::sub_low));
     MIB = BuildMI(MBB, Next, DL, get(Z80::LD8ro),
                   TRI.getSubReg(Reg, Z80::sub_high))
       .addReg(MI.getOperand(1).getReg()).addImm(MI.getOperand(2).getImm() + 1);
@@ -712,6 +766,8 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       BuildMI(MBB, Next, DL, get(Is24Bit ? Z80::POP24r : Z80::POP16r),
               Is24Bit ? SuperReg : OriginalReg);
     }
+    expandPostRAPseudo(MI);
+    expandPostRAPseudo(*MIB);
     DEBUG(MI.dump());
     break;
   }
@@ -725,11 +781,11 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       BuildMI(MBB, MI, DL,
               get(Z80::X8RegClass.contains(Reg) ? Z80::LD8xx : Z80::LD8yy),
               Z80::A).addReg(Reg);
-      MI.getOperand(RegIdx).ChangeToRegister(Z80::A, /*isDef*/false,
-                                             /*isImp*/false, /*isKill*/true);
+      MI.getOperand(RegIdx).setReg(Z80::A);
+      MI.getOperand(RegIdx).setIsKill();
       BuildMI(MBB, Next, DL, get(Is24Bit ? Z80::POP24r : Z80::POP16r), Z80::AF);
     }
-    MI.setDesc(get(MI.getOpcode() == Z80::LD8or ? Z80::LD8og : Z80::LD8pg));
+    MI.setDesc(get(Opc == Z80::LD8or ? Z80::LD8og : Z80::LD8pg));
     break;
   }
   case Z80::LD88or: {
@@ -753,16 +809,34 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       Reg = Z80::HL;
     }
     MI.setDesc(get(Z80::LD8or));
-    MI.getOperand(2).ChangeToRegister(TRI.getSubReg(Reg, Z80::sub_low), false);
+    MI.getOperand(2).setReg(TRI.getSubReg(Reg, Z80::sub_low));
     MIB = BuildMI(MBB, Next, DL, get(Z80::LD8or))
       .addReg(MI.getOperand(0).getReg()).addImm(MI.getOperand(1).getImm() + 1)
       .addReg(TRI.getSubReg(Reg, Z80::sub_high));
     if (Index)
       BuildMI(MBB, Next, DL, get(Is24Bit ? Z80::POP24r : Z80::POP16r),
               Is24Bit ? Z80::UHL : Z80::HL);
+    expandPostRAPseudo(MI);
+    expandPostRAPseudo(*MIB);
     DEBUG(MI.dump());
     break;
   }
+  case Z80::LD16rm:
+    expandLoadStoreWord(&Z80::A16RegClass, Z80::LD16am,
+                        &Z80::O16RegClass, Z80::LD16om, MI, 0);
+    break;
+  case Z80::LD24rm:
+    expandLoadStoreWord(&Z80::A24RegClass, Z80::LD24am,
+                        &Z80::O24RegClass, Z80::LD24om, MI, 0);
+    break;
+  case Z80::LD16mr:
+    expandLoadStoreWord(&Z80::A16RegClass, Z80::LD16ma,
+                        &Z80::O16RegClass, Z80::LD16mo, MI, 1);
+    break;
+  case Z80::LD24mr:
+    expandLoadStoreWord(&Z80::A24RegClass, Z80::LD24ma,
+                        &Z80::O24RegClass, Z80::LD24mo, MI, 1);
+    break;
   case Z80::CALL16r:
   case Z80::CALL24r: {
     const char *Symbol;
@@ -772,8 +846,7 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     case Z80::IX: case Z80::UIX: Symbol = "_indcallix"; break;
     case Z80::IY: case Z80::UIY: Symbol = "_indcall"; break;
     }
-    MI.setDesc(get(MI.getOpcode() == Z80::CALL24r ? Z80::CALL24i
-                                                  : Z80::CALL16i));
+    MI.setDesc(get(Opc == Z80::CALL24r ? Z80::CALL24i : Z80::CALL16i));
     MI.getOperand(0).ChangeToES(Symbol);
     break;
   }
@@ -782,12 +855,16 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
     MI.setDesc(get(Z80::RETI));
     break;
   case Z80::TCRETURN16i:
+    MI.setDesc(get(Z80::JP16));
+    break;
   case Z80::TCRETURN24i:
-    MI.setDesc(get(Z80::JQ));
+    MI.setDesc(get(Z80::JP24));
     break;
   case Z80::TCRETURN16r:
+    MI.setDesc(get(Z80::JP16r));
+    break;
   case Z80::TCRETURN24r:
-    MI.setDesc(get(Z80::JPr));
+    MI.setDesc(get(Z80::JP24r));
     break;
   }
   DEBUG(MIB->dump());
@@ -824,9 +901,9 @@ bool Z80InstrInfo::analyzeCompare(const MachineInstr &MI,
     SrcReg2 = MI.getOperand(0).getReg();
     CmpMask = CmpValue = 0;
     break;
-  case Z80::CP8am:
+  case Z80::CP8ap:
   case Z80::CP8ao:
-  case Z80::SUB8am:
+  case Z80::SUB8ap:
   case Z80::SUB8ao:
     SrcReg = Z80::A;
     SrcReg2 = CmpMask = CmpValue = 0;
@@ -857,28 +934,29 @@ inline static bool isRedundantFlagInstr(MachineInstr &FI, unsigned SrcReg,
       OI.getOperand(1).getReg() == SrcReg2;
 }
 
-/// Check whether the instruction sets the zero flag based on its result.
+/// Check whether the instruction sets the sign and zero flag based on its
+/// result.
 inline static bool isSZSettingInstr(MachineInstr &MI) {
   switch (MI.getOpcode()) {
   default: return false;
-  case Z80::INC8r:  case Z80::INC8m:  case Z80::INC8o:
-  case Z80::DEC8r:  case Z80::DEC8m:  case Z80::DEC8o:
-  case Z80::ADD8ar: case Z80::ADD8ai: case Z80::ADD8am: case Z80::ADD8ao:
-  case Z80::ADC8ar: case Z80::ADC8ai: case Z80::ADC8am: case Z80::ADC8ao:
-  case Z80::SUB8ar: case Z80::SUB8ai: case Z80::SUB8am: case Z80::SUB8ao:
-  case Z80::SBC8ar: case Z80::SBC8ai: case Z80::SBC8am: case Z80::SBC8ao:
-  case Z80::AND8ar: case Z80::AND8ai: case Z80::AND8am: case Z80::AND8ao:
-  case Z80::XOR8ar: case Z80::XOR8ai: case Z80::XOR8am: case Z80::XOR8ao:
-  case Z80::OR8ar:  case Z80::OR8ai:  case Z80::OR8am:  case Z80::OR8ao:
-  case Z80::SBC16ar:case Z80::NEG:    case Z80::ADC16ar:
-  case Z80::Sub016: case Z80::Sub16:  case Z80::Sub024: case Z80::Sub24:
-  case Z80::RLC8r:  case Z80::RLC8m:  case Z80::RLC8o:
-  case Z80::RRC8r:  case Z80::RRC8m:  case Z80::RRC8o:
-  case Z80::RL8r:   case Z80::RL8m:   case Z80::RL8o:
-  case Z80::RR8r:   case Z80::RR8m:   case Z80::RR8o:
-  case Z80::SLA8r:  case Z80::SLA8m:  case Z80::SLA8o:
-  case Z80::SRA8r:  case Z80::SRA8m:  case Z80::SRA8o:
-  case Z80::SRL8r:  case Z80::SRL8m:  case Z80::SRL8o:
+  case Z80::INC8r:  case Z80::INC8p:  case Z80::INC8o:
+  case Z80::DEC8r:  case Z80::DEC8p:  case Z80::DEC8o:
+  case Z80::ADD8ar: case Z80::ADD8ai: case Z80::ADD8ap: case Z80::ADD8ao:
+  case Z80::ADC8ar: case Z80::ADC8ai: case Z80::ADC8ap: case Z80::ADC8ao:
+  case Z80::SUB8ar: case Z80::SUB8ai: case Z80::SUB8ap: case Z80::SUB8ao:
+  case Z80::SBC8ar: case Z80::SBC8ai: case Z80::SBC8ap: case Z80::SBC8ao:
+  case Z80::AND8ar: case Z80::AND8ai: case Z80::AND8ap: case Z80::AND8ao:
+  case Z80::XOR8ar: case Z80::XOR8ai: case Z80::XOR8ap: case Z80::XOR8ao:
+  case Z80:: OR8ar: case Z80:: OR8ai: case Z80:: OR8ap: case Z80:: OR8ao:
+  case Z80::SBC16ao:case Z80::NEG:    case Z80::ADC16ao:
+  case Z80::SUB16ao:case Z80::SUB24ao:
+  case Z80::RLC8r:  case Z80::RLC8p:  case Z80::RLC8o:
+  case Z80::RRC8r:  case Z80::RRC8p:  case Z80::RRC8o:
+  case Z80:: RL8r:  case Z80:: RL8p:  case Z80:: RL8o:
+  case Z80:: RR8r:  case Z80:: RR8p:  case Z80:: RR8o:
+  case Z80::SLA8r:  case Z80::SLA8p:  case Z80::SLA8o:
+  case Z80::SRA8r:  case Z80::SRA8p:  case Z80::SRA8o:
+  case Z80::SRL8r:  case Z80::SRL8p:  case Z80::SRL8o:
     return true;
   }
 }
@@ -899,7 +977,7 @@ bool Z80InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr,
   default: CpOp = 0; break;
   case Z80::SUB8ai: CpOp = IsCmpZero ? Z80::OR8ar : Z80::CP8ai; break;
   case Z80::SUB8ar: CpOp = Z80::CP8ar; break;
-  case Z80::SUB8am: CpOp = Z80::CP8am; break;
+  case Z80::SUB8ap: CpOp = Z80::CP8ap; break;
   case Z80::SUB8ao: CpOp = Z80::CP8ao; break;
   }
   if (CpOp) {
@@ -984,9 +1062,9 @@ bool Z80InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr,
       case Z80::JQCC:
         OldCC = static_cast<Z80::CondCode>(Instr.getOperand(1).getImm());
         break;
-      case Z80::ADC8ar: case Z80::ADC8ai: case Z80::ADC8am: case Z80::ADC8ao:
-      case Z80::SBC8ar: case Z80::SBC8ai: case Z80::SBC8am: case Z80::SBC8ao:
-      case Z80::SBC16ar:case Z80::ADC16ar:
+      case Z80::ADC8ar: case Z80::ADC8ai: case Z80::ADC8ap: case Z80::ADC8ao:
+      case Z80::SBC8ar: case Z80::SBC8ai: case Z80::SBC8ap: case Z80::SBC8ao:
+      case Z80::SBC16ao:case Z80::ADC16ao:
         OldCC = Z80::COND_C;
         break;
       }
@@ -1042,7 +1120,7 @@ bool Z80InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr,
     }
     LLVM_FALLTHROUGH;
   case Z80::SUB8ar:
-  case Z80::SUB8am:
+  case Z80::SUB8ap:
   case Z80::SUB8ao: {
     if (!CmpInstr.registerDefIsDead(Z80::A))
       return false;
@@ -1052,7 +1130,7 @@ bool Z80InstrInfo::optimizeCompareInstr(MachineInstr &CmpInstr,
     default: llvm_unreachable("Unreachable!");
     case Z80::SUB8ai: NewOpcode = Z80::CP8ai; break;
     case Z80::SUB8ar: NewOpcode = Z80::CP8ar; break;
-    case Z80::SUB8am: NewOpcode = Z80::CP8am; break;
+    case Z80::SUB8ap: NewOpcode = Z80::CP8ap; break;
     case Z80::SUB8ao: NewOpcode = Z80::CP8ao; break;
     }
     CmpInstr.setDesc(get(NewOpcode));

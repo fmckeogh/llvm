@@ -66,6 +66,8 @@ bool Z80MachineLateOptimization::runOnMachineFunction(MachineFunction &MF) {
   assert(MF.getRegInfo().tracksLiveness() && "Liveness not being tracked!");
   const TargetInstrInfo *TII = STI.getInstrInfo();
   bool Changed = false;
+  if (!MF.getRegInfo().isPhysRegModified(Z80::F))
+    return Changed;
   bool OptSize = MF.getFunction()->getAttributes()
     .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
   APInt FlagsZero(8, 0), FlagsOne(8, 0);

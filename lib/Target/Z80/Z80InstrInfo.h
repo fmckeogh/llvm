@@ -145,6 +145,10 @@ private:
   /// operand and follow operands form a reference to the stack frame.
   bool isFrameOperand(const MachineInstr &MI, unsigned int Op,
                       int &FrameIndex) const;
+
+  void expandLoadStoreWord(const TargetRegisterClass *ARC, unsigned AOpc,
+                           const TargetRegisterClass *ORC, unsigned OOpc,
+                           MachineInstr &MI, unsigned RegIdx) const;
 };
 
 } // End llvm namespace
