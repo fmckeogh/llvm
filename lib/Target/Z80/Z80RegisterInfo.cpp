@@ -13,6 +13,7 @@
 
 #include "Z80RegisterInfo.h"
 #include "Z80FrameLowering.h"
+#include "Z80MachineFunctionInfo.h"
 #include "Z80Subtarget.h"
 #include "MCTargetDesc/Z80MCTargetDesc.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -172,7 +173,8 @@ void Z80RegisterInfo::eliminateFrameIndex(MachineBasicBlock::iterator II,
   assert(TFI->hasFP(MF) && "Stack slot use without fp unimplemented");
   int Offset = MF.getFrameInfo().getObjectOffset(FrameIndex);
   int SlotSize = Is24Bit ? 3 : 2;
-  // Skip saved frame pointer if used
+  // Skip any saved callee saved registers
+  Offset += MF.getInfo<Z80MachineFunctionInfo>()->getCalleeSavedFrameSize();
   if (TFI->hasFP(MF))
     Offset += SlotSize;
   // Skip return address for arguments

@@ -14,6 +14,7 @@
 #include "Z80FrameLowering.h"
 #include "Z80.h"
 #include "Z80InstrInfo.h"
+#include "Z80MachineFunctionInfo.h"
 #include "Z80Subtarget.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
@@ -130,14 +131,9 @@ void Z80FrameLowering::emitPrologue(MachineFunction &MF,
   int StackSize = -int(MFI.getStackSize());
   unsigned ScratchReg = Is24Bit ? Z80::UHL : Z80::HL;
 
-  while (MI != MBB.end() && MI->getFlag(MachineInstr::FrameSetup)) {
-    unsigned Opc = MI->getOpcode();
-    if (Opc == Z80::PUSH24r || Opc == Z80::PUSH16r || Opc == Z80::EXAF)
-      StackSize += SlotSize;
-    else if (Opc == Z80::EXX)
-      StackSize += SlotSize * 3;
+  // skip callee-saved saves
+  while (MI != MBB.end() && MI->getFlag(MachineInstr::FrameSetup))
     ++MI;
-  }
 
   int FPOffset = -1;
   if (hasFP(MF)) {
@@ -187,19 +183,11 @@ void Z80FrameLowering::emitEpilogue(MachineFunction &MF,
          "Cannot allocate csr as scratch register!");
 
   // skip callee-saved restores
-  while (MI != MBB.begin()) {
-    MachineBasicBlock::iterator PI = std::prev(MI);
-    unsigned Opc = PI->getOpcode();
-    if (!PI->getFlag(MachineInstr::FrameDestroy))
+  while (MI != MBB.begin())
+    if (!(--MI)->getFlag(MachineInstr::FrameDestroy)) {
+      ++MI;
       break;
-    if (Opc == Z80::POP24r || Opc == Z80::POP16r || Opc == Z80::EXAF)
-      StackSize -= SlotSize;
-    else if (Opc == Z80::EXX)
-      StackSize -= SlotSize * 3;
-    else
-      llvm_unreachable("Unknown frame destroy opcode!");
-    --MI;
-  }
+    }
 
   // consume stack adjustment
   while (MI != MBB.begin()) {
@@ -266,6 +254,14 @@ void Z80FrameLowering::shadowCalleeSavedRegisters(
   if (SaveG)
     BuildMI(MBB, MI, DL, TII.get(Z80::EXX))
       .setMIFlag(Flag);
+}
+
+bool Z80FrameLowering::assignCalleeSavedSpillSlots(
+    MachineFunction &MF, const TargetRegisterInfo *TRI,
+    std::vector<CalleeSavedInfo> &CSI) const {
+  MF.getInfo<Z80MachineFunctionInfo>()
+    ->setCalleeSavedFrameSize((CSI.size() + hasFP(MF)) * SlotSize);
+  return true;
 }
 
 bool Z80FrameLowering::spillCalleeSavedRegisters(

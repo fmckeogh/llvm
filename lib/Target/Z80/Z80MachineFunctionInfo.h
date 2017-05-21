@@ -23,13 +23,21 @@ namespace llvm {
 class Z80MachineFunctionInfo : public MachineFunctionInfo {
   virtual void anchor();
 
+  /// CalleeSavedFrameSize - Size of the callee-saved register portion of the
+  /// stack frame in bytes.
+  unsigned CalleeSavedFrameSize = 0;
+
+  /// VarArgsFrameIndex - FrameIndex for start of varargs area.
+  int VarArgsFrameIndex = 0;
+
 public:
   Z80MachineFunctionInfo() = default;
 
   explicit Z80MachineFunctionInfo(MachineFunction &MF) {}
 
-  /// VarArgsFrameIndex - FrameIndex for start of varargs area.
-  int VarArgsFrameIndex = 0;
+  unsigned getCalleeSavedFrameSize() const { return CalleeSavedFrameSize; }
+  void setCalleeSavedFrameSize(unsigned Bytes) { CalleeSavedFrameSize = Bytes; }
+
   int getVarArgsFrameIndex() const { return VarArgsFrameIndex; }
   void setVarArgsFrameIndex(int Idx) { VarArgsFrameIndex = Idx; }
 };

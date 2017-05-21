@@ -36,6 +36,9 @@ public:
   void emitPrologue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
   void emitEpilogue(MachineFunction &MF, MachineBasicBlock &MBB) const override;
 
+  bool assignCalleeSavedSpillSlots(
+      MachineFunction &MF, const TargetRegisterInfo *TRI,
+      std::vector<CalleeSavedInfo> &CSI) const override;
   bool spillCalleeSavedRegisters(MachineBasicBlock &MBB,
                                  MachineBasicBlock::iterator MI,
                                  const std::vector<CalleeSavedInfo> &CSI,
