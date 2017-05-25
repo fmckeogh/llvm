@@ -238,6 +238,9 @@ protected:
 
   //===--- Global Variable Emission Directives --------------------------===//
 
+  /// This is the directive used to emit an assignment. Defaults to " = ".
+  const char *AssignmentDirective;
+
   /// This is the directive used to declare a global entity. Defaults to
   /// ".globl".
   const char *GlobalDirective;
@@ -518,6 +521,7 @@ public:
   bool shouldAvoidAsciiNull() const { return AvoidAsciiNull; }
   bool getAlignmentIsInBytes() const { return AlignmentIsInBytes; }
   unsigned getTextAlignFillValue() const { return TextAlignFillValue; }
+  const char *getAssignmentDirective() const { return AssignmentDirective; }
   const char *getGlobalDirective() const { return GlobalDirective; }
 
   bool doesSetDirectiveSuppressReloc() const {

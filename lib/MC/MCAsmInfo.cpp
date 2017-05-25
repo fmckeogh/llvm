@@ -41,6 +41,7 @@ MCAsmInfo::MCAsmInfo() {
   Data24bitsDirective = nullptr;
   Data32bitsDirective = "\t.long\t";
   Data64bitsDirective = "\t.quad\t";
+  AssignmentDirective = " = ";
   GlobalDirective = "\t.globl\t";
   WeakDirective = "\t.weak\t";
 

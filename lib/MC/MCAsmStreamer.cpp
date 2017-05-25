@@ -494,7 +494,7 @@ void MCAsmStreamer::EmitThumbFunc(MCSymbol *Func) {
 
 void MCAsmStreamer::EmitAssignment(MCSymbol *Symbol, const MCExpr *Value) {
   Symbol->print(OS, MAI);
-  OS << " = ";
+  OS << MAI->getAssignmentDirective();
   Value->print(OS, MAI);
 
   EmitEOL();

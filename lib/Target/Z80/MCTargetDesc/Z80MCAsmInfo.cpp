@@ -35,6 +35,7 @@ Z80MCAsmInfo::Z80MCAsmInfo(const Triple &T) {
   Data16bitsDirective = "\t.word\t";
   Data24bitsDirective = "\t.word24\t";
   Data64bitsDirective = nullptr;
+  AssignmentDirective = " .equ ";
   GlobalDirective = "\t.global\t";
   HasDotTypeDotSizeDirective = false;
   WeakDirective = nullptr;
