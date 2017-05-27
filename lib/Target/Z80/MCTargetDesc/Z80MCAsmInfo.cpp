@@ -37,6 +37,7 @@ Z80MCAsmInfo::Z80MCAsmInfo(const Triple &T) {
   Data64bitsDirective = nullptr;
   AssignmentDirective = " .equ ";
   GlobalDirective = "\t.global\t";
+  HasFunctionAlignment = false;
   HasDotTypeDotSizeDirective = false;
   WeakDirective = nullptr;
   UseIntegratedAssembler = false;
