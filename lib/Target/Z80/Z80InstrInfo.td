@@ -451,7 +451,7 @@ let mayStore = 1 in {
   def LD16pr : I16   <  EDPre, 0x0F, "ld", "\t$dst, $src", "",
                       (outs), (ins ptr:$dst, R16:$src),
                       [(store R16:$src, iPTR:$dst)]>,
-               Requires<[HaveEZ80Ops]>;
+               Requires<[In16BitMode, HaveEZ80Ops]>;
   def LD88pr : Pseudo<               "ld", "\t$dst, $src", "",
                       (outs), (ins ptr:$dst, R16:$src),
                       [(store R16:$src, iPTR:$dst)]>;
@@ -467,12 +467,25 @@ let mayStore = 1 in {
   def LD16or : I16o  <Idx0Pre, 0x0F, "ld", "\t$dst, $src", "",
                       (outs), (ins off:$dst, R16:$src)>,
                Requires<[HaveEZ80Ops]>;
+}
+// LD16/24or encodes R16/24:$src, but there aren't enough index registers for
+// regalloc to use it, since one of the index registers is reserved as the frame
+// pointer and the other is used in offpat:$dst, so just pattern match on
+// G16/24:$src.
+def : Pat<(store G16:$src, offpat:$dst), (LD16or off:$dst, R16:$src)>,
+      Requires<[In16BitMode, HaveEZ80Ops]>;
+let mayStore = 1 in {
   def LD88or : Pseudo<               "ld", "\t$dst, $src", "",
                       (outs), (ins off:$dst, R16:$src),
                       [(store R16:$src, offpat:$dst)]>;
+let mayStore = 1 in
   def LD24or : I24o  <Idx0Pre, 0x0F, "ld", "\t$dst, $src", "",
                       (outs), (ins off:$dst, R24:$src)>;
+}
+// Same as above.
+def : Pat<(store G24:$src, offpat:$dst), (LD24or off:$dst, R24:$src)>;
 
+let mayStore = 1 in {
   def LD8pi  : I8oi  <  NoPre, 0x36, "ld", "\t$dst, $src", "",
                       (outs), (ins ptr:$dst, i8imm:$src),
                       [(store (i8 imm:$src),   iPTR:$dst)]>;
@@ -480,12 +493,6 @@ let mayStore = 1 in {
                       (outs), (ins off:$dst, i8imm:$src),
                       [(store (i8 imm:$src), offpat:$dst)]>;
 }
-// LD16/24or encodes R16/24:$src, but there aren't enough index registers for
-// regalloc to use it, since one of the index registers is reserved as the frame
-// pointer and the other is used in offpat:$dst, so just pattern match on
-// G16/24:$src.
-def : Pat<(store G16:$src, offpat:$dst), (LD16or off:$dst, R16:$src)>;
-def : Pat<(store G24:$src, offpat:$dst), (LD24or off:$dst, R24:$src)>;
 
 let Defs = [SPS] in
 def LD16SP : I16<Idx0Pre, 0xF9, "ld", "\tsp, $src", "", (outs), (ins A16:$src)>;
