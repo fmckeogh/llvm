@@ -25,6 +25,7 @@ Z80MCAsmInfo::Z80MCAsmInfo(const Triple &T) {
   DollarIsPC = true;
   SeparatorString = nullptr;
   CommentString = ";";
+  PrivateGlobalPrefix = PrivateLabelPrefix = "";
   Code16Directive = ".assume\tadl = 0";
   Code24Directive = ".assume\tadl = 1";
   Code32Directive = Code64Directive = nullptr;
