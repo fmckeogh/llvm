@@ -786,6 +786,7 @@ bool Z80InstrInfo::expandPostRAPseudo(MachineInstr &MI) const {
       MI.setDesc(get(Z80::XOR8ar));
       MI.getOperand(0).setIsUse();
       MI.getOperand(0).setIsUndef();
+      MIB.addReg(Z80::A, RegState::ImplicitDefine);
     } else {
       MI.setDesc(get(Z80::LD8ri));
       MI.findRegisterDefOperand(Z80::F)->ChangeToImmediate(0);

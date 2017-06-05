@@ -705,6 +705,25 @@ defm TST : BinOp8F  <EDPre, 4, "tst", 1>,
            Requires<[HaveEZ80Ops]>;
 
 let Defs = [F] in {
+def INC16r : I16<Idx0Pre, 0x03, "inc", "\t$dst", "$dst = $imp",
+                 (outs C16:$dst), (ins C16:$imp),
+                 [(set C16:$dst, F, (Z80inc_flag C16:$imp))]>;
+def INC24r : I24<Idx0Pre, 0x03, "inc", "\t$dst", "$dst = $imp",
+                 (outs C24:$dst), (ins C24:$imp),
+                 [(set C24:$dst, F, (Z80inc_flag C24:$imp))]>;
+def DEC16r : I16<Idx0Pre, 0x0B, "dec", "\t$dst", "$dst = $imp",
+                 (outs C16:$dst), (ins C16:$imp),
+                 [(set C16:$dst, F, (Z80dec_flag C16:$imp))]>;
+def DEC24r : I24<Idx0Pre, 0x0B, "dec", "\t$dst", "$dst = $imp",
+                 (outs C24:$dst), (ins C24:$imp),
+                 [(set C24:$dst, F, (Z80dec_flag C24:$imp))]>;
+}
+def : Pat<(add R16:$reg,  1), (INC16r R16:$reg)>;
+def : Pat<(add R16:$reg, -1), (DEC16r R16:$reg)>;
+def : Pat<(add R24:$reg,  1), (INC24r R24:$reg)>;
+def : Pat<(add R24:$reg, -1), (DEC24r R24:$reg)>;
+
+let Defs = [F] in {
   def ADD16aa : I16<Idx0Pre, 0x29, "add", "\t$dst, $src", "$src = $dst",
                     (outs A16:$dst), (ins A16:$src),
                     [(set A16:$dst, F, (Z80add_flag A16:$src, A16:$src))]>;
@@ -804,25 +823,6 @@ def : Pat<(sub  UHL, O24:$src), (SUB24ao O24:$src)>;
 def : Pat<(subc  HL, O16:$src), (SUB16ao O16:$src)>;
 def : Pat<(subc UHL, O24:$src), (SUB24ao O24:$src)>;
 
-let Defs = [F] in {
-def INC16r : I16<Idx0Pre, 0x03, "inc", "\t$dst", "$dst = $imp",
-                 (outs C16:$dst), (ins C16:$imp),
-                 [(set C16:$dst, F, (Z80inc_flag C16:$imp))]>;
-def INC24r : I24<Idx0Pre, 0x03, "inc", "\t$dst", "$dst = $imp",
-                 (outs C24:$dst), (ins C24:$imp),
-                 [(set C24:$dst, F, (Z80inc_flag C24:$imp))]>;
-def DEC16r : I16<Idx0Pre, 0x0B, "dec", "\t$dst", "$dst = $imp",
-                 (outs C16:$dst), (ins C16:$imp),
-                 [(set C16:$dst, F, (Z80dec_flag C16:$imp))]>;
-def DEC24r : I24<Idx0Pre, 0x0B, "dec", "\t$dst", "$dst = $imp",
-                 (outs C24:$dst), (ins C24:$imp),
-                 [(set C24:$dst, F, (Z80dec_flag C24:$imp))]>;
-}
-def : Pat<(add R16:$reg,  1), (INC16r R16:$reg)>;
-def : Pat<(add R16:$reg, -1), (DEC16r R16:$reg)>;
-def : Pat<(add R24:$reg,  1), (INC24r R24:$reg)>;
-def : Pat<(add R24:$reg, -1), (DEC24r R24:$reg)>;
-
 def LEA16ro : I16o<EDPre, 0x02, "lea", "\t$dst, $src", "",
                    (outs R16:$dst), (ins off16:$src),
                    [(set R16:$dst, offpat:$src)]>, Requires<[HaveEZ80Ops]>;
@@ -895,7 +895,7 @@ def : Pat<(i32 (anyext R24:$src)),
 
 // zexts
 def : Pat<(i16 (zext R8 :$src)),
-          (REG_SEQUENCE R16, R8 :$src, sub_low, (LD8ri 0), sub_high)>;
+          (REG_SEQUENCE R16, R8 :$src, sub_low, (LD8r0), sub_high)>;
 def : Pat<(i24 (zext R8 :$src)),
           (INSERT_SUBREG (LD24ri 0), R8 :$src, sub_low)>;
 def : Pat<(i24 (zext R16:$src)),
