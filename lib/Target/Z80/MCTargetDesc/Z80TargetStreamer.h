@@ -27,6 +27,9 @@ public:
   // .align
   virtual void emitAlign(unsigned ByteAlignment) = 0;
 
+  // .block
+  virtual void emitBlock(uint64_t NumBytes) = 0;
+
   // .global
   virtual void emitGlobal(MCSymbol *Symbol) = 0;
 
@@ -41,9 +44,10 @@ class Z80TargetAsmStreamer final : public Z80TargetStreamer {
 public:
   Z80TargetAsmStreamer(MCStreamer &S, formatted_raw_ostream &OS);
 
-  void emitAlign(unsigned ByteAlignment);
-  void emitGlobal(MCSymbol *Symbol);
-  void emitExtern(MCSymbol *Symbol);
+  void emitAlign(unsigned ByteAlignment) override;
+  void emitBlock(uint64_t NumBytes) override;
+  void emitGlobal(MCSymbol *Symbol) override;
+  void emitExtern(MCSymbol *Symbol) override;
 };
 
 } // end namespace llvm

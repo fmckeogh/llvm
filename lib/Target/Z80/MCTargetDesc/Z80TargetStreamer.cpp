@@ -29,6 +29,11 @@ void Z80TargetAsmStreamer::emitAlign(unsigned ByteAlignment) {
     OS << "\t.align\t" << ByteAlignment << '\n';
 }
 
+void Z80TargetAsmStreamer::emitBlock(uint64_t NumBytes) {
+  if (NumBytes)
+    OS << "\t.block\t" << NumBytes << '\n';
+}
+
 void Z80TargetAsmStreamer::emitGlobal(MCSymbol *Symbol) {
   OS << "\t.global\t";
   Symbol->print(OS, MAI);
