@@ -31,6 +31,7 @@ Z80MCAsmInfo::Z80MCAsmInfo(const Triple &T) {
   Code32Directive = Code64Directive = nullptr;
   AssemblerDialect = !Is16Bit;
   SupportsQuotedNames = false;
+  ZeroDirective = nullptr;
   AvoidAsciiNull = true;
   Data16bitsDirective = "\t.word\t";
   Data24bitsDirective = "\t.word24\t";
