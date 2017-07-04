@@ -30,7 +30,6 @@ static bool isCode16(const Triple &TT) {
 }
 
 void Z80AsmPrinter::EmitStartOfAsmFile(Module &M) {
-  CodeSizeInBytes = 0;
   const Triple &TT = TM.getTargetTriple();
   if (TT.getArch() == Triple::ez80)
     OutStreamer->EmitAssemblerFlag(isCode16(TT) ? MCAF_Code16 : MCAF_Code24);
