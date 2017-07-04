@@ -56,7 +56,7 @@ def SDT_Z80CallSeqStart : SDCallSeqStart<[SDTCisPtr<0>]>;
 def SDT_Z80CallSeqEnd   : SDCallSeqEnd<[SDTCisPtr<0>, SDTCisPtr<1>]>;
 def SDT_Z80BrCond       : SDTypeProfile<0, 3, [SDTCisChain<0>,
                                                SDTCisI8<1>,
-                                               SDTCisI8<2>]>;
+                                               SDTCisFlag<2>]>;
 def SDT_Z80Select       : SDTypeProfile<1, 4, [SDTCisInt<0>,
                                                SDTCisSameAs<1, 0>,
                                                SDTCisSameAs<2, 0>,
