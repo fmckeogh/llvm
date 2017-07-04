@@ -25,11 +25,22 @@ using namespace llvm;
 // Target Registry Stuff
 //===----------------------------------------------------------------------===//
 
+static bool isCode16(const Triple &TT) {
+  return TT.getEnvironment() == Triple::CODE16;
+}
+
 void Z80AsmPrinter::EmitStartOfAsmFile(Module &M) {
- const Triple &TT = TM.getTargetTriple();
- if (TT.getArch() == Triple::ez80 && M.getModuleInlineAsm().empty())
-   OutStreamer->EmitAssemblerFlag(TT.getEnvironment() == Triple::CODE16
-                                      ? MCAF_Code16 : MCAF_Code24);
+  CodeSizeInBytes = 0;
+  const Triple &TT = TM.getTargetTriple();
+  if (TT.getArch() == Triple::ez80)
+    OutStreamer->EmitAssemblerFlag(isCode16(TT) ? MCAF_Code16 : MCAF_Code24);
+}
+
+void Z80AsmPrinter::emitInlineAsmEnd(const MCSubtargetInfo &StartInfo,
+                                     const MCSubtargetInfo *EndInfo) const {
+  bool Was16 = isCode16(StartInfo.getTargetTriple());
+  if (!EndInfo || Was16 != isCode16(EndInfo->getTargetTriple()))
+    OutStreamer->EmitAssemblerFlag(Was16 ? MCAF_Code16 : MCAF_Code24);
 }
 
 void Z80AsmPrinter::EmitEndOfAsmFile(Module &M) {
