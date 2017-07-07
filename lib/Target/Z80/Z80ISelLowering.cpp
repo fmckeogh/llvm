@@ -55,8 +55,7 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
                           ISD::SREM,    ISD::UREM,
                           ISD::SDIVREM, ISD::UDIVREM })
       setOperationAction(Opc, VT, LibCall);
-    for (unsigned Opc : { ISD::SIGN_EXTEND_INREG,
-                          ISD::SHL_PARTS, ISD::SRA_PARTS, ISD::SRL_PARTS,
+    for (unsigned Opc : { ISD::SHL_PARTS, ISD::SRA_PARTS, ISD::SRL_PARTS,
                           ISD::SMUL_LOHI, ISD::UMUL_LOHI,
                           ISD::SMULO,     ISD::UMULO,
                           ISD::MULHU,     ISD::MULHS,
@@ -72,6 +71,8 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
       setTruncStoreAction(VT, MemVT, Expand);
     }
   }
+  for (MVT VT : { MVT::i1, MVT::i8, MVT::i16, MVT::i24 })
+    setOperationAction(ISD::SIGN_EXTEND_INREG, VT, Expand);
   for (unsigned Opc : { ISD::BRCOND, ISD::BR_JT })
     setOperationAction(Opc, MVT::Other, Expand);
   if (Subtarget.hasZ180Ops())
