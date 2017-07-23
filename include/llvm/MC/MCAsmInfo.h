@@ -180,10 +180,6 @@ protected:
   /// doesn't support this, it can be set to null.  Defaults to "\t.asciz\t"
   const char *AscizDirective;
 
-  /// If true, this emits null chars embedded in strings as \400 to workaround
-  /// a ZDS assembler bug.  Defaults to false.
-  bool AvoidAsciiNull = false;
-
   /// These directives are used to output some unit of integer data to the
   /// current section.  If a data directive is set to null, smaller data
   /// directives will be used to emit the large sizes.  Defaults to "\t.byte\t",
@@ -519,7 +515,6 @@ public:
   virtual const char *getBlockDirective(int64_t Size) const { return nullptr; }
   const char *getAsciiDirective() const { return AsciiDirective; }
   const char *getAscizDirective() const { return AscizDirective; }
-  bool shouldAvoidAsciiNull() const { return AvoidAsciiNull; }
   bool getAlignmentIsInBytes() const { return AlignmentIsInBytes; }
   unsigned getTextAlignFillValue() const { return TextAlignFillValue; }
   const char *getAssignmentDirective() const { return AssignmentDirective; }

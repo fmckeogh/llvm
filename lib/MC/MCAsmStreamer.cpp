@@ -55,7 +55,6 @@ class MCAsmStreamer final : public MCStreamer {
   unsigned ShowInst : 1;
   unsigned UseDwarfDirectory : 1;
 
-  void PrintQuotedString(StringRef Data);
   void EmitRegisterName(int64_t Register);
   void EmitCFIStartProcImpl(MCDwarfFrameInfo &Frame) override;
   void EmitCFIEndProcImpl(MCDwarfFrameInfo &Frame) override;
@@ -174,6 +173,8 @@ public:
                       unsigned ByteAlignment = 0) override;
 
   void EmitBinaryData(StringRef Data) override;
+
+  void EmitByte(uint8_t Byte);
 
   void EmitBytes(StringRef Data) override;
 
@@ -727,43 +728,51 @@ void MCAsmStreamer::EmitTBSSSymbol(MCSection *Section, MCSymbol *Symbol,
 
 static inline char toOctal(int X) { return (X&7)+'0'; }
 
-void MCAsmStreamer::PrintQuotedString(StringRef Data) {
-  OS << '"';
-
-  for (unsigned i = 0, e = Data.size(); i != e; ++i) {
-    unsigned char C = Data[i];
-    if (C == '"' || C == '\\') {
-      OS << '\\' << (char)C;
-      continue;
-    }
-
-    if (isprint((unsigned char)C)) {
-      OS << (char)C;
-      continue;
-    }
-
-    switch (C) {
-      case '\b': OS << "\\b"; break;
-      case '\f': OS << "\\f"; break;
-      case '\n': OS << "\\n"; break;
-      case '\r': OS << "\\r"; break;
-      case '\t': OS << "\\t"; break;
-      case '\0':
-        if (MAI->shouldAvoidAsciiNull()) {
-          OS << "\\400";
-          break;
-        }
-        LLVM_FALLTHROUGH;
-      default:
-        OS << '\\';
-        OS << toOctal(C >> 6);
-        OS << toOctal(C >> 3);
-        OS << toOctal(C >> 0);
-        break;
-    }
+static void PrintQuoted(unsigned char C, raw_ostream &OS) {
+  if (C == '"' || C == '\\') {
+    OS << '\\' << (char)C;
+    return;
   }
 
+  if (isprint(C)) {
+    OS << (char)C;
+    return;
+  }
+
+  switch (C) {
+    case '\b': OS << "\\b"; break;
+    case '\f': OS << "\\f"; break;
+    case '\n': OS << "\\n"; break;
+    case '\r': OS << "\\r"; break;
+    case '\t': OS << "\\t"; break;
+    default:
+      OS << '\\';
+      OS << toOctal(C >> 6);
+      OS << toOctal(C >> 3);
+      OS << toOctal(C >> 0);
+      break;
+  }
+}
+
+static void PrintQuotedChar(unsigned char C, raw_ostream &OS) {
+  OS << '\'';
+  PrintQuoted(C, OS);
+  OS << '\'';
+}
+
+static void PrintQuotedString(StringRef Data, raw_ostream &OS) {
   OS << '"';
+  for (char C : Data)
+    PrintQuoted(C, OS);
+  OS << '"';
+}
+
+void MCAsmStreamer::EmitByte(uint8_t Byte) {
+  if (isVerboseAsm()) {
+    PrintQuotedChar(Byte, GetCommentOS());
+    GetCommentOS() << format(", 0x%" PRIx8 "\n", Byte);
+  }
+  EmitIntValue(Byte, 1);
 }
 
 void MCAsmStreamer::EmitBytes(StringRef Data) {
@@ -772,9 +781,7 @@ void MCAsmStreamer::EmitBytes(StringRef Data) {
   if (Data.empty()) return;
 
   if (Data.size() == 1) {
-    OS << MAI->getData8bitsDirective();
-    OS << (unsigned)(unsigned char)Data[0];
-    EmitEOL();
+    EmitByte(Data[0]);
     return;
   }
 
@@ -783,11 +790,15 @@ void MCAsmStreamer::EmitBytes(StringRef Data) {
   if (MAI->getAscizDirective() && Data.back() == 0) {
     OS << MAI->getAscizDirective();
     Data = Data.substr(0, Data.size()-1);
-  } else {
+  } else if (MAI->getAsciiDirective()) {
     OS << MAI->getAsciiDirective();
+  } else {
+    for (auto Byte : Data.bytes())
+      EmitByte(Byte);
+    return;
   }
 
-  PrintQuotedString(Data);
+  PrintQuotedString(Data, OS);
   EmitEOL();
 }
 
@@ -969,13 +980,13 @@ void MCAsmStreamer::emitFill(const MCExpr &NumValues, int64_t Size,
   if (const char *BlockDirective = MAI->getBlockDirective(Size)) {
     OS << BlockDirective;
     NumValues.print(OS, MAI);
+    OS << ", " << truncateToSize(Expr, 4);
   } else {
     OS << "\t.fill\t";
     NumValues.print(OS, MAI);
-    OS << ", " << Size;
+    OS << ", " << Size << ", 0x";
+    OS.write_hex(truncateToSize(Expr, 4));
   }
-  OS << ", 0x";
-  OS.write_hex(truncateToSize(Expr, 4));
   EmitEOL();
 }
 
@@ -1051,7 +1062,7 @@ void MCAsmStreamer::emitValueToOffset(const MCExpr *Offset,
 void MCAsmStreamer::EmitFileDirective(StringRef Filename) {
   assert(MAI->hasSingleParameterDotFile());
   OS << "\t.file\t";
-  PrintQuotedString(Filename);
+  PrintQuotedString(Filename, OS);
   EmitEOL();
 }
 
@@ -1084,10 +1095,10 @@ unsigned MCAsmStreamer::EmitDwarfFileDirective(unsigned FileNo,
 
   OS << "\t.file\t" << FileNo << ' ';
   if (!Directory.empty()) {
-    PrintQuotedString(Directory);
+    PrintQuotedString(Directory, OS);
     OS << ' ';
   }
-  PrintQuotedString(Filename);
+  PrintQuotedString(Filename, OS);
   EmitEOL();
 
   return FileNo;
@@ -1143,7 +1154,7 @@ bool MCAsmStreamer::EmitCVFileDirective(unsigned FileNo, StringRef Filename) {
 
   OS << "\t.cv_file\t" << FileNo << ' ';
 
-  PrintQuotedString(Filename);
+  PrintQuotedString(Filename, OS);
   EmitEOL();
   return true;
 }
@@ -1230,7 +1241,7 @@ void MCAsmStreamer::EmitCVDefRangeDirective(
     Range.second->print(OS, MAI);
   }
   OS << ", ";
-  PrintQuotedString(FixedSizePortion);
+  PrintQuotedString(FixedSizePortion, OS);
   EmitEOL();
   this->MCStreamer::EmitCVDefRangeDirective(Ranges, FixedSizePortion);
 }
@@ -1248,7 +1259,7 @@ void MCAsmStreamer::EmitCVFileChecksumsDirective() {
 void MCAsmStreamer::EmitIdent(StringRef IdentString) {
   assert(MAI->hasIdentDirective() && ".ident directive not supported");
   OS << "\t.ident\t";
-  PrintQuotedString(IdentString);
+  PrintQuotedString(IdentString, OS);
   EmitEOL();
 }
 

@@ -31,11 +31,11 @@ Z80MCAsmInfo::Z80MCAsmInfo(const Triple &T) {
   Code32Directive = Code64Directive = nullptr;
   AssemblerDialect = !Is16Bit;
   SupportsQuotedNames = false;
-  ZeroDirective = nullptr;
-  AvoidAsciiNull = true;
+  ZeroDirective = AsciiDirective = AscizDirective = nullptr;
   Data8bitsDirective = "\tDB\t";
   Data16bitsDirective = "\tDW\t";
   Data24bitsDirective = "\tDW24\t";
+  Data32bitsDirective = "\tDL\t";
   Data64bitsDirective = nullptr;
   AssignmentDirective = " EQU ";
   GlobalDirective = "\tXDEF\t";
