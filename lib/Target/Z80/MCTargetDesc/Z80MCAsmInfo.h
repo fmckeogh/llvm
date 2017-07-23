@@ -24,6 +24,8 @@ class Z80MCAsmInfo : public MCAsmInfoOMF {
 
 public:
   explicit Z80MCAsmInfo(const Triple &Triple);
+
+  const char *getBlockDirective(int64_t Size) const override;
 };
 } // End llvm namespace
 

@@ -33,15 +33,26 @@ Z80MCAsmInfo::Z80MCAsmInfo(const Triple &T) {
   SupportsQuotedNames = false;
   ZeroDirective = nullptr;
   AvoidAsciiNull = true;
-  Data16bitsDirective = "\t.word\t";
-  Data24bitsDirective = "\t.word24\t";
+  Data8bitsDirective = "\tDB\t";
+  Data16bitsDirective = "\tDW\t";
+  Data24bitsDirective = "\tDW24\t";
   Data64bitsDirective = nullptr;
-  AssignmentDirective = " .equ ";
-  GlobalDirective = "\t.global\t";
+  AssignmentDirective = " EQU ";
+  GlobalDirective = "\tXDEF\t";
   HasFunctionAlignment = false;
   HasDotTypeDotSizeDirective = false;
   WeakDirective = nullptr;
   UseIntegratedAssembler = false;
   WeakDirective = nullptr;
   UseLogicalShr = false;
+}
+
+const char *Z80MCAsmInfo::getBlockDirective(int64_t Size) const {
+  switch (Size) {
+  default: return nullptr;
+  case 1: return "\tBLKB\t";
+  case 2: return "\tBLKW\t";
+  case 3: return "\tBLKP\t";
+  case 4: return "\tBLKL\t";
+  }
 }

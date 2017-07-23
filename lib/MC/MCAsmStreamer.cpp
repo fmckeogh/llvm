@@ -946,10 +946,13 @@ void MCAsmStreamer::emitFill(const MCExpr &NumBytes, uint64_t FillValue,
     if (FillValue != 0)
       OS << ',' << (int)FillValue;
     EmitEOL();
-    return;
-  }
-
-  MCStreamer::emitFill(NumBytes, FillValue);
+  } else if (const char *BlockDirective = MAI->getBlockDirective(1)) {
+    OS << BlockDirective;
+    NumBytes.print(OS, MAI);
+    OS << ", " << FillValue;
+    EmitEOL();
+  } else
+    MCStreamer::emitFill(NumBytes, FillValue);
 }
 
 void MCAsmStreamer::emitFill(uint64_t NumValues, int64_t Size, int64_t Expr) {
@@ -963,9 +966,15 @@ void MCAsmStreamer::emitFill(uint64_t NumValues, int64_t Size, int64_t Expr) {
 void MCAsmStreamer::emitFill(const MCExpr &NumValues, int64_t Size,
                              int64_t Expr, SMLoc Loc) {
   // FIXME: Emit location directives
-  OS << "\t.fill\t";
-  NumValues.print(OS, MAI);
-  OS << ", " << Size << ", 0x";
+  if (const char *BlockDirective = MAI->getBlockDirective(Size)) {
+    OS << BlockDirective;
+    NumValues.print(OS, MAI);
+  } else {
+    OS << "\t.fill\t";
+    NumValues.print(OS, MAI);
+    OS << ", " << Size;
+  }
+  OS << ", 0x";
   OS.write_hex(truncateToSize(Expr, 4));
   EmitEOL();
 }

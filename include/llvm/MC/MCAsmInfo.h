@@ -516,6 +516,7 @@ public:
   }
 
   const char *getZeroDirective() const { return ZeroDirective; }
+  virtual const char *getBlockDirective(int64_t Size) const { return nullptr; }
   const char *getAsciiDirective() const { return AsciiDirective; }
   const char *getAscizDirective() const { return AscizDirective; }
   bool shouldAvoidAsciiNull() const { return AvoidAsciiNull; }
