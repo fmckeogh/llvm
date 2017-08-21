@@ -55,11 +55,16 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
                           ISD::SREM,    ISD::UREM,
                           ISD::SDIVREM, ISD::UDIVREM })
       setOperationAction(Opc, VT, LibCall);
-    for (unsigned Opc : { ISD::SHL_PARTS, ISD::SRA_PARTS, ISD::SRL_PARTS,
-                          ISD::SMUL_LOHI, ISD::UMUL_LOHI,
+    for (unsigned Opc : { ISD::SMUL_LOHI, ISD::UMUL_LOHI,
                           ISD::SMULO,     ISD::UMULO,
                           ISD::MULHU,     ISD::MULHS,
-                          ISD::SELECT,    ISD::SETCC,     ISD::SETCCE })
+                          ISD::SMIN,      ISD::SMAX,
+                          ISD::UMIN,      ISD::UMAX,
+                          ISD::BSWAP,     ISD::CTTZ,      ISD::CTLZ,
+                          ISD::CTPOP,     ISD::BITREVERSE,
+                          ISD::CTTZ_ZERO_UNDEF,           ISD::CTLZ_ZERO_UNDEF,
+                          ISD::SELECT,    ISD::SETCC,     ISD::SETCCE,
+                          ISD::SHL_PARTS, ISD::SRA_PARTS, ISD::SRL_PARTS })
       setOperationAction(Opc, VT, Expand);
     for (unsigned Opc : { ISD::EXTLOAD, ISD::SEXTLOAD, ISD::ZEXTLOAD })
       setLoadExtAction(Opc, VT, MVT::i1, Promote);
