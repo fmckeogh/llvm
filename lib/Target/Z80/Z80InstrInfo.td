@@ -895,21 +895,21 @@ def : Pat<(i32 (anyext R24:$src)),
 
 // zexts
 def : Pat<(i16 (zext R8 :$src)),
-          (REG_SEQUENCE R16, R8 :$src, sub_low, (LD8r0), sub_high)>;
+          (REG_SEQUENCE R16, R8 :$src, sub_low, (i8 0), sub_high)>;
 def : Pat<(i24 (zext R8 :$src)),
-          (INSERT_SUBREG (LD24ri 0), R8 :$src, sub_low)>;
+          (INSERT_SUBREG (i24 0), R8 :$src, sub_low)>;
 def : Pat<(i24 (zext R16:$src)),
-          (INSERT_SUBREG (LD24ri 0), R16:$src, sub_short)>;
+          (INSERT_SUBREG (i24 0), R16:$src, sub_short)>;
 /*def : Pat<(i32 (zext R8:$src)),
-          (REG_SEQUENCE R32, (INSERT_SUBREG (LD24ri 0), R8:$src,
+          (REG_SEQUENCE R32, (INSERT_SUBREG (i24 0), R8:$src,
                                             sub_low), sub_long,
-                             (LD8ri 0), sub_top)>;
+                             (i8 0), sub_top)>;
 def : Pat<(i32 (zext R16:$src)),
-          (REG_SEQUENCE R32, (INSERT_SUBREG (LD24ri 0), R16:$src,
+          (REG_SEQUENCE R32, (INSERT_SUBREG (i24 0), R16:$src,
                                             sub_short), sub_long,
-                             (LD8ri 0), sub_top)>;
+                             (i8 0), sub_top)>;
 def : Pat<(i32 (zext R24:$src)),
-          (REG_SEQUENCE R32, R24:$src, sub_long, (LD8ri 0), sub_top)>;*/
+          (REG_SEQUENCE R32, R24:$src, sub_long, (i8 0), sub_top)>;*/
 
 // truncs
 def : Pat<(i8  (trunc R16:$src)), (EXTRACT_SUBREG R16:$src, sub_low)>;
@@ -923,7 +923,7 @@ def : Pat<(i24 (trunc R32:$src)), (EXTRACT_SUBREG R32:$src, sub_long)>;*/
 //def : Pat<(i32 (load mempat:$src)), (REG_SEQUENCE R32, (LD24rm mempat:$src), sub_long, (LD8am (imm_add_3_XFORM mempat:$src)), sub_top)>;
 //def : Pat<(i32 (load   iPTR:$src)), (REG_SEQUENCE R32, (LD24rp   iPTR:$src), sub_long, (LD8rp (fi_add_3_XFORM iPTR:$src)), sub_top)>;
 //def : Pat<(i32 (load offpat:$src)), (REG_SEQUENCE R32, (LD24ro offpat:$src), sub_long, (LD8ro offpat:$src), sub_top)>;
-//def : Pat<(i32 (load iPTR:$src)), (REG_SEQUENCE R32, (LD8ri 0), sub_top, (LD24rp iPTR:$src), sub_long)>;
+//def : Pat<(i32 (load iPTR:$src)), (REG_SEQUENCE R32, (i8 0), sub_top, (LD24rp iPTR:$src), sub_long)>;
 //def : Pat<(i32 (load iPTR:$src)), (REG_SEQUENCE R32, (R8 (LD8rp (imm_add_3_XFORM iPTR:$src))), sub_top,
 //                                                     (R24 (LD24rp iPTR:$src)), sub_long)>;
 
