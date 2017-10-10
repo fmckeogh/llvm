@@ -97,6 +97,9 @@ serialization::TypeIdxFromBuiltin(const BuiltinType *BT) {
   case BuiltinType::LongDouble:
     ID = PREDEF_TYPE_LONGDOUBLE_ID;
     break;
+  case BuiltinType::Float16:
+    ID = PREDEF_TYPE_FLOAT16_ID;
+    break;
   case BuiltinType::Float128:
     ID = PREDEF_TYPE_FLOAT128_ID;
     break;
@@ -347,8 +350,8 @@ bool serialization::needsAnonymousDeclarationNumber(const NamedDecl *D) {
     return true;
   }
 
-  // Otherwise, we only care about anonymous class members.
-  if (D->getDeclName() || !isa<CXXRecordDecl>(D->getLexicalDeclContext()))
+  // Otherwise, we only care about anonymous class members / block-scope decls.
+  if (D->getDeclName() || D->getLexicalDeclContext()->isFileContext())
     return false;
   return isa<TagDecl>(D) || isa<FieldDecl>(D);
 }

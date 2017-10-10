@@ -258,7 +258,7 @@ bool Z80RegisterInfo::
 shouldCoalesce(MachineInstr *MI,
                const TargetRegisterClass *SrcRC, unsigned SrcSubReg,
                const TargetRegisterClass *DstRC, unsigned DstSubReg,
-               const TargetRegisterClass *NewRC) const {
+               const TargetRegisterClass *NewRC, LiveIntervals &LIS) const {
   const TargetRegisterInfo &TRI = *MI->getParent()->getParent()->getRegInfo()
     .getTargetRegisterInfo();
   (void)TRI;

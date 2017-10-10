@@ -1,4 +1,4 @@
-//===-- llvm/Support/ELF.h - ELF constants and data structures --*- C++ -*-===//
+//===- llvm/BinaryFormat/ELF.h - ELF constants and structures ---*- C++ -*-===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -17,30 +17,28 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_SUPPORT_ELF_H
-#define LLVM_SUPPORT_ELF_H
+#ifndef LLVM_BINARYFORMAT_ELF_H
+#define LLVM_BINARYFORMAT_ELF_H
 
-#include "llvm/Support/Compiler.h"
-#include "llvm/Support/DataTypes.h"
+#include <cstdint>
 #include <cstring>
 
 namespace llvm {
-
 namespace ELF {
 
-typedef uint32_t Elf32_Addr; // Program address
-typedef uint32_t Elf32_Off;  // File offset
-typedef uint16_t Elf32_Half;
-typedef uint32_t Elf32_Word;
-typedef int32_t Elf32_Sword;
+using Elf32_Addr = uint32_t; // Program address
+using Elf32_Off = uint32_t;  // File offset
+using Elf32_Half = uint16_t;
+using Elf32_Word = uint32_t;
+using Elf32_Sword = int32_t;
 
-typedef uint64_t Elf64_Addr;
-typedef uint64_t Elf64_Off;
-typedef uint16_t Elf64_Half;
-typedef uint32_t Elf64_Word;
-typedef int32_t Elf64_Sword;
-typedef uint64_t Elf64_Xword;
-typedef int64_t Elf64_Sxword;
+using Elf64_Addr = uint64_t;
+using Elf64_Off = uint64_t;
+using Elf64_Half = uint16_t;
+using Elf64_Word = uint32_t;
+using Elf64_Sword = int32_t;
+using Elf64_Xword = uint64_t;
+using Elf64_Sxword = int64_t;
 
 // Object file magic string.
 static const char ElfMagic[] = {0x7f, 'E', 'L', 'F', '\0'};
@@ -75,9 +73,11 @@ struct Elf32_Ehdr {
   Elf32_Half e_shentsize; // Size of an entry in the section header table
   Elf32_Half e_shnum;     // Number of entries in the section header table
   Elf32_Half e_shstrndx;  // Sect hdr table index of sect name string table
+
   bool checkMagic() const {
     return (memcmp(e_ident, ElfMagic, strlen(ElfMagic))) == 0;
   }
+
   unsigned char getFileClass() const { return e_ident[EI_CLASS]; }
   unsigned char getDataEncoding() const { return e_ident[EI_DATA]; }
 };
@@ -99,9 +99,11 @@ struct Elf64_Ehdr {
   Elf64_Half e_shentsize;
   Elf64_Half e_shnum;
   Elf64_Half e_shstrndx;
+
   bool checkMagic() const {
     return (memcmp(e_ident, ElfMagic, strlen(ElfMagic))) == 0;
   }
+
   unsigned char getFileClass() const { return e_ident[EI_CLASS]; }
   unsigned char getDataEncoding() const { return e_ident[EI_DATA]; }
 };
@@ -122,7 +124,7 @@ enum { EV_NONE = 0, EV_CURRENT = 1 };
 
 // Machine architectures
 // See current registered ELF machine architectures at:
-//    http://www.sco.com/developers/gabi/latest/ch4.eheader.html
+//    http://www.uxsglobal.com/developers/gabi/latest/ch4.eheader.html
 enum {
   EM_NONE = 0,           // No machine
   EM_M32 = 1,            // AT&T WE 32100
@@ -337,29 +339,33 @@ enum {
 
 // OS ABI identification.
 enum {
-  ELFOSABI_NONE = 0,          // UNIX System V ABI
-  ELFOSABI_HPUX = 1,          // HP-UX operating system
-  ELFOSABI_NETBSD = 2,        // NetBSD
-  ELFOSABI_GNU = 3,           // GNU/Linux
-  ELFOSABI_LINUX = 3,         // Historical alias for ELFOSABI_GNU.
-  ELFOSABI_HURD = 4,          // GNU/Hurd
-  ELFOSABI_SOLARIS = 6,       // Solaris
-  ELFOSABI_AIX = 7,           // AIX
-  ELFOSABI_IRIX = 8,          // IRIX
-  ELFOSABI_FREEBSD = 9,       // FreeBSD
-  ELFOSABI_TRU64 = 10,        // TRU64 UNIX
-  ELFOSABI_MODESTO = 11,      // Novell Modesto
-  ELFOSABI_OPENBSD = 12,      // OpenBSD
-  ELFOSABI_OPENVMS = 13,      // OpenVMS
-  ELFOSABI_NSK = 14,          // Hewlett-Packard Non-Stop Kernel
-  ELFOSABI_AROS = 15,         // AROS
-  ELFOSABI_FENIXOS = 16,      // FenixOS
-  ELFOSABI_CLOUDABI = 17,     // Nuxi CloudABI
-  ELFOSABI_C6000_ELFABI = 64, // Bare-metal TMS320C6000
-  ELFOSABI_AMDGPU_HSA = 64,   // AMD HSA runtime
-  ELFOSABI_C6000_LINUX = 65,  // Linux TMS320C6000
-  ELFOSABI_ARM = 97,          // ARM
-  ELFOSABI_STANDALONE = 255   // Standalone (embedded) application
+  ELFOSABI_NONE = 0,           // UNIX System V ABI
+  ELFOSABI_HPUX = 1,           // HP-UX operating system
+  ELFOSABI_NETBSD = 2,         // NetBSD
+  ELFOSABI_GNU = 3,            // GNU/Linux
+  ELFOSABI_LINUX = 3,          // Historical alias for ELFOSABI_GNU.
+  ELFOSABI_HURD = 4,           // GNU/Hurd
+  ELFOSABI_SOLARIS = 6,        // Solaris
+  ELFOSABI_AIX = 7,            // AIX
+  ELFOSABI_IRIX = 8,           // IRIX
+  ELFOSABI_FREEBSD = 9,        // FreeBSD
+  ELFOSABI_TRU64 = 10,         // TRU64 UNIX
+  ELFOSABI_MODESTO = 11,       // Novell Modesto
+  ELFOSABI_OPENBSD = 12,       // OpenBSD
+  ELFOSABI_OPENVMS = 13,       // OpenVMS
+  ELFOSABI_NSK = 14,           // Hewlett-Packard Non-Stop Kernel
+  ELFOSABI_AROS = 15,          // AROS
+  ELFOSABI_FENIXOS = 16,       // FenixOS
+  ELFOSABI_CLOUDABI = 17,      // Nuxi CloudABI
+  ELFOSABI_FIRST_ARCH = 64,    // First architecture-specific OS ABI
+  ELFOSABI_AMDGPU_HSA = 64,    // AMD HSA runtime
+  ELFOSABI_AMDGPU_PAL = 65,    // AMD PAL runtime
+  ELFOSABI_AMDGPU_MESA3D = 66, // AMD GCN GPUs (GFX6+) for MESA runtime
+  ELFOSABI_ARM = 97,           // ARM
+  ELFOSABI_C6000_ELFABI = 64,  // Bare-metal TMS320C6000
+  ELFOSABI_C6000_LINUX = 65,   // Linux TMS320C6000
+  ELFOSABI_STANDALONE = 255,   // Standalone (embedded) application
+  ELFOSABI_LAST_ARCH = 255     // Last Architecture-specific OS ABI
 };
 
 #define ELF_RELOC(name, value) name = value,
@@ -430,6 +436,27 @@ enum : unsigned {
 // ELF Relocation types for ARM
 enum {
 #include "ELFRelocs/ARM.def"
+};
+
+// ARC Specific e_flags
+enum : unsigned {
+  EF_ARC_MACH_MSK = 0x000000ff,
+  EF_ARC_OSABI_MSK = 0x00000f00,
+  E_ARC_MACH_ARC600 = 0x00000002,
+  E_ARC_MACH_ARC601 = 0x00000004,
+  E_ARC_MACH_ARC700 = 0x00000003,
+  EF_ARC_CPU_ARCV2EM = 0x00000005,
+  EF_ARC_CPU_ARCV2HS = 0x00000006,
+  E_ARC_OSABI_ORIG = 0x00000000,
+  E_ARC_OSABI_V2 = 0x00000200,
+  E_ARC_OSABI_V3 = 0x00000300,
+  E_ARC_OSABI_V4 = 0x00000400,
+  EF_ARC_PIC = 0x00000100
+};
+
+// ELF Relocation types for ARC
+enum {
+#include "ELFRelocs/ARC.def"
 };
 
 // AVR specific e_flags
@@ -593,6 +620,17 @@ enum {
 #include "ELFRelocs/Lanai.def"
 };
 
+// RISCV Specific e_flags
+enum : unsigned {
+  EF_RISCV_RVC = 0x0001,
+  EF_RISCV_FLOAT_ABI = 0x0006,
+  EF_RISCV_FLOAT_ABI_SOFT = 0x0000,
+  EF_RISCV_FLOAT_ABI_SINGLE = 0x0002,
+  EF_RISCV_FLOAT_ABI_DOUBLE = 0x0004,
+  EF_RISCV_FLOAT_ABI_QUAD = 0x0006,
+  EF_RISCV_RVE = 0x0008
+};
+
 // ELF Relocation types for RISC-V
 enum {
 #include "ELFRelocs/RISCV.def"
@@ -611,6 +649,15 @@ enum {
 // ELF Relocation types for WebAssembly
 enum {
 #include "ELFRelocs/WebAssembly.def"
+};
+
+// AMDGPU specific e_flags.
+enum : unsigned {
+  // AMDGPU machine architectures.
+  EF_AMDGPU_ARCH_NONE = 0x00000000, // None/unknown.
+  EF_AMDGPU_ARCH_R600 = 0x00000001, // AMD HD2XXX-HD6XXX GPUs.
+  EF_AMDGPU_ARCH_GCN = 0x00000002,  // AMD GCN GFX6+ GPUs.
+  EF_AMDGPU_ARCH = 0x0000000f       // EF_AMDGPU_ARCH_XXX selection mask.
 };
 
 // ELF Relocation types for AMDGPU
@@ -687,6 +734,7 @@ enum : unsigned {
   SHT_GROUP = 17,                  // Section group.
   SHT_SYMTAB_SHNDX = 18,           // Indices for SHN_XINDEX entries.
   SHT_LOOS = 0x60000000,           // Lowest operating system-specific type.
+  SHT_LLVM_ODRTAB = 0x6fff4c00,    // LLVM ODR table.
   SHT_GNU_ATTRIBUTES = 0x6ffffff5, // Object attributes.
   SHT_GNU_HASH = 0x6ffffff6,       // GNU-style hash table.
   SHT_GNU_verdef = 0x6ffffffd,     // GNU version definitions.
@@ -812,12 +860,7 @@ enum : unsigned {
   SHF_MIPS_STRING = 0x80000000,
 
   // Make code section unreadable when in execute-only mode
-  SHF_ARM_PURECODE = 0x20000000,
-
-  SHF_AMDGPU_HSA_GLOBAL = 0x00100000,
-  SHF_AMDGPU_HSA_READONLY = 0x00200000,
-  SHF_AMDGPU_HSA_CODE = 0x00400000,
-  SHF_AMDGPU_HSA_AGENT = 0x00800000
+  SHF_ARM_PURECODE = 0x20000000
 };
 
 // Section Group Flags
@@ -901,9 +944,7 @@ enum {
   STT_HIPROC = 15,    // Highest processor-specific symbol type
 
   // AMDGPU symbol types
-  STT_AMDGPU_HSA_KERNEL = 10,
-  STT_AMDGPU_HSA_INDIRECT_FUNCTION = 11,
-  STT_AMDGPU_HSA_METADATA = 12
+  STT_AMDGPU_HSA_KERNEL = 10
 };
 
 enum {
@@ -1053,12 +1094,6 @@ enum {
   PT_MIPS_RTPROC = 0x70000001,   // Runtime procedure table.
   PT_MIPS_OPTIONS = 0x70000002,  // Options segment.
   PT_MIPS_ABIFLAGS = 0x70000003, // Abiflags segment.
-
-  // AMDGPU program header types.
-  PT_AMDGPU_HSA_LOAD_GLOBAL_PROGRAM = 0x60000000,
-  PT_AMDGPU_HSA_LOAD_GLOBAL_AGENT = 0x60000001,
-  PT_AMDGPU_HSA_LOAD_READONLY_AGENT = 0x60000002,
-  PT_AMDGPU_HSA_LOAD_CODE_AGENT = 0x60000003,
 
   // WebAssembly program header types.
   PT_WEBASSEMBLY_FUNCTIONS = PT_LOPROC + 0, // Function definitions.
@@ -1373,7 +1408,6 @@ enum {
 };
 
 } // end namespace ELF
-
 } // end namespace llvm
 
-#endif
+#endif // LLVM_BINARYFORMAT_ELF_H

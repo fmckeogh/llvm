@@ -20,6 +20,7 @@
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/SelectionDAG.h"
+#include "llvm/Support/KnownBits.h"
 using namespace llvm;
 
 #define DEBUG_TYPE "z80-isel"
@@ -267,7 +268,7 @@ SDValue Z80TargetLowering::EmitFlipSign(const SDLoc &DL, SDValue Op,
                                         SelectionDAG &DAG) const {
   EVT VT = Op.getValueType();
   return DAG.getNode(ISD::ADD, DL, VT, Op, DAG.getConstant(
-                         APInt::getSignBit(VT.getSizeInBits()), DL, VT));
+                         APInt::getSignMask(VT.getSizeInBits()), DL, VT));
 }
 
 SDValue Z80TargetLowering::EmitPair(const SDLoc &DL, SDValue Hi, SDValue Lo,
@@ -354,26 +355,26 @@ SDValue Z80TargetLowering::LowerBitwise(SDValue Op, SelectionDAG &DAG) const {
   if (OptSize && Opc == ISD::XOR && ConstRHS && ConstRHS->getSExtValue() == ~0)
     return LowerLibCall(RTLIB::UNKNOWN_LIBCALL, RTLIB::NOT_I16, RTLIB::NOT_I24,
                         RTLIB::NOT_I32, DAG.getMergeValues(LHS, DL), DAG);
-  APInt KnownZero, KnownOne;
-  DAG.computeKnownBits(Op, KnownZero, KnownOne);
+  KnownBits Known;
+  DAG.computeKnownBits(Op, Known);
   SDValue ResHi, ResLo;
-  if (VT == MVT::i24 && ((KnownZero | KnownOne) & 0xFF0000) != 0xFF0000)
+  if (VT == MVT::i24 && ((Known.Zero | Known.One) & 0xFF0000) != 0xFF0000)
     return SDValue(); // fallback to libcall
-  if (((KnownZero | KnownOne) & 0x00FF00) != 0x00FF00) {
+  if (((Known.Zero | Known.One) & 0x00FF00) != 0x00FF00) {
     SDValue LHSHi = DAG.getTargetExtractSubreg(Z80::sub_high, DL, MVT::i8, LHS);
     SDValue RHSHi = DAG.getTargetExtractSubreg(Z80::sub_high, DL, MVT::i8, RHS);
     ResHi = DAG.getNode(Opc, DL, MVT::i8, LHSHi, RHSHi);
-    KnownOne &= ~0x00FF00;
+    Known.One &= ~0x00FF00;
   }
-  if (((KnownZero | KnownOne) & 0x0000FF) != 0x0000FF) {
+  if (((Known.Zero | Known.One) & 0x0000FF) != 0x0000FF) {
     SDValue LHSLo = DAG.getTargetExtractSubreg(Z80::sub_low, DL, MVT::i8, LHS);
     SDValue RHSLo = DAG.getTargetExtractSubreg(Z80::sub_low, DL, MVT::i8, RHS);
     ResLo = DAG.getNode(Opc, DL, MVT::i8, LHSLo, RHSLo);
-    KnownOne &= ~0x0000FF;
+    Known.One &= ~0x0000FF;
   }
   if (VT == MVT::i16 && ResHi && ResLo)
     return EmitPair(DL, ResHi, ResLo, DAG);
-  SDValue Res = DAG.getConstant(KnownOne, DL, VT);
+  SDValue Res = DAG.getConstant(Known.One, DL, VT);
   if (ResHi)
     Res = DAG.getTargetInsertSubreg(Z80::sub_high, DL, VT, Res, ResHi);
   if (ResLo)
@@ -510,19 +511,19 @@ SDValue Z80TargetLowering::LowerMul(SDValue Op, SelectionDAG &DAG) const {
   SDLoc DL(Op);
   EVT VT = Op.getValueType();
   unsigned Bits = VT.getSizeInBits();
-  APInt KnownZero, KnownOne;
+  KnownBits Known;
   APInt LoMask = APInt::getLowBitsSet(Bits, 8), HiMask = ~LoMask;
   SDValue InOps[] = { Op.getOperand(0), Op.getOperand(1) };
   bool NegRes = false;
   if (VT != MVT::i8)
     for (SDValue &Op : InOps) {
-      DAG.computeKnownBits(Op, KnownZero, KnownOne);
+      DAG.computeKnownBits(Op, Known);
       Op = DAG.getNode(ISD::TRUNCATE, DL, MVT::i8, Op);
-      if ((KnownOne & HiMask) == HiMask && KnownOne.intersects(LoMask)) {
+      if ((Known.One & HiMask) == HiMask && Known.One.intersects(LoMask)) {
         Op = DAG.getNode(ISD::SUB, DL, MVT::i8,
                          DAG.getConstant(0, DL, MVT::i8), Op);
         NegRes = !NegRes;
-      } else if ((KnownZero & HiMask) != HiMask)
+      } else if ((Known.Zero & HiMask) != HiMask)
         return SDValue();
     }
   SDValue OutOps[] = {
@@ -1188,7 +1189,8 @@ bool Z80TargetLowering::isOffsetFoldingLegal(
 /// target, for a load/store of the specified type.
 bool Z80TargetLowering::isLegalAddressingMode(const DataLayout &DL,
                                               const AddrMode &AM, Type *Ty,
-                                              unsigned AS) const {
+                                              unsigned AS,
+                                              Instruction *I) const {
   if (AM.Scale)
     return false;
 
@@ -1557,13 +1559,6 @@ bool Z80TargetLowering::IsDesirableToPromoteOp(SDValue Op, EVT &PVT) const {
   return true;
 }
 
-/// Return true if the MachineFunction contains a COPY which would imply
-/// HasOpaqueSPAdjustment.
-bool Z80TargetLowering::hasCopyImplyingStackAdjustment(
-    MachineFunction *MF) const {
-  return true; // TODO: implement
-}
-
 MachineBasicBlock *
 Z80TargetLowering::EmitInstrWithCustomInserter(MachineInstr &MI,
                                                MachineBasicBlock *BB) const {
@@ -1834,8 +1829,7 @@ SDValue Z80TargetLowering::LowerCall(TargetLowering::CallLoweringInfo &CLI,
   MVT PtrVT = getPointerTy(DAG.getDataLayout());
 
   if (!IsTailCall)
-    Chain = DAG.getCALLSEQ_START(
-        Chain, DAG.getTargetConstant(NumBytes, DL, PtrVT), DL);
+    Chain = DAG.getCALLSEQ_START(Chain, NumBytes, 0, DL);
 
   SmallVector<std::pair<unsigned, SDValue>, 2> RegsToPass;
   const TargetRegisterInfo *RegInfo = Subtarget.getRegisterInfo();

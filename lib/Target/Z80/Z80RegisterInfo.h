@@ -96,7 +96,8 @@ public:
                       unsigned SubReg,
                       const TargetRegisterClass *DstRC,
                       unsigned DstSubReg,
-                      const TargetRegisterClass *NewRC) const override;
+                      const TargetRegisterClass *NewRC,
+                      LiveIntervals &LIS) const override;
 };
 } // End llvm namespace
 

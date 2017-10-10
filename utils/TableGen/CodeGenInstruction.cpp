@@ -77,6 +77,7 @@ CGIOperandList::CGIOperandList(Record *R) : TheDef(R) {
       PrintMethod = Rec->getValueAsString("PrintMethod");
       OperandType = Rec->getValueAsString("OperandType");
       OperandNamespace = Rec->getValueAsString("OperandNamespace");
+      EncoderMethod = Rec->getValueAsString("EncoderMethod");
     } else if (Rec->isSubClassOf("Operand")) {
       PrintMethod = Rec->getValueAsString("PrintMethod");
       OperandType = Rec->getValueAsString("OperandType");
@@ -127,8 +128,8 @@ CGIOperandList::CGIOperandList(Record *R) : TheDef(R) {
 
   // Make sure the constraints list for each operand is large enough to hold
   // constraint info, even if none is present.
-  for (unsigned i = 0, e = OperandList.size(); i != e; ++i)
-    OperandList[i].Constraints.resize(OperandList[i].MINumOperands);
+  for (OperandInfo &OpInfo : OperandList)
+    OpInfo.Constraints.resize(OpInfo.MINumOperands);
 }
 
 
@@ -386,7 +387,6 @@ bool CodeGenInstruction::HasImplicitDef(Record *Reg) const {
       return true;
   return false;
 }
-
 
 /// FlattenAsmStringVariants - Flatten the specified AsmString to only
 /// include text from the specified variant, returning the new string.

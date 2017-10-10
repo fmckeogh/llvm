@@ -18,11 +18,12 @@
 
 namespace llvm {
 class Z80Subtarget;
+class Z80InstrInfo;
 class Z80RegisterInfo;
 
 class Z80FrameLowering : public TargetFrameLowering {
   const Z80Subtarget &STI;
-  const TargetInstrInfo &TII;
+  const Z80InstrInfo &TII;
   const Z80RegisterInfo *TRI;
 
   bool Is24Bit;
@@ -45,7 +46,7 @@ public:
                                  const TargetRegisterInfo *TRI) const override;
   bool restoreCalleeSavedRegisters(MachineBasicBlock &MBB,
                                    MachineBasicBlock::iterator MI,
-                                   const std::vector<CalleeSavedInfo> &CSI,
+                                   std::vector<CalleeSavedInfo> &CSI,
                                    const TargetRegisterInfo *TRI) const override;
 
   void processFunctionBeforeFrameFinalized(

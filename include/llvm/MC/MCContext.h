@@ -17,12 +17,12 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
+#include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/SectionKind.h"
 #include "llvm/Support/Allocator.h"
 #include "llvm/Support/Compiler.h"
-#include "llvm/Support/Dwarf.h"
 #include "llvm/Support/raw_ostream.h"
 #include <algorithm>
 #include <cassert>
@@ -47,17 +47,19 @@ namespace llvm {
   class MCSectionMachO;
   class MCSectionOMF;
   class MCSectionWasm;
+  class MCStreamer;
   class MCSymbol;
   class MCSymbolELF;
   class MCSymbolWasm;
   class SMLoc;
+  class SourceMgr;
 
   /// Context object for machine code objects.  This class owns all of the
   /// sections that it creates.
   ///
   class MCContext {
   public:
-    typedef StringMap<MCSymbol *, BumpPtrAllocator &> SymbolTable;
+    using SymbolTable = StringMap<MCSymbol *, BumpPtrAllocator &>;
 
   private:
     /// The SourceMgr for this object, if any.
@@ -225,10 +227,12 @@ namespace llvm {
       std::string SectionName;
       StringRef GroupName;
       unsigned UniqueID;
+
       WasmSectionKey(StringRef SectionName, StringRef GroupName,
                      unsigned UniqueID)
           : SectionName(SectionName), GroupName(GroupName), UniqueID(UniqueID) {
       }
+
       bool operator<(const WasmSectionKey &Other) const {
         if (SectionName != Other.SectionName)
           return SectionName < Other.SectionName;
@@ -439,53 +443,27 @@ namespace llvm {
     getAssociativeCOFFSection(MCSectionCOFF *Sec, const MCSymbol *KeySym,
                               unsigned UniqueID = GenericSectionID);
 
-    MCSectionWasm *getWasmSection(const Twine &Section, unsigned Type,
-                                  unsigned Flags) {
-      return getWasmSection(Section, Type, Flags, nullptr);
+    MCSectionWasm *getWasmSection(const Twine &Section, unsigned Type) {
+      return getWasmSection(Section, Type, nullptr);
     }
 
     MCSectionWasm *getWasmSection(const Twine &Section, unsigned Type,
-                                  unsigned Flags, const char *BeginSymName) {
-      return getWasmSection(Section, Type, Flags, "", BeginSymName);
-    }
-
-    MCSectionWasm *getWasmSection(const Twine &Section, unsigned Type,
-                                  unsigned Flags, const Twine &Group) {
-      return getWasmSection(Section, Type, Flags, Group, nullptr);
-    }
-
-    MCSectionWasm *getWasmSection(const Twine &Section, unsigned Type,
-                                  unsigned Flags, const Twine &Group,
                                   const char *BeginSymName) {
-      return getWasmSection(Section, Type, Flags, Group, ~0, BeginSymName);
+      return getWasmSection(Section, Type, "", ~0, BeginSymName);
     }
 
     MCSectionWasm *getWasmSection(const Twine &Section, unsigned Type,
-                                  unsigned Flags, const Twine &Group,
-                                  unsigned UniqueID) {
-      return getWasmSection(Section, Type, Flags, Group, UniqueID, nullptr);
+                                  const Twine &Group, unsigned UniqueID) {
+      return getWasmSection(Section, Type, Group, UniqueID, nullptr);
     }
 
     MCSectionWasm *getWasmSection(const Twine &Section, unsigned Type,
-                                  unsigned Flags, const Twine &Group,
-                                  unsigned UniqueID, const char *BeginSymName);
+                                  const Twine &Group, unsigned UniqueID,
+                                  const char *BeginSymName);
 
     MCSectionWasm *getWasmSection(const Twine &Section, unsigned Type,
-                                  unsigned Flags, const MCSymbolWasm *Group,
-                                  unsigned UniqueID, const char *BeginSymName);
-
-    /// Get a section with the provided group identifier. This section is
-    /// named by concatenating \p Prefix with '.' then \p Suffix. The \p Type
-    /// describes the type of the section and \p Flags are used to further
-    /// configure this named section.
-    MCSectionWasm *getWasmNamedSection(const Twine &Prefix, const Twine &Suffix,
-                                       unsigned Type, unsigned Flags);
-
-    MCSectionWasm *createWasmRelSection(const Twine &Name, unsigned Type,
-                                        unsigned Flags,
-                                        const MCSymbolWasm *Group);
-
-    void renameWasmSection(MCSectionWasm *Section, StringRef Name);
+                                  const MCSymbolWasm *Group, unsigned UniqueID,
+                                  const char *BeginSymName);
 
     MCSectionOMF *getOMFSection(const Twine &Section, SectionKind Kind);
 

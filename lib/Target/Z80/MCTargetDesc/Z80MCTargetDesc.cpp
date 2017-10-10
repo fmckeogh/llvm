@@ -92,7 +92,7 @@ static MCTargetStreamer *createAsmTargetStreamer(MCStreamer &S,
 
 // Force static initialization.
 extern "C" void LLVMInitializeZ80TargetMC() {
-  for (Target *T : {&TheZ80Target, &TheEZ80Target}) {
+  for (Target *T : {&getTheZ80Target(), &getTheEZ80Target()}) {
     // Register the MC asm info.
     RegisterMCAsmInfoFn X(*T, createZ80MCAsmInfo);
 
@@ -113,6 +113,7 @@ extern "C" void LLVMInitializeZ80TargetMC() {
     TargetRegistry::RegisterAsmTargetStreamer(*T, createAsmTargetStreamer);
   }
 
-  TargetRegistry::RegisterMCAsmBackend(TheZ80Target, createZ80AsmBackend);
-  TargetRegistry::RegisterMCAsmBackend(TheEZ80Target, createEZ80AsmBackend);
+  TargetRegistry::RegisterMCAsmBackend(getTheZ80Target(), createZ80AsmBackend);
+  TargetRegistry::RegisterMCAsmBackend(getTheEZ80Target(),
+                                       createEZ80AsmBackend);
 }

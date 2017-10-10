@@ -311,7 +311,7 @@ bool Z80FrameLowering::spillCalleeSavedRegisters(
 }
 bool Z80FrameLowering::restoreCalleeSavedRegisters(
     MachineBasicBlock &MBB, MachineBasicBlock::iterator MI,
-    const std::vector<CalleeSavedInfo> &CSI,
+    std::vector<CalleeSavedInfo> &CSI,
     const TargetRegisterInfo *TRI) const {
   const MachineFunction &MF = *MBB.getParent();
   bool UseShadow = shouldUseShadow(MF);
@@ -345,13 +345,13 @@ MachineBasicBlock::iterator Z80FrameLowering::
 eliminateCallFramePseudoInstr(MachineFunction &MF, MachineBasicBlock &MBB,
                               MachineBasicBlock::iterator I) const {
   //if (!hasReservedCallFrame(MF)) {
-    unsigned Amount = I->getOperand(0).getImm();
+    unsigned Amount = TII.getFrameSize(*I);
     unsigned ScratchReg = I->getOperand(I->getNumOperands() - 1).getReg();
     assert((Z80::A24RegClass.contains(ScratchReg) ||
             Z80::A16RegClass.contains(ScratchReg)) &&
            "Expected last operand to be the scratch reg.");
     if (I->getOpcode() == TII.getCallFrameDestroyOpcode()) {
-      Amount -= I->getOperand(1).getImm();
+      Amount -= TII.getFramePoppedByCallee(*I);
       assert(TargetRegisterInfo::isPhysicalRegister(ScratchReg) &&
              "Reg alloc should have already happened.");
       BuildStackAdjustment(MF, MBB, I, I->getDebugLoc(), ScratchReg, Amount);

@@ -28,15 +28,11 @@ define <2 x i256> @test_shl(<2 x i256> %In) {
 ;
 ; X64-LABEL: test_shl:
 ; X64:       # BB#0:
-; X64-NEXT:    shlq $63, %rsi
-; X64-NEXT:    movq %rsi, 24(%rdi)
-; X64-NEXT:    movq $0, 56(%rdi)
-; X64-NEXT:    movq $0, 48(%rdi)
-; X64-NEXT:    movq $0, 40(%rdi)
-; X64-NEXT:    movq $0, 32(%rdi)
-; X64-NEXT:    movq $0, 16(%rdi)
-; X64-NEXT:    movq $0, 8(%rdi)
-; X64-NEXT:    movq $0, (%rdi)
+; X64-NEXT:    xorps %xmm0, %xmm0
+; X64-NEXT:    movaps %xmm0, 48(%rdi)
+; X64-NEXT:    movaps %xmm0, 32(%rdi)
+; X64-NEXT:    movaps %xmm0, 16(%rdi)
+; X64-NEXT:    movaps %xmm0, (%rdi)
 ; X64-NEXT:    movq %rdi, %rax
 ; X64-NEXT:    retq
   %Amt = insertelement <2 x i256> undef, i256 255, i32 0
@@ -70,15 +66,11 @@ define <2 x i256> @test_srl(<2 x i256> %In) {
 ;
 ; X64-LABEL: test_srl:
 ; X64:       # BB#0:
-; X64-NEXT:    shrq $63, %r8
-; X64-NEXT:    movq %r8, (%rdi)
-; X64-NEXT:    movq $0, 56(%rdi)
-; X64-NEXT:    movq $0, 48(%rdi)
-; X64-NEXT:    movq $0, 40(%rdi)
-; X64-NEXT:    movq $0, 32(%rdi)
-; X64-NEXT:    movq $0, 24(%rdi)
-; X64-NEXT:    movq $0, 16(%rdi)
-; X64-NEXT:    movq $0, 8(%rdi)
+; X64-NEXT:    xorps %xmm0, %xmm0
+; X64-NEXT:    movaps %xmm0, 48(%rdi)
+; X64-NEXT:    movaps %xmm0, 32(%rdi)
+; X64-NEXT:    movaps %xmm0, 16(%rdi)
+; X64-NEXT:    movaps %xmm0, (%rdi)
 ; X64-NEXT:    movq %rdi, %rax
 ; X64-NEXT:    retq
   %Amt = insertelement <2 x i256> undef, i256 255, i32 0

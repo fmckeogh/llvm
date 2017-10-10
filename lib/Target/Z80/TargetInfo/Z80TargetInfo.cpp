@@ -11,10 +11,18 @@
 #include "llvm/Support/TargetRegistry.h"
 using namespace llvm;
 
-Target llvm::TheZ80Target, llvm::TheEZ80Target;
+Target &llvm::getTheZ80Target() {
+  static Target TheZ80Target;
+  return TheZ80Target;
+}
+Target &llvm::getTheEZ80Target() {
+  static Target TheEZ80Target;
+  return TheEZ80Target;
+}
 
 extern "C" void LLVMInitializeZ80TargetInfo() {
-  RegisterTarget<Triple::z80> X(TheZ80Target, "z80", "Z80 [experimental]");
-  RegisterTarget<Triple::ez80> Y(TheEZ80Target, "ez80", "eZ80 [experimental]");
+  RegisterTarget<Triple::z80> X(getTheZ80Target(), "z80", "Z80 [experimental]");
+  RegisterTarget<Triple::ez80> Y(
+      getTheEZ80Target(), "ez80", "eZ80 [experimental]");
 }
 

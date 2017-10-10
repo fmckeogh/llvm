@@ -52,7 +52,7 @@ def SDT_Z80mlt          : SDTypeProfile<1, 1, [SDTCisI16<0>, SDTCisI16<1>]>;
 def SDT_Z80sext         : SDTypeProfile<1, 1, [SDTCisInt<0>, SDTCisFlag<1>]>;
 def SDT_Z80TCRet        : SDTypeProfile<0, 1, [SDTCisPtrTy<0>]>;
 def SDT_Z80Call         : SDTypeProfile<0, -1, [SDTCisPtr<0>]>;
-def SDT_Z80CallSeqStart : SDCallSeqStart<[SDTCisPtr<0>]>;
+def SDT_Z80CallSeqStart : SDCallSeqStart<[SDTCisPtr<0>, SDTCisPtr<1>]>;
 def SDT_Z80CallSeqEnd   : SDCallSeqEnd<[SDTCisPtr<0>, SDTCisPtr<1>]>;
 def SDT_Z80BrCond       : SDTypeProfile<0, 3, [SDTCisChain<0>,
                                                SDTCisI8<1>,
@@ -214,16 +214,16 @@ def offpat : ComplexPattern<iPTR, 2, "SelectOff",
 
 let hasPostISelHook = 1 in {
   let Defs = [SPS, F], Uses = [SPS] in {
-  def ADJCALLSTACKDOWN16 : P<(outs), (ins i16imm:$amt),
-                             [(Z80callseq_start timm:$amt)]>,
+  def ADJCALLSTACKDOWN16 : P<(outs), (ins i16imm:$amt1, i16imm:$amt2),
+                             [(Z80callseq_start timm:$amt1, timm:$amt2)]>,
                            Requires<[In16BitMode]>;
   def ADJCALLSTACKUP16   : P<(outs), (ins i16imm:$amt1, i16imm:$amt2),
                              [(Z80callseq_end timm:$amt1, timm:$amt2)]>,
                            Requires<[In16BitMode]>;
   }
   let Defs = [SPL, F], Uses = [SPL] in {
-  def ADJCALLSTACKDOWN24 : P<(outs), (ins i24imm:$amt),
-                             [(Z80callseq_start timm:$amt)]>,
+  def ADJCALLSTACKDOWN24 : P<(outs), (ins i24imm:$amt1, i24imm:$amt2),
+                             [(Z80callseq_start timm:$amt1, timm:$amt2)]>,
                            Requires<[In24BitMode]>;
   def ADJCALLSTACKUP24   : P<(outs), (ins i24imm:$amt1, i24imm:$amt2),
                              [(Z80callseq_end timm:$amt1, timm:$amt2)]>,

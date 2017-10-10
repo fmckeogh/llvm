@@ -73,8 +73,8 @@ bool Z80AsmParser::ParseDirective(AsmToken DirectiveID) {
 
 // Force static initialization.
 extern "C" void LLVMInitializeZ80AsmParser() {
-  RegisterMCAsmParser<Z80AsmParser> X(TheZ80Target);
-  RegisterMCAsmParser<Z80AsmParser> Y(TheEZ80Target);
+  RegisterMCAsmParser<Z80AsmParser> X(getTheZ80Target());
+  RegisterMCAsmParser<Z80AsmParser> Y(getTheEZ80Target());
 }
 
 namespace {

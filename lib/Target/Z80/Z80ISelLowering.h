@@ -136,7 +136,8 @@ public:
   /// Return true if the addressing mode represented by AM is legal for this
   /// target, for a load/store of the specified type.
   bool isLegalAddressingMode(const DataLayout &DL, const AddrMode &AM,
-                             Type *Ty, unsigned AS) const override;
+                             Type *Ty, unsigned AS,
+                             Instruction *I = nullptr) const override;
 
   /// Return true if the specified immediate is a legal icmp immediate, that is
   /// the target has icmp instructions which can compare a register against the
@@ -196,10 +197,6 @@ public:
   /// i16 is legal, but undesirable since i16 instruction encodings are longer
   /// and some i16 instructions are slow.
   bool IsDesirableToPromoteOp(SDValue Op, EVT &PVT) const override;
-
-  /// Return true if the MachineFunction contains a COPY which would imply
-  /// HasOpaqueSPAdjustment.
-  bool hasCopyImplyingStackAdjustment(MachineFunction *MF) const override;
 
   MachineBasicBlock *
     EmitInstrWithCustomInserter(MachineInstr &MI,

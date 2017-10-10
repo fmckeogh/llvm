@@ -588,7 +588,7 @@ void Z80InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
                                        const TargetRegisterClass *TRC,
                                        const TargetRegisterInfo *TRI) const {
   unsigned Opc;
-  switch (TRC->getSize()) {
+  switch (TRI->getSpillSize(*TRC)) {
   default:
     llvm_unreachable("Unexpected regclass size");
   case 1:
@@ -607,7 +607,7 @@ void Z80InstrInfo::storeRegToStackSlot(MachineBasicBlock &MBB,
   return;
   unsigned RC, LoOpc, LoIdx, HiOpc, HiIdx, HiOff;
   bool Split =
-    Z80::splitReg(TRC->getSize(), Z80::LD8or, Z80::LD16or, Z80::LD24or,
+    Z80::splitReg(TRI->getSpillSize(*TRC), Z80::LD8or, Z80::LD16or, Z80::LD24or,
                   RC, LoOpc, LoIdx, HiOpc, HiIdx, HiOff,
                   Subtarget.has16BitEZ80Ops());
   MachineInstrBuilder LoMIB =
@@ -633,7 +633,7 @@ void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
                                         const TargetRegisterClass *TRC,
                                         const TargetRegisterInfo *TRI) const {
   unsigned Opc;
-  switch (TRC->getSize()) {
+  switch (TRI->getSpillSize(*TRC)) {
   default:
     llvm_unreachable("Unexpected regclass size");
   case 1:
@@ -652,7 +652,7 @@ void Z80InstrInfo::loadRegFromStackSlot(MachineBasicBlock &MBB,
   return;
   unsigned RC, LoOpc, LoIdx, HiOpc, HiIdx, HiOff;
   bool Split =
-    Z80::splitReg(TRC->getSize(), Z80::LD8ro, Z80::LD16ro, Z80::LD24ro,
+    Z80::splitReg(TRI->getSpillSize(*TRC), Z80::LD8ro, Z80::LD16ro, Z80::LD24ro,
                   RC, LoOpc, LoIdx, HiOpc, HiIdx, HiOff,
                   Subtarget.hasEZ80Ops());
   MachineInstrBuilder LoMIB =

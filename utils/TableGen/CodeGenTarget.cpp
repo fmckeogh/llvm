@@ -78,6 +78,7 @@ StringRef llvm::getEnumName(MVT::SimpleValueType T) {
   case MVT::x86mmx:   return "MVT::x86mmx";
   case MVT::Glue:     return "MVT::Glue";
   case MVT::isVoid:   return "MVT::isVoid";
+  case MVT::v1i1:     return "MVT::v1i1";
   case MVT::v2i1:     return "MVT::v2i1";
   case MVT::v4i1:     return "MVT::v4i1";
   case MVT::v8i1:     return "MVT::v8i1";
@@ -129,6 +130,46 @@ StringRef llvm::getEnumName(MVT::SimpleValueType T) {
   case MVT::v2f64:    return "MVT::v2f64";
   case MVT::v4f64:    return "MVT::v4f64";
   case MVT::v8f64:    return "MVT::v8f64";
+  case MVT::nxv1i1:   return "MVT::nxv1i1";
+  case MVT::nxv2i1:   return "MVT::nxv2i1";
+  case MVT::nxv4i1:   return "MVT::nxv4i1";
+  case MVT::nxv8i1:   return "MVT::nxv8i1";
+  case MVT::nxv16i1:  return "MVT::nxv16i1";
+  case MVT::nxv32i1:  return "MVT::nxv32i1";
+  case MVT::nxv1i8:   return "MVT::nxv1i8";
+  case MVT::nxv2i8:   return "MVT::nxv2i8";
+  case MVT::nxv4i8:   return "MVT::nxv4i8";
+  case MVT::nxv8i8:   return "MVT::nxv8i8";
+  case MVT::nxv16i8:  return "MVT::nxv16i8";
+  case MVT::nxv32i8:  return "MVT::nxv32i8";
+  case MVT::nxv1i16:  return "MVT::nxv1i16";
+  case MVT::nxv2i16:  return "MVT::nxv2i16";
+  case MVT::nxv4i16:  return "MVT::nxv4i16";
+  case MVT::nxv8i16:  return "MVT::nxv8i16";
+  case MVT::nxv16i16: return "MVT::nxv16i16";
+  case MVT::nxv32i16: return "MVT::nxv32i16";
+  case MVT::nxv1i32:  return "MVT::nxv1i32";
+  case MVT::nxv2i32:  return "MVT::nxv2i32";
+  case MVT::nxv4i32:  return "MVT::nxv4i32";
+  case MVT::nxv8i32:  return "MVT::nxv8i32";
+  case MVT::nxv16i32: return "MVT::nxv16i32";
+  case MVT::nxv1i64:  return "MVT::nxv1i64";
+  case MVT::nxv2i64:  return "MVT::nxv2i64";
+  case MVT::nxv4i64:  return "MVT::nxv4i64";
+  case MVT::nxv8i64:  return "MVT::nxv8i64";
+  case MVT::nxv16i64: return "MVT::nxv16i64";
+  case MVT::nxv2f16:  return "MVT::nxv2f16";
+  case MVT::nxv4f16:  return "MVT::nxv4f16";
+  case MVT::nxv8f16:  return "MVT::nxv8f16";
+  case MVT::nxv1f32:  return "MVT::nxv1f32";
+  case MVT::nxv2f32:  return "MVT::nxv2f32";
+  case MVT::nxv4f32:  return "MVT::nxv4f32";
+  case MVT::nxv8f32:  return "MVT::nxv8f32";
+  case MVT::nxv16f32: return "MVT::nxv16f32";
+  case MVT::nxv1f64:  return "MVT::nxv1f64";
+  case MVT::nxv2f64:  return "MVT::nxv2f64";
+  case MVT::nxv4f64:  return "MVT::nxv4f64";
+  case MVT::nxv8f64:  return "MVT::nxv8f64";
   case MVT::token:    return "MVT::token";
   case MVT::Metadata: return "MVT::Metadata";
   case MVT::iPTR:     return "MVT::iPTR";
@@ -153,7 +194,7 @@ std::string llvm::getQualifiedName(const Record *R) {
 /// getTarget - Return the current instance of the Target class.
 ///
 CodeGenTarget::CodeGenTarget(RecordKeeper &records)
-  : Records(records) {
+  : Records(records), CGH(records) {
   std::vector<Record*> Targets = Records.getAllDerivedDefinitions("Target");
   if (Targets.size() == 0)
     PrintFatalError("ERROR: No 'Target' subclasses defined!");
@@ -169,7 +210,7 @@ const StringRef CodeGenTarget::getName() const {
   return TargetRec->getName();
 }
 
-std::string CodeGenTarget::getInstNamespace() const {
+StringRef CodeGenTarget::getInstNamespace() const {
   for (const CodeGenInstruction *Inst : getInstructionsByEnumValue()) {
     // Make sure not to pick up "TargetOpcode" by accidentally getting
     // the namespace off the PHI instruction or something.
@@ -228,7 +269,7 @@ Record *CodeGenTarget::getAsmWriter() const {
 
 CodeGenRegBank &CodeGenTarget::getRegBank() const {
   if (!RegBank)
-    RegBank = llvm::make_unique<CodeGenRegBank>(Records);
+    RegBank = llvm::make_unique<CodeGenRegBank>(Records, getHwModes());
   return *RegBank;
 }
 
@@ -247,19 +288,19 @@ const CodeGenRegister *CodeGenTarget::getRegisterByName(StringRef Name) const {
   return I->second;
 }
 
-std::vector<MVT::SimpleValueType> CodeGenTarget::
-getRegisterVTs(Record *R) const {
+std::vector<ValueTypeByHwMode> CodeGenTarget::getRegisterVTs(Record *R)
+      const {
   const CodeGenRegister *Reg = getRegBank().getReg(R);
-  std::vector<MVT::SimpleValueType> Result;
+  std::vector<ValueTypeByHwMode> Result;
   for (const auto &RC : getRegBank().getRegClasses()) {
     if (RC.contains(Reg)) {
-      ArrayRef<MVT::SimpleValueType> InVTs = RC.getValueTypes();
+      ArrayRef<ValueTypeByHwMode> InVTs = RC.getValueTypes();
       Result.insert(Result.end(), InVTs.begin(), InVTs.end());
     }
   }
 
   // Remove duplicates.
-  array_pod_sort(Result.begin(), Result.end());
+  std::sort(Result.begin(), Result.end());
   Result.erase(std::unique(Result.begin(), Result.end()), Result.end());
   return Result;
 }
@@ -270,9 +311,13 @@ MVT::SimpleValueType CodeGenTarget::getRegisterKnownVT(Record *R) const {
   for (const auto &RC : getRegBank().getRegClasses()) {
     if (RC.contains(Reg)) {
       for (auto VT : RC.getValueTypes()) {
-        if (KnownVT != MVT::Other && KnownVT != VT)
+        if (!VT.isSimple())
           return MVT::Other;
-        KnownVT = VT;
+        auto SimpleVT = VT.getSimple().SimpleTy;
+        if (KnownVT == MVT::Other)
+          KnownVT = SimpleVT;
+        else if (KnownVT != SimpleVT)
+          return MVT::Other;
       }
     }
   }
@@ -284,7 +329,7 @@ void CodeGenTarget::ReadLegalValueTypes() const {
     LegalValueTypes.insert(LegalValueTypes.end(), RC.VTs.begin(), RC.VTs.end());
 
   // Remove duplicates.
-  array_pod_sort(LegalValueTypes.begin(), LegalValueTypes.end());
+  std::sort(LegalValueTypes.begin(), LegalValueTypes.end());
   LegalValueTypes.erase(std::unique(LegalValueTypes.begin(),
                                     LegalValueTypes.end()),
                         LegalValueTypes.end());
@@ -493,6 +538,8 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R) {
   isNoReturn = false;
   isNoDuplicate = false;
   isConvergent = false;
+  isSpeculatable = false;
+  hasSideEffects = false;
 
   if (DefName.size() <= 4 ||
       std::string(DefName.begin(), DefName.begin() + 4) != "int_")
@@ -631,6 +678,10 @@ CodeGenIntrinsic::CodeGenIntrinsic(Record *R) {
       isConvergent = true;
     else if (Property->getName() == "IntrNoReturn")
       isNoReturn = true;
+    else if (Property->getName() == "IntrSpeculatable")
+      isSpeculatable = true;
+    else if (Property->getName() == "IntrHasSideEffects")
+      hasSideEffects = true;
     else if (Property->isSubClassOf("NoCapture")) {
       unsigned ArgNo = Property->getValueAsInt("ArgNo");
       ArgumentAttributes.push_back(std::make_pair(ArgNo, NoCapture));

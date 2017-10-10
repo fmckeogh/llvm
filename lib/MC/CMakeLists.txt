@@ -48,6 +48,7 @@ add_llvm_library(LLVMMC
   MCWasmObjectTargetWriter.cpp
   MCWasmStreamer.cpp
   MCWin64EH.cpp
+  MCWinCOFFStreamer.cpp
   MCWinEH.cpp
   MachObjectWriter.cpp
   OMFObjectWriter.cpp
@@ -55,7 +56,6 @@ add_llvm_library(LLVMMC
   SubtargetFeature.cpp
   WasmObjectWriter.cpp
   WinCOFFObjectWriter.cpp
-  WinCOFFStreamer.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/MC

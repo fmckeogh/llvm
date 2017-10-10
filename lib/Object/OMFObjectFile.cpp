@@ -11,18 +11,18 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Object/OMFObjectFile.h"
 #include "llvm/ADT/Triple.h"
-#include "llvm/Object/OMF.h"
 #include <algorithm>
 #include <numeric>
 
 using namespace llvm;
 using namespace object;
 
-Expected<std::unique_ptr<OMFObjectFile>>
-ObjectFile::createOMFObjectFile(MemoryBufferRef Object) {
+Expected<std::unique_ptr<ObjectFile>>
+ObjectFile::createOMFObjectFile(MemoryBufferRef Obj) {
   Error Err = Error::success();
-  auto ObjectFile = make_unique<OMFObjectFile>(std::move(Object), Err);
+  auto ObjectFile = make_unique<OMFObjectFile>(Obj, Err);
   if (Err)
     return std::move(Err);
   return std::move(ObjectFile);
@@ -590,6 +590,10 @@ OMFObjectFile::getSectionName(DataRefImpl Sec, StringRef &Res) const {
 }
 
 uint64_t OMFObjectFile::getSectionAddress(DataRefImpl Sec) const {
+  return 0;
+}
+
+uint64_t OMFObjectFile::getSectionIndex(DataRefImpl Sec) const {
   return 0;
 }
 

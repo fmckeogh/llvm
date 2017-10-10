@@ -12,12 +12,14 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/Basic/TargetInfo.h"
+#include "clang/AST/Type.h"
 #include "clang/Basic/AddressSpaces.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/Basic/LangOptions.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/TargetParser.h"
 #include <cstdlib>
 using namespace clang;
 
@@ -144,9 +146,11 @@ const char *TargetInfo::getTypeConstantSuffix(IntType T) const {
   case UnsignedChar:
     if (getCharWidth() < getIntWidth())
       return "";
+    LLVM_FALLTHROUGH;
   case UnsignedShort:
     if (getShortWidth() < getIntWidth())
       return "";
+    LLVM_FALLTHROUGH;
   case UnsignedInt:      return "U";
   case UnsignedLong:     return "UL";
   case UnsignedLongLong: return "ULL";
@@ -288,8 +292,15 @@ bool TargetInfo::isTypeSigned(IntType T) {
 void TargetInfo::adjust(LangOptions &Opts) {
   if (Opts.NoBitFieldTypeAlign)
     UseBitFieldTypeAlignment = false;
-  if (Opts.ShortWChar)
-    WCharType = UnsignedShort;
+
+  switch (Opts.WCharSize) {
+  default: llvm_unreachable("invalid wchar_t width");
+  case 0: break;
+  case 1: WCharType = Opts.WCharIsSigned ? SignedChar : UnsignedChar; break;
+  case 2: WCharType = Opts.WCharIsSigned ? SignedShort : UnsignedShort; break;
+  case 4: WCharType = Opts.WCharIsSigned ? SignedInt : UnsignedInt; break;
+  }
+
   if (Opts.AlignDouble) {
     DoubleAlign = LongLongAlign = 64;
     LongDoubleAlign = 64;
@@ -344,6 +355,30 @@ bool TargetInfo::initFeatureMap(
     setFeatureEnabled(Features, Name.substr(1), Enabled);
   }
   return true;
+}
+
+LangAS::ID TargetInfo::getOpenCLTypeAddrSpace(const Type *T) const {
+  auto BT = dyn_cast<BuiltinType>(T);
+
+  if (!BT) {
+    if (isa<PipeType>(T))
+      return LangAS::opencl_global;
+
+    return LangAS::Default;
+  }
+
+  switch (BT->getKind()) {
+#define IMAGE_TYPE(ImgType, Id, SingletonId, Access, Suffix)                   \
+  case BuiltinType::Id:                                                        \
+    return LangAS::opencl_global;
+#include "clang/Basic/OpenCLImageTypes.def"
+
+  case BuiltinType::OCLSampler:
+    return LangAS::opencl_constant;
+
+  default:
+    return LangAS::Default;
+  }
 }
 
 //===----------------------------------------------------------------------===//
@@ -506,6 +541,11 @@ bool TargetInfo::validateOutputConstraint(ConstraintInfo &Info) const {
     case '?': // Disparage slightly code.
     case '!': // Disparage severely.
     case '*': // Ignore for choosing register preferences.
+    case 'i': // Ignore i,n,E,F as output constraints (match from the other
+              // chars)
+    case 'n':
+    case 'E':
+    case 'F':
       break;  // Pass them.
     }
 

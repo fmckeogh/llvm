@@ -97,6 +97,12 @@ public:
 
   int getSPAdjust(const MachineInstr &MI) const override;
 
+  int64_t getFramePoppedByCallee(const MachineInstr &MI) const {
+    assert(isFrameInstr(MI) && "Not a frame instruction");
+    assert(MI.getOperand(1).getImm() >= 0 && "Size must not be negative");
+    return MI.getOperand(1).getImm();
+  }
+
   unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
 
   // Branch analysis.

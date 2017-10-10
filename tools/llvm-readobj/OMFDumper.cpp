@@ -15,7 +15,7 @@
 #include "Error.h"
 #include "ObjDumper.h"
 #include "llvm-readobj.h"
-#include "llvm/Object/OMF.h"
+#include "llvm/Object/OMFObjectFile.h"
 #include "llvm/Support/ScopedPrinter.h"
 
 using namespace llvm;

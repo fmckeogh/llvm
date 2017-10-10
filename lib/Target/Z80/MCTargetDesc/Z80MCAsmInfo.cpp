@@ -20,7 +20,7 @@ void Z80MCAsmInfo::anchor() { }
 
 Z80MCAsmInfo::Z80MCAsmInfo(const Triple &T) {
   bool Is16Bit = T.isArch16Bit() || T.getEnvironment() == Triple::CODE16;
-  PointerSize = CalleeSaveStackSlotSize = Is16Bit ? 2 : 3;
+  CodePointerSize = CalleeSaveStackSlotSize = Is16Bit ? 2 : 3;
   MaxInstLength = 6;
   DollarIsPC = true;
   SeparatorString = nullptr;

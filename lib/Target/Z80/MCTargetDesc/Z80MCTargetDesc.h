@@ -31,7 +31,8 @@ class Triple;
 class StringRef;
 class raw_pwrite_stream;
 
-extern Target TheZ80Target, TheEZ80Target;
+Target &getTheZ80Target();
+Target &getTheEZ80Target();
 
 namespace Z80_MC {
 std::string ParseZ80Triple(const Triple &TT);

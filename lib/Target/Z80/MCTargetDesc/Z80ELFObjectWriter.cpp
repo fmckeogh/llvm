@@ -38,6 +38,6 @@ Z80ELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
 
 MCObjectWriter *llvm::createZ80ELFObjectWriter(raw_pwrite_stream &OS,
                                                uint8_t OSABI) {
-  MCELFObjectTargetWriter *MOTW = new Z80ELFObjectWriter(OSABI);
-  return createELFObjectWriter(MOTW, OS, /*IsLittleEndian*/ true);
+  auto MOTW = llvm::make_unique<Z80ELFObjectWriter>(OSABI);
+  return createELFObjectWriter(std::move(MOTW), OS, /*IsLittleEndian*/ true);
 }

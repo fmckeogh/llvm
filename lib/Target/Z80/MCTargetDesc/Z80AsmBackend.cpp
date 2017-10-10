@@ -27,8 +27,9 @@ public:
     return Z80::NumTargetFixupKinds;
   }
 
-  void applyFixup(const MCFixup &Fixup, char *Data, unsigned DataSize,
-                  uint64_t Value, bool IsPCRel, MCContext &Ctx) const override;
+  void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
+                  const MCValue &Target, MutableArrayRef<char> Data,
+                  uint64_t Value, bool IsResolved) const override;
 
   bool mayNeedRelaxation(const MCInst &Inst) const override;
 
@@ -47,9 +48,10 @@ public:
 
 } // end anonymous namespace
 
-void Z80AsmBackend::applyFixup(const MCFixup &Fixup, char *Data,
-                               unsigned DataSize, uint64_t Value,
-                               bool IsPCRel, MCContext &Ctx) const {
+void Z80AsmBackend::applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
+                               const MCValue &Target,
+                               MutableArrayRef<char> Data, uint64_t Value,
+                               bool IsResolved) const {
   llvm_unreachable("Unimplemented");
 }
 

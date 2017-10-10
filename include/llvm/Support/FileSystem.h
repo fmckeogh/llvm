@@ -116,7 +116,9 @@ inline perms &operator&=(perms &l, perms r) {
   return l;
 }
 inline perms operator~(perms x) {
-  return static_cast<perms>(~static_cast<unsigned short>(x));
+  // Avoid UB by explicitly truncating the (unsigned) ~ result.
+  return static_cast<perms>(
+      static_cast<unsigned short>(~static_cast<unsigned short>(x)));
 }
 
 class UniqueID {
@@ -231,52 +233,6 @@ public:
   void permissions(perms p) { Perms = p; }
 };
 
-/// file_magic - An "enum class" enumeration of file types based on magic (the first
-///         N bytes of the file).
-struct file_magic {
-  enum Impl {
-    unknown = 0,              ///< Unrecognized file
-    bitcode,                  ///< Bitcode file
-    archive,                  ///< ar style archive file
-    elf,                      ///< ELF Unknown type
-    elf_relocatable,          ///< ELF Relocatable object file
-    elf_executable,           ///< ELF Executable image
-    elf_shared_object,        ///< ELF dynamically linked shared lib
-    elf_core,                 ///< ELF core image
-    macho_object,             ///< Mach-O Object file
-    macho_executable,         ///< Mach-O Executable
-    macho_fixed_virtual_memory_shared_lib, ///< Mach-O Shared Lib, FVM
-    macho_core,               ///< Mach-O Core File
-    macho_preload_executable, ///< Mach-O Preloaded Executable
-    macho_dynamically_linked_shared_lib, ///< Mach-O dynlinked shared lib
-    macho_dynamic_linker,     ///< The Mach-O dynamic linker
-    macho_bundle,             ///< Mach-O Bundle file
-    macho_dynamically_linked_shared_lib_stub, ///< Mach-O Shared lib stub
-    macho_dsym_companion,     ///< Mach-O dSYM companion file
-    macho_kext_bundle,        ///< Mach-O kext bundle file
-    macho_universal_binary,   ///< Mach-O universal binary
-    coff_cl_gl_object,        ///< Microsoft cl.exe's intermediate code file
-    coff_object,              ///< COFF object file
-    coff_import_library,      ///< COFF import library
-    pecoff_executable,        ///< PECOFF executable file
-    windows_resource,         ///< Windows compiled resource file (.rc)
-    wasm_object,              ///< WebAssembly Object file
-    omf_object,               ///< IEEE 695 OMF assembler file
-    omf_archive               ///< IEEE 695 OMF LIBRARY file
-  };
-
-  bool is_object() const {
-    return V != unknown;
-  }
-
-  file_magic() = default;
-  file_magic(Impl V) : V(V) {}
-  operator Impl() const { return V; }
-
-private:
-  Impl V = unknown;
-};
-
 /// @}
 /// @name Physical Operators
 /// @{
@@ -387,7 +343,11 @@ std::error_code remove(const Twine &path, bool IgnoreNonExisting = true);
 ///          platform-specific error code.
 std::error_code remove_directories(const Twine &path, bool IgnoreErrors = true);
 
-/// @brief Rename \a from to \a to. Files are renamed as if by POSIX rename().
+/// @brief Rename \a from to \a to.
+///
+/// Files are renamed as if by POSIX rename(), except that on Windows there may
+/// be a short interval of time during which the destination file does not
+/// exist.
 ///
 /// @param from The path to rename from.
 /// @param to The path to rename to. This is created.
@@ -729,12 +689,6 @@ std::error_code createTemporaryFile(const Twine &Prefix, StringRef Suffix,
 std::error_code createUniqueDirectory(const Twine &Prefix,
                                       SmallVectorImpl<char> &ResultPath);
 
-/// @brief Fetch a path to an open file, as specified by a file descriptor
-///
-/// @param FD File descriptor to a currently open file
-/// @param ResultPath The buffer into which to write the path
-std::error_code getPathFromOpenFD(int FD, SmallVectorImpl<char> &ResultPath);
-
 enum OpenFlags : unsigned {
   F_None = 0,
 
@@ -770,17 +724,6 @@ std::error_code openFileForWrite(const Twine &Name, int &ResultFD,
 std::error_code openFileForRead(const Twine &Name, int &ResultFD,
                                 SmallVectorImpl<char> *RealPath = nullptr);
 
-/// @brief Identify the type of a binary file based on how magical it is.
-file_magic identify_magic(StringRef magic);
-
-/// @brief Get and identify \a path's type based on its content.
-///
-/// @param path Input path.
-/// @param result Set to the type of file, or file_magic::unknown.
-/// @returns errc::success if result has been successfully set, otherwise a
-///          platform-specific error_code.
-std::error_code identify_magic(const Twine &path, file_magic &result);
-
 std::error_code getUniqueID(const Twine Path, UniqueID &Result);
 
 /// @brief Get disk space usage information.
@@ -806,7 +749,7 @@ public:
 
 private:
   /// Platform-specific mapping state.
-  uint64_t Size;
+  size_t Size;
   void *Mapping;
 
   std::error_code init(int FD, uint64_t Offset, mapmode Mode);
@@ -819,12 +762,12 @@ public:
   /// \param fd An open file descriptor to map. mapped_file_region takes
   ///   ownership if closefd is true. It must have been opended in the correct
   ///   mode.
-  mapped_file_region(int fd, mapmode mode, uint64_t length, uint64_t offset,
+  mapped_file_region(int fd, mapmode mode, size_t length, uint64_t offset,
                      std::error_code &ec);
 
   ~mapped_file_region();
 
-  uint64_t size() const;
+  size_t size() const;
   char *data() const;
 
   /// Get a const view of the data. Modifying this memory has undefined

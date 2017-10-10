@@ -22,8 +22,8 @@ using namespace llvm;
 
 extern "C" void LLVMInitializeZ80Target() {
   // Register the target.
-  RegisterTargetMachine<Z80TargetMachine> X(TheZ80Target);
-  RegisterTargetMachine<Z80TargetMachine> Y(TheEZ80Target);
+  RegisterTargetMachine<Z80TargetMachine> X(getTheZ80Target());
+  RegisterTargetMachine<Z80TargetMachine> Y(getTheEZ80Target());
 }
 
 static std::string computeDataLayout(const Triple &TT) {
@@ -46,9 +46,15 @@ static std::string computeDataLayout(const Triple &TT) {
 }
 
 static Reloc::Model getEffectiveRelocModel(Optional<Reloc::Model> RM) {
-  if (!RM.hasValue())
-    return Reloc::Static;
-  return *RM;
+  if (RM)
+    return *RM;
+  return Reloc::Static;
+}
+
+static CodeModel::Model getEffectiveCodeModel(Optional<CodeModel::Model> CM) {
+  if (CM)
+    return *CM;
+  return CodeModel::Small;
 }
 
 /// Z80TargetMachine ctor - Create a Z80 target.
@@ -57,9 +63,11 @@ Z80TargetMachine::Z80TargetMachine(const Target &T, const Triple &TT,
                                    StringRef CPU, StringRef FS,
                                    const TargetOptions &Options,
                                    Optional<Reloc::Model> RM,
-                                   CodeModel::Model CM, CodeGenOpt::Level OL)
+                                   Optional<CodeModel::Model> CM,
+                                   CodeGenOpt::Level OL, bool JIT)
   : LLVMTargetMachine(T, computeDataLayout(TT), TT, CPU, FS, Options,
-                      getEffectiveRelocModel(RM), CM, OL),
+                      getEffectiveRelocModel(RM), getEffectiveCodeModel(CM),
+                      OL),
     TLOF(make_unique<TargetLoweringObjectFileOMF>()) {
   initAsmInfo();
 }
@@ -102,7 +110,7 @@ namespace {
 /// Z80 Code Generator Pass Configuration Options.
 class Z80PassConfig : public TargetPassConfig {
 public:
-  Z80PassConfig(Z80TargetMachine *TM, PassManagerBase &PM)
+  Z80PassConfig(Z80TargetMachine &TM, PassManagerBase &PM)
       : TargetPassConfig(TM, PM) {}
 
   Z80TargetMachine &getZ80TargetMachine() const {
@@ -118,7 +126,7 @@ public:
 } // namespace
 
 TargetPassConfig *Z80TargetMachine::createPassConfig(PassManagerBase &PM) {
-  return new Z80PassConfig(this, PM);
+  return new Z80PassConfig(*this, PM);
 }
 
 void Z80PassConfig::addCodeGenPrepare() {

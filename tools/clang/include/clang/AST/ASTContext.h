@@ -39,6 +39,7 @@
 #include "clang/Basic/SanitizerBlacklist.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
+#include "clang/Basic/TargetInfo.h"
 #include "clang/Basic/XRayLists.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -89,7 +90,6 @@ class DiagnosticsEngine;
 class Expr;
 class MangleNumberingContext;
 class MaterializeTemporaryExpr;
-class TargetInfo;
 // Decls
 class MangleContext;
 class ObjCIvarDecl;
@@ -143,6 +143,8 @@ class ASTContext : public RefCountedBase<ASTContext> {
   mutable llvm::FoldingSet<DependentSizedArrayType> DependentSizedArrayTypes;
   mutable llvm::FoldingSet<DependentSizedExtVectorType>
     DependentSizedExtVectorTypes;
+  mutable llvm::FoldingSet<DependentAddressSpaceType>
+      DependentAddressSpaceTypes;
   mutable llvm::FoldingSet<VectorType> VectorTypes;
   mutable llvm::FoldingSet<FunctionNoProtoType> FunctionNoProtoTypes;
   mutable llvm::ContextualFoldingSet<FunctionProtoType, ASTContext&>
@@ -471,7 +473,7 @@ private:
   mutable BuiltinTemplateDecl *MakeIntegerSeqDecl;
   mutable BuiltinTemplateDecl *TypePackElementDecl;
 
-  /// \brief The associated SourceManager object.a
+  /// \brief The associated SourceManager object.
   SourceManager &SourceMgr;
 
   /// \brief The language options used to create the AST associated with
@@ -941,7 +943,7 @@ public:
 
   /// \brief Get the additional modules in which the definition \p Def has
   /// been merged.
-  ArrayRef<Module*> getModulesWithMergedDefinition(NamedDecl *Def) {
+  ArrayRef<Module*> getModulesWithMergedDefinition(const NamedDecl *Def) {
     auto MergedIt = MergedDefModules.find(Def);
     if (MergedIt == MergedDefModules.end())
       return None;
@@ -979,6 +981,7 @@ public:
   CanQualType UnsignedInt48Ty, UnsignedLongLongTy, UnsignedInt128Ty;
   CanQualType FloatTy, DoubleTy, LongDoubleTy, Float128Ty;
   CanQualType HalfTy; // [OpenCL 6.1.1.1], ARM NEON
+  CanQualType Float16Ty; // C11 extension ISO/IEC TS 18661-3
   CanQualType FloatComplexTy, DoubleComplexTy, LongDoubleComplexTy;
   CanQualType Float128ComplexTy;
   CanQualType VoidPtrTy, NullPtrTy;
@@ -1080,6 +1083,13 @@ public:
   /// space. If T already has an address space specifier, it is silently
   /// replaced.
   QualType getAddrSpaceQualType(QualType T, unsigned AddressSpace) const;
+
+  /// \brief Remove any existing address space on the type and returns the type
+  /// with qualifiers intact (or that's the idea anyway)
+  ///
+  /// The return type should be T with all prior qualifiers minus the address
+  /// space.
+  QualType removeAddrSpaceQualType(QualType T) const;
 
   /// \brief Apply Objective-C protocol qualifiers to the given type.
   /// \param allowOnPointerType specifies if we can apply protocol
@@ -1281,6 +1291,10 @@ public:
                                           Expr *SizeExpr,
                                           SourceLocation AttrLoc) const;
 
+  QualType getDependentAddressSpaceType(QualType PointeeType,
+                                        Expr *AddrSpaceExpr,
+                                        SourceLocation AttrLoc) const;
+
   /// \brief Return a K&R style C function type like 'int()'.
   QualType getFunctionNoProtoType(QualType ResultTy,
                                   const FunctionType::ExtInfo &Info) const;
@@ -1453,6 +1467,10 @@ public:
   /// The sizeof operator requires this (C99 6.5.3.4p4).
   CanQualType getSizeType() const;
 
+  /// \brief Return the unique signed counterpart of 
+  /// the integer type corresponding to size_t.
+  CanQualType getSignedSizeType() const;
+
   /// \brief Return the unique type for "intmax_t" (C99 7.18.1.5), defined in
   /// <stdint.h>.
   CanQualType getIntMaxType() const;
@@ -1495,6 +1513,11 @@ public:
   /// \brief Return the unique type for "ptrdiff_t" (C99 7.17) defined in
   /// <stddef.h>. Pointer - pointer requires this (C99 6.5.6p9).
   QualType getPointerDiffType() const;
+
+  /// \brief Return the unique unsigned counterpart of "ptrdiff_t"
+  /// integer type. The standard (C11 7.21.6.1p7) refers to this type
+  /// in the definition of %tu format specifier.
+  QualType getUnsignedPointerDiffType() const;
 
   /// \brief Return the unique type for "pid_t" defined in
   /// <sys/types.h>. We need this to compute the correct type for vfork().
@@ -1587,6 +1610,24 @@ public:
     }
 
     return NSCopyingName;
+  }
+
+  CanQualType getNSUIntegerType() const {
+    assert(Target && "Expected target to be initialized");
+    const llvm::Triple &T = Target->getTriple();
+    // Windows is LLP64 rather than LP64
+    if (T.isOSWindows() && T.isArch64Bit())
+      return UnsignedLongLongTy;
+    return UnsignedLongTy;
+  }
+
+  CanQualType getNSIntegerType() const {
+    assert(Target && "Expected target to be initialized");
+    const llvm::Triple &T = Target->getTriple();
+    // Windows is LLP64 rather than LP64
+    if (T.isOSWindows() && T.isArch64Bit())
+      return LongLongTy;
+    return LongTy;
   }
 
   /// Retrieve the identifier 'bool'.
@@ -2062,6 +2103,11 @@ public:
   /// Get the offset of a FieldDecl or IndirectFieldDecl, in bits.
   uint64_t getFieldOffset(const ValueDecl *FD) const;
 
+  /// Get the offset of an ObjCIvarDecl in bits.
+  uint64_t lookupFieldBitOffset(const ObjCInterfaceDecl *OID,
+                                const ObjCImplementationDecl *ID,
+                                const ObjCIvarDecl *Ivar) const;
+
   bool isNearlyEmpty(const CXXRecordDecl *RD) const;
 
   VTableContextBase *getVTableContext();
@@ -2336,8 +2382,7 @@ public:
   uint64_t getTargetNullPointerValue(QualType QT) const;
 
   bool addressSpaceMapManglingFor(unsigned AS) const {
-    return AddrSpaceMapMangling || 
-           AS >= LangAS::Count;
+    return AddrSpaceMapMangling || AS >= LangAS::FirstTargetAddressSpace;
   }
 
 private:
@@ -2398,9 +2443,30 @@ public:
 
   QualType mergeObjCGCQualifiers(QualType, QualType);
 
-  bool doFunctionTypesMatchOnExtParameterInfos(
-         const FunctionProtoType *FromFunctionType,
-         const FunctionProtoType *ToFunctionType);
+  /// This function merges the ExtParameterInfo lists of two functions. It
+  /// returns true if the lists are compatible. The merged list is returned in
+  /// NewParamInfos.
+  ///
+  /// \param FirstFnType The type of the first function.
+  ///
+  /// \param SecondFnType The type of the second function.
+  ///
+  /// \param CanUseFirst This flag is set to true if the first function's
+  /// ExtParameterInfo list can be used as the composite list of
+  /// ExtParameterInfo.
+  ///
+  /// \param CanUseSecond This flag is set to true if the second function's
+  /// ExtParameterInfo list can be used as the composite list of
+  /// ExtParameterInfo.
+  ///
+  /// \param NewParamInfos The composite list of ExtParameterInfo. The list is
+  /// empty if none of the flags are set.
+  ///
+  bool mergeExtParameterInfo(
+      const FunctionProtoType *FirstFnType,
+      const FunctionProtoType *SecondFnType,
+      bool &CanUseFirst, bool &CanUseSecond,
+      SmallVectorImpl<FunctionProtoType::ExtParameterInfo> &NewParamInfos);
 
   void ResetObjCLayout(const ObjCContainerDecl *CD);
 

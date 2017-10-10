@@ -97,6 +97,6 @@ void Z80AsmPrinter::EmitGlobalVariable(const GlobalVariable *GV) {
 
 // Force static initialization.
 extern "C" void LLVMInitializeZ80AsmPrinter() {
-  RegisterAsmPrinter<Z80AsmPrinter> X(TheZ80Target);
-  RegisterAsmPrinter<Z80AsmPrinter> Y(TheEZ80Target);
+  RegisterAsmPrinter<Z80AsmPrinter> X(getTheZ80Target());
+  RegisterAsmPrinter<Z80AsmPrinter> Y(getTheEZ80Target());
 }
