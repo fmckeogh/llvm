@@ -56,6 +56,7 @@ def CC_EZ80_LC_C  : CallingConv<[
 ]>;
 def CC_EZ80_LC_L  : CallingConv<[
   CCIfType<[i24], CCAssignToReg<[UBC]>>,
+  CCDelegateTo<CC_EZ80_LC>,
   CCIfType<[i8], CCAssignToReg<[A, L]>>
 ]>;
 

@@ -122,6 +122,7 @@ public:
   /// Return the value type to use for ISD::SETCC.
   EVT getSetCCResultType(const DataLayout &DL, LLVMContext &Context,
                          EVT VT) const override;
+  MVT::SimpleValueType getCmpLibcallReturnType() const override;
 
   /// Provide custom lowering hooks for some operations.
   SDValue LowerOperationOld(SDValue Op, SelectionDAG &DAG) const;

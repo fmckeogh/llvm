@@ -869,6 +869,22 @@ def : Pat<(Z80tcret (texternalsym:$dst)), (TCRETURN24i texternalsym:$dst)>,
 // Subsystems.
 //===----------------------------------------------------------------------===//
 
+// Any instruction that defines a 16-bit result leaves the high half of the
+// register zero. Truncate can be lowered to EXTRACT_SUBREG. CopyFromReg may
+// be copying from a truncate. But any other 16-bit operation will zero-extend
+// up to 24 bits.
+//def def16 : PatLeaf<(i16 R16:$src), [{
+//  dbgs() << "Hello World!\n";
+//  return N->getOpcode() != ISD::TRUNCATE &&
+//         N->getOpcode() != TargetOpcode::EXTRACT_SUBREG &&
+//         N->getOpcode() != ISD::CopyFromReg;
+//}]>;
+
+// In the case of a 16-bit def that is known to implicitly zero-extend,
+// we can use a SUBREG_TO_REG.
+//def : Pat<(i24 (zext def16:$src)),
+//          (SUBREG_TO_REG (i24 0), R16:$src, sub_short)>;
+
 //def : Pat<(i24 (Z80sub_flag UHL, G24:$src)), (SBC24ar G24:$src, RCF)>;
 
 // mlt
@@ -895,7 +911,7 @@ def : Pat<(i32 (anyext R24:$src)),
 
 // zexts
 def : Pat<(i16 (zext R8 :$src)),
-          (REG_SEQUENCE R16, R8 :$src, sub_low, (i8 0), sub_high)>;
+          (REG_SEQUENCE R16, R8 :$src, sub_low, (LD8ri 0), sub_high)>;
 def : Pat<(i24 (zext R8 :$src)),
           (INSERT_SUBREG (i24 0), R8 :$src, sub_low)>;
 def : Pat<(i24 (zext R16:$src)),
@@ -926,24 +942,3 @@ def : Pat<(i24 (trunc R32:$src)), (EXTRACT_SUBREG R32:$src, sub_long)>;*/
 //def : Pat<(i32 (load iPTR:$src)), (REG_SEQUENCE R32, (i8 0), sub_top, (LD24rp iPTR:$src), sub_long)>;
 //def : Pat<(i32 (load iPTR:$src)), (REG_SEQUENCE R32, (R8 (LD8rp (imm_add_3_XFORM iPTR:$src))), sub_top,
 //                                                     (R24 (LD24rp iPTR:$src)), sub_long)>;
-
-// /*
-// // Any instruction that defines a 16-bit result leaves the high half of the
-// // register zero. Truncate can be lowered to EXTRACT_SUBREG. CopyFromReg may
-// // be copying from a truncate. But any other 16-bit operation will zero-extend
-// // up to 24 bits.
-// def def16 : PatLeaf<(i16 R16:$src), [{
-//   dbgs() << "Hello World!\n";
-//   return N->getOpcode() != ISD::TRUNCATE &&
-//          N->getOpcode() != TargetOpcode::EXTRACT_SUBREG &&
-//          N->getOpcode() != ISD::CopyFromReg;
-// }]>;
-
-// // In the case of a 16-bit def that is known to implicitly zero-extend,
-// // we can use a SUBREG_TO_REG.
-// def : Pat<(i24 (zext def16:$src)),
-//           (SUBREG_TO_REG (i24 0), R16:$src, sub_short)>;
-// */
-
-// // Compiler Pseudo Instructions and Pat Patterns
-// //include "Z80InstrCompiler.td"

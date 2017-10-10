@@ -47,8 +47,7 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
       setOperationAction(Opc, VT, Expand);
   }
   for (MVT VT : { MVT::i8, MVT::i16, MVT::i24, MVT::i32 }) {
-    for (unsigned Opc : { ISD::SHL, ISD::SRA, ISD::SRL,
-                          ISD::BR_CC, ISD::SELECT_CC })
+    for (unsigned Opc : { ISD::SHL, ISD::SRA, ISD::SRL })
       setOperationAction(Opc, VT, Custom);
     for (unsigned Opc : { ISD::MUL,
                           ISD::SDIV,    ISD::UDIV,
@@ -78,6 +77,9 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   }
   for (MVT VT : { MVT::i1, MVT::i8, MVT::i16, MVT::i24 })
     setOperationAction(ISD::SIGN_EXTEND_INREG, VT, Expand);
+  for (MVT VT : { MVT::i8, MVT::i16, MVT::i24, MVT::f32 })
+    for (unsigned Opc : { ISD::BR_CC, ISD::SELECT_CC })
+      setOperationAction(Opc, VT, Custom);
   for (unsigned Opc : { ISD::BRCOND, ISD::BR_JT })
     setOperationAction(Opc, MVT::Other, Expand);
   if (Subtarget.hasZ180Ops())
@@ -244,6 +246,7 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   setLibcallCallingConv(RTLIB::UDIVREM_I24, CallingConv::Z80_LibCall);
   setLibcallName(RTLIB::UDIVREM_I32, "_ldvrmu");
   setLibcallCallingConv(RTLIB::UDIVREM_I32, CallingConv::Z80_LibCall);
+  setLibcallCallingConv(RTLIB::ADD_F32, CallingConv::Z80_LibCall_L);
 }
 
 // SelectionDAG Helpers
@@ -340,33 +343,42 @@ SDValue Z80TargetLowering::LowerBitwise(SDValue Op, SelectionDAG &DAG) const {
   assert((Opc == ISD::AND || Opc == ISD::OR || Opc == ISD::XOR) &&
          "Unexpected opcode!");
   EVT VT = Op.getValueType();
+  assert((VT == MVT::i16 || VT == MVT::i24) && "Unexpected type!");
   SDValue LHS = Op.getOperand(0), RHS = Op.getOperand(1);
   ConstantSDNode *ConstRHS = dyn_cast<ConstantSDNode>(RHS);
   bool OptSize = DAG.getMachineFunction().getFunction()->getAttributes()
     .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
-  if (OptSize && Opc == ISD::XOR && VT.bitsGT(MVT::i8) && ConstRHS &&
-      ConstRHS->getSExtValue() == ~0)
+  // FIXME: this can be worse for constants
+  if (Opc != ISD::AND && DAG.haveNoCommonBitsSet(LHS, RHS))
+    return DAG.getNode(ISD::ADD, DL, VT, LHS, RHS);
+  if (OptSize && Opc == ISD::XOR && ConstRHS && ConstRHS->getSExtValue() == ~0)
     return LowerLibCall(RTLIB::UNKNOWN_LIBCALL, RTLIB::NOT_I16, RTLIB::NOT_I24,
                         RTLIB::NOT_I32, DAG.getMergeValues(LHS, DL), DAG);
-  if (Opc != ISD::AND && VT.bitsGT(MVT::i8) &&
-      DAG.haveNoCommonBitsSet(LHS, RHS))
-    return DAG.getNode(ISD::ADD, DL, VT, LHS, RHS);
-  if (VT == MVT::i16) {
-    SDValue RHSHi, RHSLo;
-    if (ConstRHS) {
-      RHSHi = DAG.getConstant(ConstRHS->getZExtValue() >> 8, DL, MVT::i8);
-      RHSLo = DAG.getConstant(ConstRHS->getZExtValue() & 0xFF, DL, MVT::i8);
-    } else {
-      RHSHi = DAG.getTargetExtractSubreg(Z80::sub_high, DL, MVT::i8, RHS);
-      RHSLo = DAG.getTargetExtractSubreg(Z80::sub_low, DL, MVT::i8, RHS);
-    }
+  APInt KnownZero, KnownOne;
+  DAG.computeKnownBits(Op, KnownZero, KnownOne);
+  SDValue ResHi, ResLo;
+  if (VT == MVT::i24 && ((KnownZero | KnownOne) & 0xFF0000) != 0xFF0000)
+    return SDValue(); // fallback to libcall
+  if (((KnownZero | KnownOne) & 0x00FF00) != 0x00FF00) {
     SDValue LHSHi = DAG.getTargetExtractSubreg(Z80::sub_high, DL, MVT::i8, LHS);
-    SDValue ResHi = DAG.getNode(Opc, DL, MVT::i8, LHSHi, RHSHi);
-    SDValue LHSLo = DAG.getTargetExtractSubreg(Z80::sub_low, DL, MVT::i8, LHS);
-    SDValue ResLo = DAG.getNode(Opc, DL, MVT::i8, LHSLo, RHSLo);
-    return EmitPair(DL, ResHi, ResLo, DAG);
+    SDValue RHSHi = DAG.getTargetExtractSubreg(Z80::sub_high, DL, MVT::i8, RHS);
+    ResHi = DAG.getNode(Opc, DL, MVT::i8, LHSHi, RHSHi);
+    KnownOne &= ~0x00FF00;
   }
-  return SDValue();
+  if (((KnownZero | KnownOne) & 0x0000FF) != 0x0000FF) {
+    SDValue LHSLo = DAG.getTargetExtractSubreg(Z80::sub_low, DL, MVT::i8, LHS);
+    SDValue RHSLo = DAG.getTargetExtractSubreg(Z80::sub_low, DL, MVT::i8, RHS);
+    ResLo = DAG.getNode(Opc, DL, MVT::i8, LHSLo, RHSLo);
+    KnownOne &= ~0x0000FF;
+  }
+  if (VT == MVT::i16 && ResHi && ResLo)
+    return EmitPair(DL, ResHi, ResLo, DAG);
+  SDValue Res = DAG.getConstant(KnownOne, DL, VT);
+  if (ResHi)
+    Res = DAG.getTargetInsertSubreg(Z80::sub_high, DL, VT, Res, ResHi);
+  if (ResLo)
+    Res = DAG.getTargetInsertSubreg(Z80::sub_low,  DL, VT, Res, ResLo);
+  return Res;
 }
 
 SDValue Z80TargetLowering::LowerShift(SDValue Op, SelectionDAG &DAG) const {
@@ -1359,14 +1371,15 @@ static SDValue combineExtractSubreg(SDNode *N, SelectionDAG &DAG,
   const TargetRegisterInfo *TRI = Subtarget.getRegisterInfo();
   EVT VT = N->getValueType(0);
   SDValue N0 = N->getOperand(0);
+  EVT N0VT = N0.getValueType();
   unsigned Off = TRI->getSubRegIdxOffset(N->getConstantOperandVal(1));
   SDLoc DL(N);
-  if (!N0.hasOneUse())
-    return SDValue();
   if (N0->getOpcode() == ISD::Constant)
     return DAG.getNode(ISD::TRUNCATE, DL, VT,
-                       DAG.getNode(ISD::SRL, DL, VT, N0,
-                                   DAG.getConstant(Off, DL, VT)));
+                       DAG.getNode(ISD::SRL, DL, N0VT, N0,
+                                   DAG.getConstant(Off, DL, N0VT)));
+  if (!N0.hasOneUse())
+    return SDValue();
   if (auto Load = dyn_cast<LoadSDNode>(N0))
     return DAG.getLoad(VT, DL, Load->getChain(),
                        DAG.getMemBasePlusOffset(Load->getBasePtr(), Off, DL),
@@ -2267,4 +2280,7 @@ EVT Z80TargetLowering::getSetCCResultType(const DataLayout &DL,
                                           EVT VT) const {
   assert(!VT.isVector() && "No default SetCC type for vectors!");
   return MVT::i8;
+}
+MVT::SimpleValueType Z80TargetLowering::getCmpLibcallReturnType() const {
+  return MVT::Other;
 }
