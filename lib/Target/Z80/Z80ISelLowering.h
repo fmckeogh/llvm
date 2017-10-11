@@ -127,7 +127,6 @@ public:
   MVT::SimpleValueType getCmpLibcallReturnType() const override;
 
   /// Provide custom lowering hooks for some operations.
-  SDValue LowerOperationOld(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerLibCall(RTLIB::Libcall LC8, RTLIB::Libcall LC16,
                        RTLIB::Libcall LC24, RTLIB::Libcall LC32,
                        SDValue Op, SelectionDAG &DAG) const;
@@ -226,15 +225,6 @@ public:
                             SelectionDAG &DAG) const;
   SDValue EmitInsertSubreg(unsigned Idx, const SDLoc &DL, MVT VT, SDValue Op,
                            SelectionDAG &DAG) const;
-
-  SDValue EmitCMP(SDValue LHS, SDValue RHS, SDValue &TargetCC,
-                  ISD::CondCode CC, const SDLoc &DL, SelectionDAG &DAG) const;
-
-  SDValue LowerAddSubNew(SDValue Op, SelectionDAG &DAG) const;
-
-  SDValue LowerSHL(SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerSHR(bool Signed, SDValue Op, SelectionDAG &DAG) const;
-  SDValue LowerMUL(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBR_CC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSETCC(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSELECT_CC(SDValue Op, SelectionDAG &DAG) const;
@@ -244,8 +234,6 @@ public:
   SDValue LowerExternalSymbol(ExternalSymbolSDNode *Node,
                               SelectionDAG &DAG) const;
   SDValue LowerBlockAddress(BlockAddressSDNode *Node, SelectionDAG &DAG) const;
-  SDValue LowerLOAD(LoadSDNode *Node, SelectionDAG &DAG) const;
-  SDValue LowerSTORE(StoreSDNode *Node, SelectionDAG &DAG) const;
 
   CCAssignFn *getCCAssignFn(CallingConv::ID CallConv) const;
   CCAssignFn *getRetCCAssignFn(CallingConv::ID CallConv) const;
