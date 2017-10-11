@@ -1125,7 +1125,7 @@ SDValue DAGCombiner::PromoteOperand(SDValue Op, EVT PVT, bool &Replace) {
   }
   }
 
-  if (!TLI.isOperationLegal(ISD::ANY_EXTEND, PVT))
+  if (!TLI.isOperationLegalOrCustom(ISD::ANY_EXTEND, PVT))
     return SDValue();
   return DAG.getNode(ISD::ANY_EXTEND, DL, PVT, Op);
 }
@@ -1189,10 +1189,12 @@ SDValue DAGCombiner::PromoteIntBinOp(SDValue Op) {
     bool Replace0 = false;
     SDValue N0 = Op.getOperand(0);
     SDValue NN0 = PromoteOperand(N0, PVT, Replace0);
+    if (!NN0) return SDValue();
 
     bool Replace1 = false;
     SDValue N1 = Op.getOperand(1);
     SDValue NN1 = PromoteOperand(N1, PVT, Replace1);
+    if (!NN1) return SDValue();
     SDLoc DL(Op);
 
     SDValue RV =
