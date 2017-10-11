@@ -101,6 +101,8 @@ public:
   SDValue LowerAddSub(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerBitwise(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerShift(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerAnyExtend(SDValue Op, SelectionDAG &DAG) const;
+  SDValue LowerZeroExtend(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerSignExtend(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerMul(SDValue Op, SelectionDAG &DAG) const;
   SDValue LowerLoad(LoadSDNode *Node, SelectionDAG &DAG) const;

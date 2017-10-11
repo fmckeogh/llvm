@@ -882,6 +882,14 @@ def : Pat<(Z80tcret (texternalsym:$dst)), (TCRETURN24i texternalsym:$dst)>,
 //         N->getOpcode() != ISD::CopyFromReg;
 //}]>;
 
+//def def16 : PatLeaf<(i16 R16:$src), [{
+//  return N->getOpcode() == ISD::ADD ||
+//         N->getOpcode() == ISD::SUB ||
+//         N->getOpcode() == ISD::MUL;
+//}]>;
+//def : Pat<(i24 (zext def16:$src)),
+//          (SUBREG_TO_REG (i24 0), R16:$src, sub_short)>;
+
 // In the case of a 16-bit def that is known to implicitly zero-extend,
 // we can use a SUBREG_TO_REG.
 //def : Pat<(i24 (zext def16:$src)),
@@ -898,12 +906,12 @@ def : Pat<(Z80tcret (texternalsym:$dst)), (TCRETURN24i texternalsym:$dst)>,
                              (LD8ri (imm_top_XFORM imm:$src)), sub_top)>;*/
 
 // anyexts
-def : Pat<(i16 (anyext R8 :$src)),
-          (INSERT_SUBREG (IMPLICIT_DEF), R8 :$src, sub_low)>;
-def : Pat<(i24 (anyext R8 :$src)),
-          (INSERT_SUBREG (IMPLICIT_DEF), R8 :$src, sub_low)>;
-def : Pat<(i24 (anyext R16:$src)),
-          (INSERT_SUBREG (IMPLICIT_DEF), R16:$src, sub_short)>;
+//def : Pat<(i16 (anyext R8 :$src)),
+//          (INSERT_SUBREG (IMPLICIT_DEF), R8 :$src, sub_low)>;
+//def : Pat<(i24 (anyext R8 :$src)),
+//          (INSERT_SUBREG (IMPLICIT_DEF), R8 :$src, sub_low)>;
+//def : Pat<(i24 (anyext R16:$src)),
+//          (INSERT_SUBREG (IMPLICIT_DEF), R16:$src, sub_short)>;
 /*def : Pat<(i32 (anyext R8 :$src)),
           (INSERT_SUBREG (IMPLICIT_DEF), R8 :$src, sub_low)>;
 def : Pat<(i32 (anyext R16:$src)),
@@ -912,12 +920,12 @@ def : Pat<(i32 (anyext R24:$src)),
           (INSERT_SUBREG (IMPLICIT_DEF), R24:$src, sub_long)>;*/
 
 // zexts
-def : Pat<(i16 (zext R8 :$src)),
-          (REG_SEQUENCE R16, R8 :$src, sub_low, (LD8ri 0), sub_high)>;
-def : Pat<(i24 (zext R8 :$src)),
-          (INSERT_SUBREG (i24 0), R8 :$src, sub_low)>;
-def : Pat<(i24 (zext R16:$src)),
-          (INSERT_SUBREG (i24 0), R16:$src, sub_short)>;
+//def : Pat<(i16 (zext R8 :$src)),
+//          (REG_SEQUENCE R16, R8 :$src, sub_low, (i8 0), sub_high)>;
+//def : Pat<(i24 (zext R8 :$src)),
+//          (INSERT_SUBREG (i24 0), R8 :$src, sub_low)>;
+//def : Pat<(i24 (zext R16:$src)),
+//          (INSERT_SUBREG (i24 0), R16:$src, sub_short)>;
 /*def : Pat<(i32 (zext R8:$src)),
           (REG_SEQUENCE R32, (INSERT_SUBREG (i24 0), R8:$src,
                                             sub_low), sub_long,
