@@ -560,12 +560,13 @@ let Defs = [A, F], Uses = [A] in {
 }
 
 let Defs = [F] in
-multiclass UnOp8RF<Prefix prefix, bits<8> opcode, string mnemonic> {
+multiclass UnOp8RF<Prefix prefix, bits<8> opcode, string mnemonic,
+                   Z80RC8 rc8 = !if(!eq(prefix.Value, CBPre.Value), G8, R8)> {
   def 8r : I <prefix, opcode, mnemonic, "\t$arg", "$imp = $arg",
-              (outs R8:$imp), (ins R8:$arg),
-              [(set R8:$imp, F,
+              (outs rc8:$imp), (ins rc8:$arg),
+              [(set rc8:$imp, F,
                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
-                          R8:$arg))]>;
+                          rc8:$arg))]>;
   def 8p : I <prefix, opcode, mnemonic, "\t$arg", "", (outs), (ins ptr:$arg),
               [(store (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
                           (i8 (load iPTR:$arg))), iPTR:$arg),
@@ -576,12 +577,13 @@ multiclass UnOp8RF<Prefix prefix, bits<8> opcode, string mnemonic> {
                (implicit F)]>;
 }
 let Defs = [F], Uses = [F] in
-multiclass UnOp8RFF<Prefix prefix, bits<8> opcode, string mnemonic> {
+multiclass UnOp8RFF<Prefix prefix, bits<8> opcode, string mnemonic,
+                    Z80RC8 rc8 = !if(!eq(prefix.Value, CBPre.Value), G8, R8)> {
   def 8r : I <prefix, opcode, mnemonic, "\t$arg", "$imp = $arg",
-              (outs R8:$imp), (ins R8:$arg),
-              [(set R8:$imp, F,
+              (outs rc8:$imp), (ins rc8:$arg),
+              [(set rc8:$imp, F,
                       (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
-                          R8:$arg, F))]>;
+                          rc8:$arg, F))]>;
   def 8p : I <prefix, opcode, mnemonic, "\t$arg", "", (outs), (ins ptr:$arg),
               [(store (!cast<SDNode>(!strconcat("Z80", mnemonic, "_flag"))
                           (i8 (load iPTR:$arg)), F), iPTR:$arg),
