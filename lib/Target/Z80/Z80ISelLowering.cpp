@@ -107,6 +107,8 @@ Z80TargetLowering::Z80TargetLowering(const Z80TargetMachine &TM,
   setStackPointerRegisterToSaveRestore(Is24Bit ? Z80::SPL : Z80::SPS);
 
   setTargetDAGCombine(ISD::MUL);
+  setTargetDAGCombine(ISD::AND);
+  setTargetDAGCombine(ISD::ZERO_EXTEND);
   setTargetDAGCombine(ISD::TRUNCATE);
 
   // Compute derived properties from the register classes
@@ -507,6 +509,8 @@ SDValue Z80TargetLowering::LowerZeroExtend(SDValue Op,
   EVT VT = Op.getValueType();
   SDValue Val = Op.getOperand(0);
   EVT ValVT = Val.getValueType();
+  dbgs() << "Zero extending: ";
+  Val.dump();
   if (VT == MVT::i16) {
     assert(ValVT == MVT::i8 && "Unexpected zero extend");
     return EmitPair(DL, DAG.getConstant(0, DL, MVT::i8), Val, DAG);
@@ -1085,25 +1089,70 @@ static SDValue combineMul(SDNode *N, SelectionDAG &DAG,
   return SDValue();
 }
 
-static SDValue combineTruncate(SDNode *N, SelectionDAG &DAG) {
-  EVT VT = N->getValueType(0);
-  SDValue Src = N->getOperand(0);
+static SDValue implicitlyClearTop(SDValue &Op, SelectionDAG &DAG) {
+  SDLoc DL(Op);
+  unsigned NewOpc;
+  switch (Op.getOpcode()) {
+  default: return SDValue();
+  case ISD::ADD: NewOpc = Z80ISD::ADD; break;
+  case ISD::SUB: NewOpc = Z80ISD::SUB; break;
+  }
+  Op = DAG.getNode(NewOpc, DL, DAG.getVTList(MVT::i16, MVT::i8),
+                   DAG.getNode(ISD::TRUNCATE, DL, MVT::i16, Op.getOperand(0)),
+                   DAG.getNode(ISD::TRUNCATE, DL, MVT::i16, Op.getOperand(1)));
+  return SDValue(DAG.getMachineNode(TargetOpcode::SUBREG_TO_REG, DL, MVT::i24,
+                                    DAG.getTargetConstant(0, DL, MVT::i24), Op,
+                                    DAG.getTargetConstant(Z80::sub_short,
+                                                          DL, MVT::i32)), 0);
+}
+
+static SDValue combineAnd(SDNode *N, SelectionDAG &DAG) {
   SDLoc DL(N);
-  if (VT == MVT::i8 && Src.hasOneUse())
-    switch (Src.getOpcode()) {
+  EVT VT = N->getValueType(0);
+  SDValue Val = N->getOperand(0);
+  if (VT == MVT::i24 && Val.hasOneUse())
+    if (auto Const = dyn_cast<ConstantSDNode>(N->getOperand(1)))
+      if ((Const->getZExtValue() & 0xFF0000) == 0)
+        return implicitlyClearTop(Val, DAG);
+  return SDValue();
+}
+
+static SDValue combineZeroExtend(SDNode *N,
+                                 TargetLowering::DAGCombinerInfo &DCI) {
+  SelectionDAG &DAG = DCI.DAG;
+  SDLoc DL(N);
+  EVT VT = N->getValueType(0);
+  SDValue Val = N->getOperand(0);
+  EVT ValVT = Val.getValueType();
+  if (VT == MVT::i24 && ValVT == MVT::i16) {
+    if (SDValue Res = implicitlyClearTop(Val, DAG)) {
+      DCI.CombineTo(N->getOperand(0).getNode(), Val);
+      return Res;
+    }
+  }
+  return SDValue();
+}
+
+static SDValue combineTruncate(SDNode *N, SelectionDAG &DAG) {
+  SDLoc DL(N);
+  EVT VT = N->getValueType(0);
+  SDValue Val = N->getOperand(0);
+  EVT ValVT = Val.getValueType();
+  if (VT == MVT::i8 && Val.hasOneUse())
+    switch (Val.getOpcode()) {
     case ISD::SRL:
     case ISD::SRA:
-      if (auto SA = dyn_cast<ConstantSDNode>(Src.getOperand(1)))
-        if (Src.getValueType() == MVT::i24 && SA->getZExtValue() <= 8)
+      if (auto SA = dyn_cast<ConstantSDNode>(Val.getOperand(1)))
+        if (ValVT == MVT::i24 && SA->getZExtValue() <= 8)
           return DAG.getNode(ISD::TRUNCATE, DL, VT,
                              DAG.getNode(ISD::SRL, DL, MVT::i16,
                                          DAG.getNode(ISD::TRUNCATE, DL,
                                                      MVT::i16,
-                                                     Src.getOperand(0)),
-                                         Src.getOperand(1)));
+                                                     Val.getOperand(0)),
+                                         Val.getOperand(1)));
       break;
     case Z80ISD::SEXT:
-      return DAG.getNode(Z80ISD::SEXT, DL, VT, Src.getOperand(0));
+      return DAG.getNode(Z80ISD::SEXT, DL, VT, Val.getOperand(0));
     }
   return SDValue();
 }
@@ -1139,11 +1188,13 @@ SDValue Z80TargetLowering::PerformDAGCombine(SDNode *N,
       return combineExtractSubreg(N, DCI.DAG, Subtarget);
     }
   switch (N->getOpcode()) {
-  default:            return SDValue();
-  case ISD::MUL:      return combineMul(N, DCI.DAG, Subtarget);
-  case ISD::TRUNCATE: return combineTruncate(N, DCI.DAG);
-  case Z80ISD::SUB:   return combineSub(N, DCI);
-  case Z80ISD::SEXT:  return combineSExt(N, DCI.DAG, Subtarget);
+  default:               return SDValue();
+  case ISD::MUL:         return combineMul(N, DCI.DAG, Subtarget);
+  case ISD::AND:         return combineAnd(N, DCI.DAG);
+  case ISD::ZERO_EXTEND: return combineZeroExtend(N, DCI);
+  case ISD::TRUNCATE:    return combineTruncate(N, DCI.DAG);
+  case Z80ISD::SUB:      return combineSub(N, DCI);
+  case Z80ISD::SEXT:     return combineSExt(N, DCI.DAG, Subtarget);
   }
   switch (N->getOpcode()) {
 //case ISD::MUL:         return combineMul(N, DCI);
