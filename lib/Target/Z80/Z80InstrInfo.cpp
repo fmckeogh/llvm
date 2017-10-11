@@ -442,24 +442,7 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
     return;
   }
   // Specialized word copy.
-  // Special case DE/HL = HL/DE<kill> as EX DE,HL.
   bool Is24Bit = Z80::R24RegClass.contains(DstReg, SrcReg);
-  if (KillSrc && Is24Bit == Subtarget.is24Bit() &&
-      canExchange(DstReg, SrcReg)) {
-    MachineInstrBuilder MIB = BuildMI(MBB, MI, DL,
-                                      get(Is24Bit ? Z80::EX24DE : Z80::EX16DE));
-    MIB->findRegisterUseOperand(SrcReg)->setIsKill();
-    MIB->findRegisterDefOperand(SrcReg)->setIsDead();
-    MIB->findRegisterUseOperand(DstReg)->setIsUndef();
-    return;
-  }
-  // Special case copies from index registers when we have eZ80 ops.
-  bool IsSrcIndexReg = Z80::I16RegClass.contains(SrcReg) || Z80::I24RegClass.contains(SrcReg);
-  if (Subtarget.hasEZ80Ops() && IsSrcIndexReg) {
-    BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::LEA24ro : Z80::LEA16ro), DstReg)
-      .addReg(SrcReg, getKillRegState(KillSrc)).addImm(0);
-    return;
-  }
   // Copies to SP.
   if (DstReg == Z80::SPS || DstReg == Z80::SPL) {
     assert((Z80::A16RegClass.contains(SrcReg) || SrcReg == Z80::DE ||
@@ -496,22 +479,43 @@ void Z80InstrInfo::copyPhysReg(MachineBasicBlock &MBB,
         .addReg(SrcReg, RegState::ImplicitKill);
     return;
   }
-  // If both are 24-bit then the upper byte needs to be preserved.
-  // Otherwise copies of index registers may need to use this method if:
-  // - We are optimizing for size and exactly one reg is an index reg because
-  //     PUSH SrcReg \ POP DstReg is (2 + NumIndexRegs) bytes but slower
-  //     LD DstRegLo,SrcRegLo \ LD DstRegHi,SrcRegHi is 4 bytes but faster
-  // - We don't have undocumented half index copies
-  bool IsDstIndexReg = Z80::I16RegClass.contains(DstReg) || Z80::I24RegClass.contains(DstReg);
-  unsigned NumIndexRegs = IsSrcIndexReg + IsDstIndexReg;
-  bool OptSize = MBB.getParent()->getFunction()->getAttributes()
-    .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
-  if (Is24Bit || (NumIndexRegs == 1 && OptSize) ||
-      (NumIndexRegs && !Subtarget.hasIndexHalfRegs())) {
-    BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
-      .addReg(SrcReg, getKillRegState(KillSrc));
-    BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::POP24r : Z80::POP16r), DstReg);
-    return;
+  if (Is24Bit == Subtarget.is24Bit()) {
+    // Special case DE/HL = HL/DE<kill> as EX DE,HL.
+    if (KillSrc && canExchange(DstReg, SrcReg)) {
+      MachineInstrBuilder MIB = BuildMI(MBB, MI, DL,
+                                        get(Is24Bit ? Z80::EX24DE
+                                                    : Z80::EX16DE));
+      MIB->findRegisterUseOperand(SrcReg)->setIsKill();
+      MIB->findRegisterDefOperand(SrcReg)->setIsDead();
+      MIB->findRegisterUseOperand(DstReg)->setIsUndef();
+      return;
+    }
+    bool IsSrcIndexReg = Z80::I16RegClass.contains(SrcReg) ||
+                         Z80::I24RegClass.contains(SrcReg);
+    // Special case copies from index registers when we have eZ80 ops.
+    if (Subtarget.hasEZ80Ops() && IsSrcIndexReg) {
+      BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::LEA24ro : Z80::LEA16ro), DstReg)
+        .addReg(SrcReg, getKillRegState(KillSrc)).addImm(0);
+      return;
+    }
+    // If both are 24-bit then the upper byte needs to be preserved.
+    // Otherwise copies of index registers may need to use this method if:
+    // - We are optimizing for size and exactly one reg is an index reg because
+    //     PUSH SrcReg \ POP DstReg is (2 + NumIndexRegs) bytes but slower
+    //     LD DstRegLo,SrcRegLo \ LD DstRegHi,SrcRegHi is 4 bytes but faster
+    // - We don't have undocumented half index copies
+    bool IsDstIndexReg = Z80::I16RegClass.contains(DstReg) ||
+                         Z80::I24RegClass.contains(DstReg);
+    unsigned NumIndexRegs = IsSrcIndexReg + IsDstIndexReg;
+    bool OptSize = MBB.getParent()->getFunction()->getAttributes()
+      .hasAttribute(AttributeList::FunctionIndex, Attribute::OptimizeForSize);
+    if (Is24Bit || (NumIndexRegs == 1 && OptSize) ||
+        (NumIndexRegs && !Subtarget.hasIndexHalfRegs())) {
+      BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::PUSH24r : Z80::PUSH16r))
+        .addReg(SrcReg, getKillRegState(KillSrc));
+      BuildMI(MBB, MI, DL, get(Is24Bit ? Z80::POP24r : Z80::POP16r), DstReg);
+      return;
+    }
   }
   // Otherwise, implement as two copies. A 16-bit copy should copy high and low
   // 8 bits separately.
