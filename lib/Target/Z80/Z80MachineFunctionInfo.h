@@ -19,7 +19,7 @@
 namespace llvm {
 
 /// Z80MachineFunctionInfo - This class is derived from MachineFunction and
-/// contains private X86 target-specific information for each MachineFunction.
+/// contains private Z80 target-specific information for each MachineFunction.
 class Z80MachineFunctionInfo : public MachineFunctionInfo {
   virtual void anchor();
 

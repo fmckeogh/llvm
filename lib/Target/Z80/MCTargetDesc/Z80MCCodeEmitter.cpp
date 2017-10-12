@@ -1,4 +1,4 @@
-//===-- X86MCCodeEmitter.cpp - Convert X86 code to machine code -----------===//
+//===-- Z80MCCodeEmitter.cpp - Convert Z80 code to machine code -----------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
@@ -7,7 +7,7 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// This file implements the X86MCCodeEmitter class.
+// This file implements the Z80MCCodeEmitter class.
 //
 //===----------------------------------------------------------------------===//
 
