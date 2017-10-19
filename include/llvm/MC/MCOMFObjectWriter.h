@@ -20,7 +20,7 @@ class MCObjectWriter;
 ///
 /// \param OS - The stream to write to.
 /// \returns The constructed object writer.
-MCObjectWriter *createOMFObjectWriter(raw_pwrite_stream &OS);
+std::unique_ptr<MCObjectWriter> createOMFObjectWriter(raw_pwrite_stream &OS);
 
 } // end namespace llvm
 

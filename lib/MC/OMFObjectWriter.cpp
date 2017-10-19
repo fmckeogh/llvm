@@ -15,6 +15,7 @@
 
 using namespace llvm;
 
-MCObjectWriter *llvm::createOMFObjectWriter(raw_pwrite_stream &OS) {
+std::unique_ptr<MCObjectWriter>
+llvm::createOMFObjectWriter(raw_pwrite_stream &OS) {
   llvm_unreachable("Unimplemented!");
 }

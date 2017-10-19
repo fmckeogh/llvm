@@ -9,6 +9,7 @@
 
 #include "Z80MCTargetDesc.h"
 #include "llvm/MC/MCELFObjectWriter.h"
+#include "llvm/MC/MCObjectWriter.h"
 using namespace llvm;
 
 namespace {
@@ -36,8 +37,8 @@ Z80ELFObjectWriter::getRelocType(MCContext &Ctx, const MCValue &Target,
   llvm_unreachable("Unimplemented");
 }
 
-MCObjectWriter *llvm::createZ80ELFObjectWriter(raw_pwrite_stream &OS,
-                                               uint8_t OSABI) {
+std::unique_ptr<MCObjectWriter>
+llvm::createZ80ELFObjectWriter(raw_pwrite_stream &OS, uint8_t OSABI) {
   auto MOTW = llvm::make_unique<Z80ELFObjectWriter>(OSABI);
   return createELFObjectWriter(std::move(MOTW), OS, /*IsLittleEndian*/ true);
 }

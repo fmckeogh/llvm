@@ -15,6 +15,7 @@
 #define LLVM_LIB_TARGET_Z80_MCTARGETDESC_Z80MCTARGETDESC_H
 
 #include "llvm/Support/DataTypes.h"
+#include <memory>
 #include <string>
 
 namespace llvm {
@@ -55,11 +56,11 @@ MCAsmBackend *createEZ80AsmBackend(const Target &T, const MCRegisterInfo &MRI,
                                    const MCTargetOptions &Options);
 
 /// Construct a Z80 OMF object writer.
-MCObjectWriter *createZ80OMFObjectWriter(raw_pwrite_stream &OS);
+std::unique_ptr<MCObjectWriter> createZ80OMFObjectWriter(raw_pwrite_stream &OS);
 
 /// Construct a Z80 ELF object writer.
-MCObjectWriter *createZ80ELFObjectWriter(raw_pwrite_stream &OS,
-                                         uint8_t OSABI = 0);
+std::unique_ptr<MCObjectWriter> createZ80ELFObjectWriter(raw_pwrite_stream &OS,
+                                                         uint8_t OSABI = 0);
 
 } // End llvm namespace
 

@@ -12,6 +12,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "llvm/MC/MCOMFStreamer.h"
+#include "llvm/MC/MCAsmBackend.h"
+#include "llvm/MC/MCCodeEmitter.h"
 #include "llvm/Support/TargetRegistry.h"
 
 using namespace llvm;
@@ -36,7 +38,10 @@ void MCOMFStreamer::EmitInstToData(const MCInst &Inst,
   llvm_unreachable("Unimplemented!");
 }
 
-MCStreamer *llvm::createOMFStreamer(MCContext &Context, MCAsmBackend &MAB,
-                                    raw_pwrite_stream &OS, MCCodeEmitter *CE) {
-  return new MCOMFStreamer(Context, MAB, OS, CE);
+MCStreamer *llvm::createOMFStreamer(MCContext &Context,
+                                    std::unique_ptr<MCAsmBackend> &&MAB,
+                                    raw_pwrite_stream &OS,
+                                    std::unique_ptr<MCCodeEmitter> &&CE,
+                                    bool RelaxAll) {
+  return new MCOMFStreamer(Context, std::move(MAB), OS, std::move(CE));
 }

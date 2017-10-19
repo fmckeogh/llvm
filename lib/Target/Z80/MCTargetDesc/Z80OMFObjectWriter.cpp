@@ -8,11 +8,13 @@
 //===----------------------------------------------------------------------===//
 
 #include "Z80MCTargetDesc.h"
+#include "llvm/MC/MCObjectWriter.h"
 #include "llvm/MC/MCOMFObjectWriter.h"
 #include "llvm/ADT/StringRef.h"
 
 using namespace llvm;
 
-MCObjectWriter *llvm::createZ80OMFObjectWriter(raw_pwrite_stream &OS) {
+std::unique_ptr<MCObjectWriter>
+llvm::createZ80OMFObjectWriter(raw_pwrite_stream &OS) {
   return createOMFObjectWriter(OS);
 }

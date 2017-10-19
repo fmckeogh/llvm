@@ -77,7 +77,8 @@ class OMFZ80AsmBackend : public Z80AsmBackend {
 public:
   OMFZ80AsmBackend(const Target &T) : Z80AsmBackend(T) {}
 
-  MCObjectWriter *createObjectWriter(raw_pwrite_stream &OS) const override {
+  std::unique_ptr<MCObjectWriter>
+  createObjectWriter(raw_pwrite_stream &OS) const override {
     return createZ80OMFObjectWriter(OS);
   }
 };

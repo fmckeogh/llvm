@@ -19,7 +19,6 @@ using namespace llvm;
 namespace {
 
 class Z80AsmParser : public MCTargetAsmParser {
-  const MCInstrInfo &MII;
   ParseInstructionInfo *InstInfo;
 
   bool MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
@@ -38,7 +37,7 @@ class Z80AsmParser : public MCTargetAsmParser {
 public:
   Z80AsmParser(const MCSubtargetInfo &sti, MCAsmParser &Parser,
                const MCInstrInfo &mii, const MCTargetOptions &Options)
-      : MCTargetAsmParser(Options, sti), MII(mii), InstInfo(nullptr) {}
+      : MCTargetAsmParser(Options, sti, mii), InstInfo(nullptr) {}
 
   bool ParseRegister(unsigned &RegNo, SMLoc &StartLoc, SMLoc &EndLoc) override;
 
